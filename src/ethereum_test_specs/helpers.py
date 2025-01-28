@@ -1,5 +1,6 @@
 """Helper functions."""
 
+import re
 from dataclasses import dataclass
 from typing import Any, Dict, List
 
@@ -138,7 +139,11 @@ def verify_transaction_exception(
         t8n_error_exception = exception_mapper.message_to_exception(info.t8n_error_message)
         exception_mapper_name = exception_mapper.__class__.__name__
 
-        if expected_error_msg is None or expected_error_msg not in info.t8n_error_message:
+        if (
+            expected_error_msg is None
+            or (expected_error_msg not in info.t8n_error_message
+            and not re.compile(expected_error_msg).match(info.t8n_error_message))
+        ):
             raise TransactionExceptionMismatchError(
                 index=info.transaction_index,
                 nonce=info.tx.nonce,

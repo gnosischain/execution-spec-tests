@@ -375,7 +375,7 @@ class BlockchainTest(BaseTest):
         env = block.set_environment(previous_env)
         env = env.set_fork_requirements(fork)
 
-        txs = [tx.with_signature_and_sender() for tx in block.txs]
+        txs = [tx.with_signature_and_sender(keep_secret_key=True) for tx in block.txs]
 
         if failing_tx_count := len([tx for tx in txs if tx.error]) > 0:
             if failing_tx_count > 1:

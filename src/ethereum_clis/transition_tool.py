@@ -38,6 +38,7 @@ class TransitionTool(EthereumCLI, FixtureVerifier):
     implementations.
     """
 
+    is_gnosis_supported = False
     traces: List[List[List[Dict]]] | None = None
 
     registered_tools: List[Type["TransitionTool"]] = []

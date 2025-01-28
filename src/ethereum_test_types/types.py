@@ -2,7 +2,7 @@
 
 from abc import abstractmethod
 from collections import defaultdict
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from functools import cached_property
 from typing import Any, ClassVar, Dict, Generic, List, Literal, Sequence, SupportsBytes, Tuple
 
@@ -710,6 +710,7 @@ class Transaction(TransactionGeneric[HexNumber], TransactionTransitionToolConver
     blob_kzg_proofs: Sequence[Bytes] | None = Field(None, exclude=True)
 
     model_config = ConfigDict(validate_assignment=True)
+    from_: Address = Field(Address(0xAA), alias="from")
 
     class InvalidFeePaymentError(Exception):
         """Transaction described more than one fee payment type."""
