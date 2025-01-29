@@ -253,6 +253,7 @@ isort
 isort's
 ispkg
 itemName
+intermidiate
 javascripts
 jimporter
 joinpath
@@ -448,6 +449,8 @@ trie
 triggerable
 tstorage
 tx
+tx1
+tx2
 txs
 txt
 ty
@@ -470,6 +473,9 @@ v3
 v4
 validator
 validators
+ValidAtTransitionTo
+ValidFrom
+ValidUntil
 venv
 visualstudio
 vm
@@ -824,3 +830,4 @@ EB
 EF
 F6
 FC
+ef01

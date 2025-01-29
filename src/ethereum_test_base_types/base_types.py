@@ -242,12 +242,24 @@ class FixedSizeBytes(Bytes):
         Sized._sized_ = Sized
         return Sized
 
-    def __new__(cls, input_bytes: FixedSizeBytesConvertible | T):
+    def __new__(
+        cls,
+        input_bytes: FixedSizeBytesConvertible | T,
+        *,
+        left_padding: bool = False,
+        right_padding: bool = False,
+    ):
         """Create a new FixedSizeBytes object."""
         if type(input_bytes) is cls:
             return input_bytes
         return super(FixedSizeBytes, cls).__new__(
-            cls, to_fixed_size_bytes(input_bytes, cls.byte_length)
+            cls,
+            to_fixed_size_bytes(
+                input_bytes,
+                cls.byte_length,
+                left_padding=left_padding,
+                right_padding=right_padding,
+            ),
         )
 
     def __hash__(self) -> int:
@@ -286,10 +298,14 @@ class Address(FixedSizeBytes[20]):  # type: ignore
     label: str | None = None
 
     def __new__(
-        cls, input_bytes: "FixedSizeBytesConvertible | Address", *, label: str | None = None
+        cls,
+        input_bytes: "FixedSizeBytesConvertible | Address",
+        *args,
+        label: str | None = None,
+        **kwargs,
     ):
         """Create a new Address object with an optional label."""
-        instance = super(Address, cls).__new__(cls, input_bytes)
+        instance = super(Address, cls).__new__(cls, input_bytes, *args, **kwargs)
         if isinstance(input_bytes, Address) and label is None:
             instance.label = input_bytes.label
         else:

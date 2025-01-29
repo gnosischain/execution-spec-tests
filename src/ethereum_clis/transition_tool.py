@@ -8,7 +8,7 @@ import tempfile
 import textwrap
 import time
 from abc import abstractmethod
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Mapping, Optional, Type
 from urllib.parse import urlencode
@@ -17,6 +17,7 @@ from requests import Response
 from requests.exceptions import ConnectionError as RequestsConnectionError
 from requests_unixsocket import Session  # type: ignore
 
+from ethereum_test_base_types import BlobSchedule
 from ethereum_test_exceptions import ExceptionMapper
 from ethereum_test_fixtures import FixtureFormat, FixtureVerifier
 from ethereum_test_forks import Fork
@@ -24,7 +25,13 @@ from ethereum_test_types import Alloc, Environment, Transaction
 
 from .ethereum_cli import EthereumCLI
 from .file_utils import dump_files_to_directory, write_json_file
-from .types import TransactionReceipt, TransitionToolInput, TransitionToolOutput
+from .types import (
+    TransactionReceipt,
+    TransitionToolContext,
+    TransitionToolInput,
+    TransitionToolOutput,
+    TransitionToolRequest,
+)
 
 model_dump_config: Mapping = {"by_alias": True, "exclude_none": True}
 
@@ -66,6 +73,7 @@ class TransitionTool(EthereumCLI, FixtureVerifier):
         self.exception_mapper = exception_mapper
         super().__init__(binary=binary)
         self.trace = trace
+        self._info_metadata: Optional[Dict[str, Any]] = {}
 
     def __init_subclass__(cls):
         """Register all subclasses of TransitionTool as possible tools."""
@@ -131,9 +139,10 @@ class TransitionTool(EthereumCLI, FixtureVerifier):
         txs: List[Transaction]
         env: Environment
         fork_name: str
-        chain_id: int = field(default=1)
-        reward: int = field(default=0)
-        state_test: bool = field(default=False)
+        chain_id: int
+        reward: int
+        blob_schedule: BlobSchedule | None
+        state_test: bool
 
         def to_input(self) -> TransitionToolInput:
             """Convert the data to a TransactionToolInput object."""
@@ -141,6 +150,18 @@ class TransitionTool(EthereumCLI, FixtureVerifier):
                 alloc=self.alloc,
                 txs=self.txs,
                 env=self.env,
+            )
+
+        def get_request_data(self) -> TransitionToolRequest:
+            """Convert the data to a TransitionToolRequest object."""
+            return TransitionToolRequest(
+                state=TransitionToolContext(
+                    fork=self.fork_name,
+                    chain_id=self.chain_id,
+                    reward=self.reward,
+                    blob_schedule=self.blob_schedule,
+                ),
+                input=self.to_input(),
             )
 
     def _evaluate_filesystem(
@@ -299,39 +320,36 @@ class TransitionTool(EthereumCLI, FixtureVerifier):
         timeout: int,
     ) -> TransitionToolOutput:
         """Execute the transition tool sending inputs and outputs via a server."""
-        input_contents = t8n_data.to_input()
-        input_json = input_contents.model_dump(mode="json", **model_dump_config)
-        post_data = {
-            "state": {
-                "fork": t8n_data.fork_name,
-                "chainid": t8n_data.chain_id,
-                "reward": t8n_data.reward,
-            },
-            "input": input_json,
-        }
+        request_data = t8n_data.get_request_data()
+        request_data_json = request_data.model_dump(mode="json", **model_dump_config)
 
         if debug_output_path:
             request_info = (
                 f"Server URL: {self.server_url}\n\n"
-                f"Request Data:\n{json.dumps(post_data, indent=2)}\n"
+                f"Request Data:\n{json.dumps(request_data_json, indent=2)}\n"
             )
             dump_files_to_directory(
                 debug_output_path,
                 {
-                    "input/alloc.json": input_contents.alloc,
-                    "input/env.json": input_contents.env,
+                    "input/alloc.json": request_data.input.alloc,
+                    "input/env.json": request_data.input.env,
                     "input/txs.json": [
                         tx.model_dump(mode="json", **model_dump_config)
-                        for tx in input_contents.txs
+                        for tx in request_data.input.txs
                     ],
                     "request_info.txt": request_info,
                 },
             )
 
         response = self._server_post(
-            data=post_data, url_args=self._generate_post_args(t8n_data), timeout=timeout
+            data=request_data_json, url_args=self._generate_post_args(t8n_data), timeout=timeout
         )
-        output: TransitionToolOutput = TransitionToolOutput.model_validate(response.json())
+        response_json = response.json()
+
+        # pop optional test ``_info`` metadata from response, if present
+        self._info_metadata = response_json.pop("_info_metadata", {})
+
+        output: TransitionToolOutput = TransitionToolOutput.model_validate(response_json)
 
         if debug_output_path:
             response_info = (
@@ -466,8 +484,9 @@ class TransitionTool(EthereumCLI, FixtureVerifier):
         txs: List[Transaction],
         env: Environment,
         fork: Fork,
-        chain_id: int = 1,
-        reward: int = 0,
+        chain_id: int,
+        reward: int,
+        blob_schedule: BlobSchedule | None,
         eips: Optional[List[int]] = None,
         debug_output_path: str = "",
         state_test: bool = False,
@@ -494,6 +513,7 @@ class TransitionTool(EthereumCLI, FixtureVerifier):
             fork_name=fork_name,
             chain_id=chain_id,
             reward=reward,
+            blob_schedule=blob_schedule,
             state_test=state_test,
         )
 

@@ -149,6 +149,7 @@ class EvmoneExceptionMapper(ExceptionMapper):
                 EOFException.UNREACHABLE_CODE_SECTIONS, "err: unreachable_code_sections"
             ),
             ExceptionMessage(EOFException.STACK_UNDERFLOW, "err: stack_underflow"),
+            ExceptionMessage(EOFException.STACK_OVERFLOW, "err: stack_overflow"),
             ExceptionMessage(
                 EOFException.MAX_STACK_HEIGHT_ABOVE_LIMIT, "err: max_stack_height_above_limit"
             ),
@@ -182,5 +183,8 @@ class EvmoneExceptionMapper(ExceptionMapper):
             ExceptionMessage(EOFException.TOO_MANY_CONTAINERS, "err: too_many_container_sections"),
             ExceptionMessage(
                 EOFException.INVALID_CODE_SECTION_INDEX, "err: invalid_code_section_index"
+            ),
+            ExceptionMessage(
+                EOFException.CALLF_TO_NON_RETURNING, "err: callf_to_non_returning_function"
             ),
         ]

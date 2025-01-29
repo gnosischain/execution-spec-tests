@@ -689,6 +689,10 @@ class EOFException(ExceptionBase):
     """
     EOF container's code produces an stack underflow.
     """
+    STACK_OVERFLOW = auto()
+    """
+    EOF container's code produces an stack overflow.
+    """
     STACK_HEIGHT_MISMATCH = auto()
     """
     EOF container section stack height mismatch.
@@ -749,6 +753,10 @@ class EOFException(ExceptionBase):
     UNEXPECTED_HEADER_KIND = auto()
     """
     Header parsing encounterd a section kind it wasn't expecting
+    """
+    CALLF_TO_NON_RETURNING = auto()
+    """
+    CALLF instruction targeting a non-returning code section
     """
 
 
