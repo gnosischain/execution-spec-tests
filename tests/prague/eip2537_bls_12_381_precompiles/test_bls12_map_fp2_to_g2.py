@@ -63,6 +63,7 @@ def test_valid(
     pre: Alloc,
     post: dict,
     tx: Transaction,
+    chain_id: int,
 ):
     """Test the BLS12_MAP_FP2_TO_G2 precompile."""
     state_test(
@@ -70,6 +71,7 @@ def test_valid(
         pre=pre,
         tx=tx,
         post=post,
+        chain_id=chain_id,
     )
 
 
@@ -94,6 +96,7 @@ def test_invalid(
     pre: Alloc,
     post: dict,
     tx: Transaction,
+    chain_id: int,
 ):
     """Negative tests for the BLS12_MAP_FP_TO_G2 precompile."""
     state_test(
@@ -101,6 +104,7 @@ def test_invalid(
         pre=pre,
         tx=tx,
         post=post,
+        chain_id=chain_id,
     )
 
 
@@ -126,6 +130,7 @@ def test_gas(
     pre: Alloc,
     post: dict,
     tx: Transaction,
+    chain_id: int,
 ):
     """Test the BLS12_MAP_FP_TO_G2 precompile gas requirements."""
     state_test(
@@ -133,6 +138,7 @@ def test_gas(
         pre=pre,
         tx=tx,
         post=post,
+        chain_id=chain_id,
     )
 
 
@@ -159,6 +165,7 @@ def test_call_types(
     pre: Alloc,
     post: dict,
     tx: Transaction,
+    chain_id: int,
 ):
     """Test the BLS12_MAP_FP_TO_G2 precompile using different call types."""
     state_test(
@@ -166,4 +173,5 @@ def test_call_types(
         pre=pre,
         tx=tx,
         post=post,
+        chain_id=chain_id,
     )

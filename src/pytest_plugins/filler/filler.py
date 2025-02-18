@@ -191,6 +191,14 @@ def pytest_addoption(parser: pytest.Parser):
         default=False,
         help=("Skip dumping the the transition tool debug output."),
     )
+    debug_group.addoption(
+        "--gnosis",
+        "--gnosis",
+        action="store_true",
+        dest="gnosis",
+        default=False,
+        help=("generate gnosis tests."),
+    )
 
 
 @pytest.hookimpl(tryfirst=True)
@@ -791,3 +799,10 @@ def pytest_sessionfinish(session: pytest.Session, exitstatus: int):
                 if file.suffix in {".json", ".ini"}:
                     arcname = Path("fixtures") / file.relative_to(source_dir)
                     tar.add(file, arcname=arcname)
+
+@pytest.fixture(scope="session")
+def chain_id(pytestconfig):
+    """Fixture to provide chain ID from command line or use default."""
+    if pytestconfig.getoption("gnosis"):
+        return 100
+    return 1

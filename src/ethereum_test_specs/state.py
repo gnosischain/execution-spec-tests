@@ -106,6 +106,7 @@ class StateTest(BaseTest):
             post=self.post,
             blocks=self._generate_blockchain_blocks(),
             t8n_dump_dir=self.t8n_dump_dir,
+            chain_id=self.chain_id,
         )
 
     def make_state_test_fixture(

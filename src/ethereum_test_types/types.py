@@ -2,7 +2,7 @@
 
 from abc import abstractmethod
 from collections import defaultdict
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from functools import cached_property
 from typing import Any, ClassVar, Dict, Generic, List, Literal, Sequence, SupportsBytes, Tuple
 
@@ -694,7 +694,7 @@ class Transaction(TransactionGeneric[HexNumber], TransactionTransitionToolConver
     blob_kzg_proofs: Sequence[Bytes] | None = Field(None, exclude=True)
 
     model_config = ConfigDict(validate_assignment=True)
-    from_: Address = Field(Address(0xAA), alias="from")
+    from_address: Address = Field(Address(0xAA), alias="from")
 
     class InvalidFeePaymentError(Exception):
         """Transaction described more than one fee payment type."""
@@ -799,7 +799,7 @@ class Transaction(TransactionGeneric[HexNumber], TransactionTransitionToolConver
             public_key = PublicKey.from_signature_and_message(
                 self.signature_bytes, self.signing_bytes.keccak256(), hasher=None
             )
-            updated_values["sender"] = Address(
+            updated_values["from_address"] = updated_values["sender"] = Address(
                 keccak256(public_key.format(compressed=False)[1:])[32 - 20 :]
             )
             return self.copy(**updated_values)
@@ -819,7 +819,7 @@ class Transaction(TransactionGeneric[HexNumber], TransactionTransitionToolConver
         )
 
         sender = keccak256(public_key.format(compressed=False)[1:])[32 - 20 :]
-        updated_values["sender"] = Address(sender)
+        updated_values["from_address"] = updated_values["sender"] = Address(sender)
 
         v, r, s = (
             signature_bytes[64],

@@ -74,11 +74,6 @@ class NethermindTransitionTool(TransitionTool):
             raise Exception(f"Unexpected exception calling evm tool: {e}.") from e
         return result.stdout
 
-    def _get_t8n_data(self, t8n_data):
-        for tx in t8n_data.txs:
-            tx.from_ = tx.sender
-        return t8n_data
-
     def is_verifiable(
         self,
         fixture_format: FixtureFormat,
