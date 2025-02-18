@@ -74,6 +74,7 @@ def test_self_sponsored_set_code(
     suffix: Bytecode,
     succeeds: bool,
     tx_value: int,
+    chain_id: int,
 ):
     """
     Test the executing a self-sponsored set-code transaction.
@@ -108,9 +109,11 @@ def test_self_sponsored_set_code(
                 address=set_code_to_address,
                 nonce=1,
                 signer=sender,
+                chain_id=chain_id,
             ),
         ],
         sender=sender,
+        chain_id=chain_id,
     )
 
     state_test(
@@ -125,6 +128,7 @@ def test_self_sponsored_set_code(
                 storage=storage if succeeds else {},
             ),
         },
+        chain_id=chain_id,
     )
 
 
@@ -158,6 +162,7 @@ def test_set_code_to_sstore(
     tx_value: int,
     eoa_balance: int,
     self_sponsored: bool,
+    chain_id: int,
 ):
     """Test the executing a simple SSTORE in a set-code transaction."""
     storage = Storage()
@@ -187,9 +192,11 @@ def test_set_code_to_sstore(
                 address=set_code_to_address,
                 nonce=1 if self_sponsored else 0,
                 signer=auth_signer,
+                chain_id=chain_id,
             ),
         ],
         sender=sender,
+        chain_id=chain_id,
     )
 
     state_test(
@@ -206,6 +213,7 @@ def test_set_code_to_sstore(
                 storage=storage if succeeds else {},
             ),
         },
+        chain_id=chain_id,
     )
 
 
@@ -224,6 +232,7 @@ def test_set_code_to_non_empty_storage(
     state_test: StateTestFiller,
     pre: Alloc,
     auth_signer_nonce: int,
+    chain_id: int,
 ):
     """Test the setting the code to an account that has non-empty storage."""
     auth_signer = pre.fund_eoa(
@@ -247,9 +256,11 @@ def test_set_code_to_non_empty_storage(
                 address=set_code_to_address,
                 nonce=auth_signer.nonce,
                 signer=auth_signer,
+                chain_id=chain_id,
             ),
         ],
         sender=sender,
+        chain_id=chain_id,
     )
 
     state_test(
@@ -264,12 +275,14 @@ def test_set_code_to_non_empty_storage(
                 storage={0: 2},
             ),
         },
+        chain_id=chain_id,
     )
 
 
 def test_set_code_to_sstore_then_sload(
     blockchain_test: BlockchainTestFiller,
     pre: Alloc,
+    chain_id: int,
 ):
     """Test the executing a simple SSTORE then SLOAD in two separate set-code transactions."""
     auth_signer = pre.fund_eoa(auth_account_start_balance)
@@ -294,9 +307,11 @@ def test_set_code_to_sstore_then_sload(
                 address=set_code_1_address,
                 nonce=0,
                 signer=auth_signer,
+                chain_id=chain_id,
             ),
         ],
         sender=sender,
+        chain_id=chain_id,
     )
 
     tx_2 = Transaction(
@@ -308,9 +323,11 @@ def test_set_code_to_sstore_then_sload(
                 address=set_code_2_address,
                 nonce=1,
                 signer=auth_signer,
+                chain_id=chain_id,
             ),
         ],
         sender=sender,
+        chain_id=chain_id,
     )
 
     block = Block(
@@ -330,6 +347,7 @@ def test_set_code_to_sstore_then_sload(
             ),
         },
         blocks=[block],
+        chain_id=chain_id,
     )
 
 
@@ -347,6 +365,7 @@ def test_set_code_to_tstore_reentry(
     call_opcode: Op,
     return_opcode: Op,
     evm_code_type: EVMCodeType,
+    chain_id: int,
 ):
     """
     Test the executing a simple TSTORE in a set-code transaction, which also performs a
@@ -375,9 +394,11 @@ def test_set_code_to_tstore_reentry(
                 address=set_code_to_address,
                 nonce=0,
                 signer=auth_signer,
+                chain_id=chain_id,
             ),
         ],
         sender=pre.fund_eoa(),
+        chain_id=chain_id,
     )
 
     state_test(
@@ -391,6 +412,7 @@ def test_set_code_to_tstore_reentry(
                 storage={2: tload_value},
             ),
         },
+        chain_id=chain_id,
     )
 
 
@@ -404,6 +426,7 @@ def test_set_code_to_tstore_available_at_correct_address(
     pre: Alloc,
     call_opcode: Op,
     call_eoa_first: bool,
+    chain_id: int,
 ):
     """
     Test TLOADing from slot 2 and then SSTORE this in slot 1, then TSTORE 3 in slot 2.
@@ -441,9 +464,11 @@ def test_set_code_to_tstore_available_at_correct_address(
                 address=set_code_to_address,
                 nonce=0,
                 signer=auth_signer,
+                chain_id=chain_id,
             ),
         ],
         sender=pre.fund_eoa(),
+        chain_id=chain_id,
     )
 
     state_test(
@@ -458,6 +483,7 @@ def test_set_code_to_tstore_available_at_correct_address(
                 storage={storage_slot: 0},
             ),
         },
+        chain_id=chain_id,
     )
 
 
@@ -474,6 +500,7 @@ def test_set_code_to_self_destruct(
     pre: Alloc,
     external_sendall_recipient: bool,
     balance: int,
+    chain_id: int,
 ):
     """Test the executing self-destruct opcode in a set-code transaction."""
     auth_signer = pre.fund_eoa(balance)
@@ -493,9 +520,11 @@ def test_set_code_to_self_destruct(
                 address=set_code_to_address,
                 nonce=0,
                 signer=auth_signer,
+                chain_id=chain_id,
             ),
         ],
         sender=pre.fund_eoa(),
+        chain_id=chain_id,
     )
 
     post = {
@@ -515,6 +544,7 @@ def test_set_code_to_self_destruct(
         pre=pre,
         tx=tx,
         post=post,
+        chain_id=chain_id,
     )
 
 
@@ -524,6 +554,7 @@ def test_set_code_to_contract_creator(
     pre: Alloc,
     create_opcode: Op,
     evm_code_type: EVMCodeType,
+    chain_id: int,
 ):
     """Test the executing a contract-creating opcode in a set-code transaction."""
     storage = Storage()
@@ -582,9 +613,11 @@ def test_set_code_to_contract_creator(
                 address=creator_code_address,
                 nonce=0,
                 signer=auth_signer,
+                chain_id=chain_id,
             ),
         ],
         sender=pre.fund_eoa(),
+        chain_id=chain_id,
     )
 
     state_test(
@@ -603,6 +636,7 @@ def test_set_code_to_contract_creator(
                 storage={},
             ),
         },
+        chain_id=chain_id,
     )
 
 
@@ -617,6 +651,7 @@ def test_set_code_to_self_caller(
     call_opcode: Op,
     value: int,
     evm_code_type: EVMCodeType,
+    chain_id: int,
 ):
     """Test the executing a self-call in a set-code transaction."""
     storage = Storage()
@@ -648,9 +683,11 @@ def test_set_code_to_self_caller(
                 address=set_code_to_address,
                 nonce=0,
                 signer=auth_signer,
+                chain_id=chain_id,
             ),
         ],
         sender=pre.fund_eoa(),
+        chain_id=chain_id,
     )
 
     state_test(
@@ -666,6 +703,7 @@ def test_set_code_to_self_caller(
                 balance=auth_account_start_balance + value,
             ),
         },
+        chain_id=chain_id,
     )
 
 
@@ -673,6 +711,7 @@ def test_set_code_to_self_caller(
 def test_set_code_max_depth_call_stack(
     state_test: StateTestFiller,
     pre: Alloc,
+    chain_id: int,
 ):
     """Test re-entry to delegated account until the max call stack depth is reached."""
     storage = Storage()
@@ -694,9 +733,11 @@ def test_set_code_max_depth_call_stack(
                 address=set_code_to_address,
                 nonce=0,
                 signer=auth_signer,
+                chain_id=chain_id,
             ),
         ],
         sender=pre.fund_eoa(),
+        chain_id=chain_id,
     )
 
     state_test(
@@ -712,6 +753,7 @@ def test_set_code_max_depth_call_stack(
                 balance=auth_account_start_balance,
             ),
         },
+        chain_id=chain_id,
     )
 
 
@@ -725,6 +767,7 @@ def test_set_code_call_set_code(
     pre: Alloc,
     call_opcode: Op,
     value: int,
+    chain_id: int,
 ):
     """Test the calling a set-code account from another set-code account."""
     auth_signer_1 = pre.fund_eoa(auth_account_start_balance)
@@ -760,14 +803,17 @@ def test_set_code_call_set_code(
                 address=set_code_to_address_1,
                 nonce=0,
                 signer=auth_signer_1,
+                chain_id=chain_id,
             ),
             AuthorizationTuple(
                 address=set_code_to_address_2,
                 nonce=0,
                 signer=auth_signer_2,
+                chain_id=chain_id,
             ),
         ],
         sender=pre.fund_eoa(),
+        chain_id=chain_id,
     )
 
     state_test(
@@ -796,12 +842,14 @@ def test_set_code_call_set_code(
                 + auth_account_start_balance,
             ),
         },
+        chain_id=chain_id,
     )
 
 
 def test_address_from_set_code(
     state_test: StateTestFiller,
     pre: Alloc,
+    chain_id: int,
 ):
     """Test the address opcode in a set-code transaction."""
     storage = Storage()
@@ -819,9 +867,11 @@ def test_address_from_set_code(
                 address=set_code_to_address,
                 nonce=0,
                 signer=auth_signer,
+                chain_id=chain_id,
             ),
         ],
         sender=pre.fund_eoa(),
+        chain_id=chain_id,
     )
 
     state_test(
@@ -836,12 +886,14 @@ def test_address_from_set_code(
                 storage=storage,
             ),
         },
+        chain_id=chain_id,
     )
 
 
 def test_tx_into_self_delegating_set_code(
     state_test: StateTestFiller,
     pre: Alloc,
+    chain_id: int,
 ):
     """Test a transaction that has entry-point into a set-code account that delegates to itself."""
     auth_signer = pre.fund_eoa(auth_account_start_balance)
@@ -855,9 +907,11 @@ def test_tx_into_self_delegating_set_code(
                 address=auth_signer,
                 nonce=0,
                 signer=auth_signer,
+                chain_id=chain_id,
             ),
         ],
         sender=pre.fund_eoa(),
+        chain_id=chain_id,
     )
 
     state_test(
@@ -870,12 +924,14 @@ def test_tx_into_self_delegating_set_code(
                 code=Spec.delegation_designation(auth_signer),
             ),
         },
+        chain_id=chain_id,
     )
 
 
 def test_tx_into_chain_delegating_set_code(
     state_test: StateTestFiller,
     pre: Alloc,
+    chain_id: int,
 ):
     """
     Test a transaction that has entry-point into a set-code account that delegates to another
@@ -893,14 +949,17 @@ def test_tx_into_chain_delegating_set_code(
                 address=auth_signer_2,
                 nonce=0,
                 signer=auth_signer_1,
+                chain_id=chain_id,
             ),
             AuthorizationTuple(
                 address=auth_signer_1,
                 nonce=0,
                 signer=auth_signer_2,
+                chain_id=chain_id,
             ),
         ],
         sender=pre.fund_eoa(),
+        chain_id=chain_id,
     )
 
     state_test(
@@ -911,6 +970,7 @@ def test_tx_into_chain_delegating_set_code(
             auth_signer_1: Account(nonce=1, code=Spec.delegation_designation(auth_signer_2)),
             auth_signer_2: Account(nonce=1, code=Spec.delegation_designation(auth_signer_1)),
         },
+        chain_id=chain_id,
     )
 
 
@@ -919,6 +979,7 @@ def test_call_into_self_delegating_set_code(
     state_test: StateTestFiller,
     pre: Alloc,
     call_opcode: Op,
+    chain_id: int,
 ):
     """Test call into a set-code account that delegates to itself."""
     auth_signer = pre.fund_eoa(auth_account_start_balance)
@@ -948,9 +1009,11 @@ def test_call_into_self_delegating_set_code(
                 address=auth_signer,
                 nonce=0,
                 signer=auth_signer,
+                chain_id=chain_id,
             ),
         ],
         sender=pre.fund_eoa(),
+        chain_id=chain_id,
     )
 
     state_test(
@@ -961,6 +1024,7 @@ def test_call_into_self_delegating_set_code(
             entry_address: Account(storage=storage),
             auth_signer: Account(nonce=1, code=Spec.delegation_designation(auth_signer)),
         },
+        chain_id=chain_id,
     )
 
 
@@ -969,6 +1033,7 @@ def test_call_into_chain_delegating_set_code(
     state_test: StateTestFiller,
     pre: Alloc,
     call_opcode: Op,
+    chain_id: int,
 ):
     """Test call into a set-code account that delegates to another set-code account."""
     auth_signer_1 = pre.fund_eoa(auth_account_start_balance)
@@ -999,14 +1064,17 @@ def test_call_into_chain_delegating_set_code(
                 address=auth_signer_2,
                 nonce=0,
                 signer=auth_signer_1,
+                chain_id=chain_id,
             ),
             AuthorizationTuple(
                 address=auth_signer_1,
                 nonce=0,
                 signer=auth_signer_2,
+                chain_id=chain_id,
             ),
         ],
         sender=pre.fund_eoa(),
+        chain_id=chain_id,
     )
 
     state_test(
@@ -1018,6 +1086,7 @@ def test_call_into_chain_delegating_set_code(
             auth_signer_1: Account(nonce=1, code=Spec.delegation_designation(auth_signer_2)),
             auth_signer_2: Account(nonce=1, code=Spec.delegation_designation(auth_signer_1)),
         },
+        chain_id=chain_id,
     )
 
 
@@ -1035,6 +1104,7 @@ def test_ext_code_on_set_code(
     pre: Alloc,
     balance: int,
     set_code_type: AddressType,
+    chain_id: int,
 ):
     """Test different ext*code operations on a set-code address."""
     auth_signer = pre.fund_eoa(balance)
@@ -1090,9 +1160,11 @@ def test_ext_code_on_set_code(
                 address=set_code_to_address,
                 nonce=0,
                 signer=auth_signer,
+                chain_id=chain_id,
             ),
         ],
         sender=pre.fund_eoa(),
+        chain_id=chain_id,
     )
 
     state_test(
@@ -1112,6 +1184,7 @@ def test_ext_code_on_set_code(
             ),
             callee_address: Account(storage=callee_storage),
         },
+        chain_id=chain_id,
     )
 
 
@@ -1123,6 +1196,7 @@ def test_ext_code_on_self_set_code(
     state_test: StateTestFiller,
     pre: Alloc,
     balance: int,
+    chain_id: int,
 ):
     """Test different ext*code operations on self set-code address."""
     auth_signer = pre.fund_eoa(balance)
@@ -1159,9 +1233,11 @@ def test_ext_code_on_self_set_code(
                 address=set_code_address,
                 nonce=0,
                 signer=auth_signer,
+                chain_id=chain_id,
             ),
         ],
         sender=pre.fund_eoa(),
+        chain_id=chain_id,
     )
 
     state_test(
@@ -1171,6 +1247,7 @@ def test_ext_code_on_self_set_code(
         post={
             auth_signer: Account(storage=set_code_storage),
         },
+        chain_id=chain_id,
     )
 
 
@@ -1186,6 +1263,7 @@ def test_set_code_address_and_authority_warm_state(
     state_test: StateTestFiller,
     pre: Alloc,
     set_code_address_first: bool,
+    chain_id: int,
 ):
     """
     Test set to code address and authority warm status after a call to
@@ -1242,9 +1320,11 @@ def test_set_code_address_and_authority_warm_state(
                 address=set_code_to_address,
                 nonce=0,
                 signer=auth_signer,
+                chain_id=chain_id,
             ),
         ],
         sender=pre.fund_eoa(),
+        chain_id=chain_id,
     )
 
     state_test(
@@ -1259,6 +1339,7 @@ def test_set_code_address_and_authority_warm_state(
                 balance=auth_account_start_balance,
             ),
         },
+        chain_id=chain_id,
     )
 
 
@@ -1275,6 +1356,7 @@ def test_set_code_address_and_authority_warm_state_call_types(
     pre: Alloc,
     call_opcode: Op,
     set_code_address_first: bool,
+    chain_id: int,
 ):
     """
     Test set to code address and authority warm status after a call to
@@ -1315,9 +1397,11 @@ def test_set_code_address_and_authority_warm_state_call_types(
                 address=set_code_to_address,
                 nonce=0,
                 signer=auth_signer,
+                chain_id=chain_id,
             ),
         ],
         sender=pre.fund_eoa(),
+        chain_id=chain_id,
     )
 
     state_test(
@@ -1332,6 +1416,7 @@ def test_set_code_address_and_authority_warm_state_call_types(
                 balance=auth_account_start_balance,
             ),
         },
+        chain_id=chain_id,
     )
 
 
@@ -1343,6 +1428,7 @@ def test_ext_code_on_self_delegating_set_code(
     state_test: StateTestFiller,
     pre: Alloc,
     balance: int,
+    chain_id: int,
 ):
     """Test different ext*code operations on a set-code address that delegates to itself."""
     auth_signer = pre.fund_eoa(balance)
@@ -1379,9 +1465,11 @@ def test_ext_code_on_self_delegating_set_code(
                 address=auth_signer,
                 nonce=0,
                 signer=auth_signer,
+                chain_id=chain_id,
             ),
         ],
         sender=pre.fund_eoa(),  # TODO: Test with sender as auth_signer
+        chain_id=chain_id,
     )
 
     state_test(
@@ -1396,12 +1484,14 @@ def test_ext_code_on_self_delegating_set_code(
             ),
             callee_address: Account(storage=callee_storage),
         },
+        chain_id=chain_id,
     )
 
 
 def test_ext_code_on_chain_delegating_set_code(
     state_test: StateTestFiller,
     pre: Alloc,
+    chain_id: int,
 ):
     """
     Test different ext*code operations on a set-code address that references another delegated
@@ -1465,14 +1555,17 @@ def test_ext_code_on_chain_delegating_set_code(
                 address=auth_signer_2,
                 nonce=0,
                 signer=auth_signer_1,
+                chain_id=chain_id,
             ),
             AuthorizationTuple(
                 address=auth_signer_1,
                 nonce=0,
                 signer=auth_signer_2,
+                chain_id=chain_id,
             ),
         ],
         sender=pre.fund_eoa(),  # TODO: Test with sender as auth_signer
+        chain_id=chain_id,
     )
 
     state_test(
@@ -1492,6 +1585,7 @@ def test_ext_code_on_chain_delegating_set_code(
             ),
             callee_address: Account(storage=callee_storage),
         },
+        chain_id=chain_id,
     )
 
 
@@ -1503,6 +1597,7 @@ def test_self_code_on_set_code(
     state_test: StateTestFiller,
     pre: Alloc,
     balance: int,
+    chain_id: int,
 ):
     """Test codesize and codecopy operations on a set-code address."""
     auth_signer = pre.fund_eoa(balance)
@@ -1534,9 +1629,11 @@ def test_self_code_on_set_code(
                 address=set_code_to_address,
                 nonce=0,
                 signer=auth_signer,
+                chain_id=chain_id,
             ),
         ],
         sender=pre.fund_eoa(),
+        chain_id=chain_id,
     )
 
     state_test(
@@ -1552,6 +1649,7 @@ def test_self_code_on_set_code(
                 balance=balance,
             ),
         },
+        chain_id=chain_id,
     )
 
 
@@ -1561,6 +1659,7 @@ def test_set_code_to_account_deployed_in_same_tx(
     pre: Alloc,
     create_opcode: Op,
     evm_code_type: EVMCodeType,
+    chain_id: int,
 ):
     """
     Test setting the code of an account to an address that is deployed in the same transaction,
@@ -1633,9 +1732,11 @@ def test_set_code_to_account_deployed_in_same_tx(
                 address=deployed_contract_address,
                 nonce=0,
                 signer=auth_signer,
+                chain_id=chain_id,
             ),
         ],
         sender=pre.fund_eoa(),
+        chain_id=chain_id,
     )
 
     state_test(
@@ -1659,6 +1760,7 @@ def test_set_code_to_account_deployed_in_same_tx(
                 }
             ),
         },
+        chain_id=chain_id,
     )
 
 
@@ -1681,6 +1783,7 @@ def test_set_code_to_self_destructing_account_deployed_in_same_tx(
     call_set_code_first: bool,
     external_sendall_recipient: bool,
     balance: int,
+    chain_id: int,
 ):
     """
     Test setting the code of an account to an account that contains the SELFDESTRUCT opcode and
@@ -1744,9 +1847,11 @@ def test_set_code_to_self_destructing_account_deployed_in_same_tx(
                 address=deployed_contract_address,
                 nonce=0,
                 signer=auth_signer,
+                chain_id=chain_id,
             ),
         ],
         sender=pre.fund_eoa(),
+        chain_id=chain_id,
     )
 
     post = {
@@ -1774,12 +1879,14 @@ def test_set_code_to_self_destructing_account_deployed_in_same_tx(
         pre=pre,
         tx=tx,
         post=post,
+        chain_id=chain_id,
     )
 
 
 def test_set_code_multiple_first_valid_authorization_tuples_same_signer(
     state_test: StateTestFiller,
     pre: Alloc,
+    chain_id: int,
 ):
     """
     Test setting the code of an account with multiple authorization tuples
@@ -1802,10 +1909,12 @@ def test_set_code_multiple_first_valid_authorization_tuples_same_signer(
                 address=address,
                 nonce=0,
                 signer=auth_signer,
+                chain_id=chain_id,
             )
             for address in addresses
         ],
         sender=pre.fund_eoa(),
+        chain_id=chain_id,
     )
 
     state_test(
@@ -1821,12 +1930,14 @@ def test_set_code_multiple_first_valid_authorization_tuples_same_signer(
                 },
             ),
         },
+        chain_id=chain_id,
     )
 
 
 def test_set_code_multiple_valid_authorization_tuples_same_signer_increasing_nonce(
     state_test: StateTestFiller,
     pre: Alloc,
+    chain_id: int,
 ):
     """
     Test setting the code of an account with multiple authorization tuples from the same signer
@@ -1849,10 +1960,12 @@ def test_set_code_multiple_valid_authorization_tuples_same_signer_increasing_non
                 address=address,
                 nonce=i,
                 signer=auth_signer,
+                chain_id=chain_id,
             )
             for i, address in enumerate(addresses)
         ],
         sender=pre.fund_eoa(),
+        chain_id=chain_id,
     )
 
     state_test(
@@ -1868,12 +1981,14 @@ def test_set_code_multiple_valid_authorization_tuples_same_signer_increasing_non
                 },
             ),
         },
+        chain_id=chain_id,
     )
 
 
 def test_set_code_multiple_valid_authorization_tuples_same_signer_increasing_nonce_self_sponsored(
     state_test: StateTestFiller,
     pre: Alloc,
+    chain_id: int,
 ):
     """
     Test setting the code of an account with multiple authorization tuples from the same signer
@@ -1897,10 +2012,12 @@ def test_set_code_multiple_valid_authorization_tuples_same_signer_increasing_non
                 address=address,
                 nonce=i + 1,
                 signer=auth_signer,
+                chain_id=chain_id,
             )
             for i, address in enumerate(addresses)
         ],
         sender=auth_signer,
+        chain_id=chain_id,
     )
 
     state_test(
@@ -1916,12 +2033,14 @@ def test_set_code_multiple_valid_authorization_tuples_same_signer_increasing_non
                 },
             ),
         },
+        chain_id=chain_id,
     )
 
 
 def test_set_code_multiple_valid_authorization_tuples_first_invalid_same_signer(
     state_test: StateTestFiller,
     pre: Alloc,
+    chain_id: int,
 ):
     """
     Test setting the code of an account with multiple authorization tuples from the same signer
@@ -1944,10 +2063,12 @@ def test_set_code_multiple_valid_authorization_tuples_first_invalid_same_signer(
                 address=address,
                 nonce=1 if i == 0 else 0,
                 signer=auth_signer,
+                chain_id=chain_id,
             )
             for i, address in enumerate(addresses)
         ],
         sender=pre.fund_eoa(),
+        chain_id=chain_id,
     )
 
     state_test(
@@ -1963,12 +2084,14 @@ def test_set_code_multiple_valid_authorization_tuples_first_invalid_same_signer(
                 },
             ),
         },
+        chain_id=chain_id,
     )
 
 
 def test_set_code_all_invalid_authorization_tuples(
     state_test: StateTestFiller,
     pre: Alloc,
+    chain_id: int,
 ):
     """
     Test setting the code of an account with multiple authorization tuples from the same signer
@@ -1989,10 +2112,12 @@ def test_set_code_all_invalid_authorization_tuples(
                 address=address,
                 nonce=1,
                 signer=auth_signer,
+                chain_id=chain_id,
             )
             for _, address in enumerate(addresses)
         ],
         sender=pre.fund_eoa(),
+        chain_id=chain_id,
     )
 
     state_test(
@@ -2002,12 +2127,14 @@ def test_set_code_all_invalid_authorization_tuples(
         post={
             auth_signer: Account.NONEXISTENT,
         },
+        chain_id=chain_id,
     )
 
 
 def test_set_code_using_chain_specific_id(
     state_test: StateTestFiller,
     pre: Alloc,
+    chain_id: int,
 ):
     """Test sending a transaction to set the code of an account using a chain-specific ID."""
     auth_signer = pre.fund_eoa(auth_account_start_balance)
@@ -2025,11 +2152,12 @@ def test_set_code_using_chain_specific_id(
             AuthorizationTuple(
                 address=set_code_to_address,
                 nonce=0,
-                chain_id=1,
+                chain_id=chain_id,
                 signer=auth_signer,
             )
         ],
         sender=pre.fund_eoa(),
+        chain_id=chain_id,
     )
 
     state_test(
@@ -2045,6 +2173,7 @@ def test_set_code_using_chain_specific_id(
                 },
             ),
         },
+        chain_id=chain_id,
     )
 
 
@@ -2069,6 +2198,7 @@ def test_set_code_using_valid_synthetic_signatures(
     v: int,
     r: int,
     s: int,
+    chain_id: int,
 ):
     """Test sending a transaction to set the code of an account using synthetic signatures."""
     success_slot = 1
@@ -2079,7 +2209,7 @@ def test_set_code_using_valid_synthetic_signatures(
     authorization_tuple = AuthorizationTuple(
         address=set_code_to_address,
         nonce=0,
-        chain_id=1,
+        chain_id=chain_id,
         v=v,
         r=r,
         s=s,
@@ -2093,6 +2223,7 @@ def test_set_code_using_valid_synthetic_signatures(
         value=0,
         authorization_list=[authorization_tuple],
         sender=pre.fund_eoa(),
+        chain_id=chain_id,
     )
 
     state_test(
@@ -2108,6 +2239,7 @@ def test_set_code_using_valid_synthetic_signatures(
                 },
             ),
         },
+        chain_id=chain_id,
     )
 
 
@@ -2147,6 +2279,7 @@ def test_valid_tx_invalid_auth_signature(
     v: int,
     r: int,
     s: int,
+    chain_id: int,
 ):
     """
     Test sending a transaction to set the code of an account using synthetic signatures,
@@ -2160,7 +2293,7 @@ def test_valid_tx_invalid_auth_signature(
     authorization_tuple = AuthorizationTuple(
         address=0,
         nonce=0,
-        chain_id=1,
+        chain_id=chain_id,
         v=v,
         r=r,
         s=s,
@@ -2172,6 +2305,7 @@ def test_valid_tx_invalid_auth_signature(
         value=0,
         authorization_list=[authorization_tuple],
         sender=pre.fund_eoa(),
+        chain_id=chain_id,
     )
 
     state_test(
@@ -2183,12 +2317,14 @@ def test_valid_tx_invalid_auth_signature(
                 storage={success_slot: 1},
             ),
         },
+        chain_id=chain_id,
     )
 
 
 def test_signature_s_out_of_range(
     state_test: StateTestFiller,
     pre: Alloc,
+    chain_id: int,
 ):
     """
     Test sending a transaction with an authorization tuple where the signature s value is out of
@@ -2202,7 +2338,7 @@ def test_signature_s_out_of_range(
     authorization_tuple = AuthorizationTuple(
         address=set_code_to_address,
         nonce=0,
-        chain_id=1,
+        chain_id=chain_id,
         signer=auth_signer,
     )
 
@@ -2221,6 +2357,7 @@ def test_signature_s_out_of_range(
         value=0,
         authorization_list=[authorization_tuple],
         sender=pre.fund_eoa(),
+        chain_id=chain_id,
     )
 
     state_test(
@@ -2233,6 +2370,7 @@ def test_signature_s_out_of_range(
                 storage={success_slot: 1},
             ),
         },
+        chain_id=chain_id,
     )
 
 
@@ -2247,6 +2385,7 @@ def test_valid_tx_invalid_chain_id(
     state_test: StateTestFiller,
     pre: Alloc,
     auth_chain_id: int,
+    chain_id: int,
 ):
     """
     Test sending a transaction where the chain id field does not match
@@ -2281,6 +2420,7 @@ def test_valid_tx_invalid_chain_id(
         authorization_list=[authorization],
         error=None,
         sender=pre.fund_eoa(),
+        chain_id=chain_id,
     )
 
     state_test(
@@ -2296,6 +2436,7 @@ def test_valid_tx_invalid_chain_id(
                 },
             ),
         },
+        chain_id=chain_id,
     )
 
 
@@ -2331,6 +2472,7 @@ def test_nonce_validity(
     pre: Alloc,
     account_nonce: int,
     authorization_nonce: int,
+    chain_id: int,
 ):
     """
     Test sending a transaction where the nonce field of an authorization almost overflows the
@@ -2352,6 +2494,7 @@ def test_nonce_validity(
         address=set_code_to_address,
         nonce=authorization_nonce,
         signer=auth_signer,
+        chain_id=chain_id,
     )
 
     entry_code = (
@@ -2367,6 +2510,7 @@ def test_nonce_validity(
         value=0,
         authorization_list=[authorization],
         sender=pre.fund_eoa(),
+        chain_id=chain_id,
     )
 
     state_test(
@@ -2389,6 +2533,7 @@ def test_nonce_validity(
                 },
             ),
         },
+        chain_id=chain_id,
     )
 
 
@@ -2396,6 +2541,7 @@ def test_nonce_validity(
 def test_nonce_overflow_after_first_authorization(
     state_test: StateTestFiller,
     pre: Alloc,
+    chain_id: int,
 ):
     """
     Test sending a transaction with two authorization where the first one bumps the nonce
@@ -2417,11 +2563,13 @@ def test_nonce_overflow_after_first_authorization(
             address=set_code_to_address_1,
             nonce=nonce,
             signer=auth_signer,
+            chain_id=chain_id,
         ),
         AuthorizationTuple(
             address=set_code_to_address_2,
             nonce=nonce + 1,
             signer=auth_signer,
+            chain_id=chain_id,
         ),
     ]
 
@@ -2438,6 +2586,7 @@ def test_nonce_overflow_after_first_authorization(
         value=0,
         authorization_list=authorization_list,
         sender=pre.fund_eoa(),
+        chain_id=chain_id,
     )
 
     state_test(
@@ -2456,6 +2605,7 @@ def test_nonce_overflow_after_first_authorization(
                 },
             ),
         },
+        chain_id=chain_id,
     )
 
 
@@ -2474,6 +2624,7 @@ def test_set_code_to_log(
     state_test: StateTestFiller,
     pre: Alloc,
     log_opcode: Op,
+    chain_id: int,
 ):
     """Test setting the code of an account to a contract that performs the log operation."""
     sender = pre.fund_eoa()
@@ -2494,9 +2645,11 @@ def test_set_code_to_log(
                 address=set_to_address,
                 nonce=1,
                 signer=sender,
+                chain_id=chain_id,
             ),
         ],
         sender=sender,
+        chain_id=chain_id,
     )
 
     state_test(
@@ -2509,6 +2662,7 @@ def test_set_code_to_log(
                 code=Spec.delegation_designation(set_to_address),
             ),
         },
+        chain_id=chain_id,
     )
 
 
@@ -2524,6 +2678,7 @@ def test_set_code_to_precompile(
     pre: Alloc,
     precompile: int,
     call_opcode: Op,
+    chain_id: int,
 ):
     """Test setting the code of an account to a pre-compile address."""
     auth_signer = pre.fund_eoa(auth_account_start_balance)
@@ -2548,8 +2703,10 @@ def test_set_code_to_precompile(
                 address=Address(precompile),
                 nonce=0,
                 signer=auth_signer,
+                chain_id=chain_id,
             ),
         ],
+        chain_id=chain_id,
     )
 
     state_test(
@@ -2565,6 +2722,7 @@ def test_set_code_to_precompile(
                 storage=caller_code_storage,
             ),
         },
+        chain_id=chain_id,
     )
 
 
@@ -2592,6 +2750,7 @@ def test_set_code_to_system_contract(
     fork: Fork,
     system_contract: int,
     call_opcode: Op,
+    chain_id: int,
 ):
     """Test setting the code of an account to a pre-compile address."""
     caller_code_storage = Storage()
@@ -2686,8 +2845,10 @@ def test_set_code_to_system_contract(
                     address=Address(system_contract),
                     nonce=auth_signer.nonce,
                     signer=auth_signer,
+                    chain_id=chain_id,
                 ),
             ],
+            chain_id=chain_id,
         )
     ]
 
@@ -2708,6 +2869,7 @@ def test_set_code_to_system_contract(
                 storage=caller_code_storage,
             ),
         },
+        chain_id=chain_id,
     )
 
 
@@ -2724,6 +2886,7 @@ def test_eoa_tx_after_set_code(
     tx_type: int,
     fork: Fork,
     evm_code_type: EVMCodeType,
+    chain_id: int,
 ):
     """Test sending a transaction from an EOA after code has been set to the account."""
     auth_signer = pre.fund_eoa()
@@ -2742,8 +2905,10 @@ def test_eoa_tx_after_set_code(
                     address=set_code_to_address,
                     nonce=0,
                     signer=auth_signer,
+                    chain_id=chain_id,
                 ),
             ],
+            chain_id=chain_id,
         )
     ]
     auth_signer.nonce += 1  # type: ignore
@@ -2758,6 +2923,7 @@ def test_eoa_tx_after_set_code(
                     to=auth_signer,
                     value=0,
                     protected=True,
+                    chain_id=chain_id,
                 ),
             )
             txs.append(
@@ -2768,6 +2934,7 @@ def test_eoa_tx_after_set_code(
                     to=auth_signer,
                     value=0,
                     protected=False,
+                    chain_id=chain_id,
                 ),
             )
         case 1:
@@ -2784,6 +2951,7 @@ def test_eoa_tx_after_set_code(
                             storage_keys=[1],
                         )
                     ],
+                    chain_id=chain_id,
                 ),
             )
         case 2:
@@ -2796,6 +2964,7 @@ def test_eoa_tx_after_set_code(
                     value=0,
                     max_fee_per_gas=1_000,
                     max_priority_fee_per_gas=1_000,
+                    chain_id=chain_id,
                 ),
             )
         case 3:
@@ -2813,6 +2982,7 @@ def test_eoa_tx_after_set_code(
                         [Hash(1)],
                         Spec4844.BLOB_COMMITMENT_VERSION_KZG,
                     ),
+                    chain_id=chain_id,
                 ),
             )
         case _:
@@ -2828,6 +2998,7 @@ def test_eoa_tx_after_set_code(
                 storage={1: 3 if tx_type == 0 else 2},
             ),
         },
+        chain_id=chain_id,
     )
 
 
@@ -2842,6 +3013,7 @@ def test_reset_code(
     blockchain_test: BlockchainTestFiller,
     pre: Alloc,
     self_sponsored: bool,
+    chain_id: int,
 ):
     """
     Test sending type-4 tx to reset the code of an account after code has been
@@ -2868,8 +3040,10 @@ def test_reset_code(
                     address=set_code_1_address,
                     nonce=0,
                     signer=auth_signer,
+                    chain_id=chain_id,
                 ),
             ],
+            chain_id=chain_id,
         )
     ]
 
@@ -2889,8 +3063,10 @@ def test_reset_code(
                     address=set_code_2_address,
                     nonce=auth_signer.nonce + 1 if self_sponsored else auth_signer.nonce,
                     signer=auth_signer,
+                    chain_id=chain_id,
                 ),
             ],
+            chain_id=chain_id,
         ),
     )
 
@@ -2904,12 +3080,14 @@ def test_reset_code(
                 storage={1: 1, 2: 1},
             ),
         },
+        chain_id=chain_id,
     )
 
 
 def test_contract_create(
     state_test: StateTestFiller,
     pre: Alloc,
+    chain_id: int,
 ):
     """Test sending type-4 tx as a create transaction."""
     tx = Transaction(
@@ -2919,6 +3097,7 @@ def test_contract_create(
         authorization_list=[],
         error=TransactionException.TYPE_4_TX_CONTRACT_CREATION,
         sender=pre.fund_eoa(),
+        chain_id=chain_id,
     )
 
     state_test(
@@ -2926,6 +3105,7 @@ def test_contract_create(
         pre=pre,
         tx=tx,
         post={},
+        chain_id=chain_id,
     )
 
 
@@ -2948,6 +3128,7 @@ def test_delegation_clearing(
     pre: Alloc,
     pre_set_delegation_code: Bytecode | None,
     self_sponsored: bool,
+    chain_id: int,
 ):
     """
     Test clearing the delegation of an account under a variety of circumstances.
@@ -2987,6 +3168,7 @@ def test_delegation_clearing(
         address=Spec.RESET_DELEGATION_ADDRESS,  # Reset
         nonce=auth_signer.nonce + (1 if self_sponsored else 0),
         signer=auth_signer,
+        chain_id=chain_id,
     )
 
     tx = Transaction(
@@ -2995,6 +3177,7 @@ def test_delegation_clearing(
         value=0,
         authorization_list=[authorization],
         sender=pre.fund_eoa() if not self_sponsored else auth_signer,
+        chain_id=chain_id,
     )
 
     state_test(
@@ -3017,6 +3200,7 @@ def test_delegation_clearing(
                 },
             ),
         },
+        chain_id=chain_id,
     )
 
 
@@ -3039,6 +3223,7 @@ def test_delegation_clearing_tx_to(
     pre: Alloc,
     pre_set_delegation_code: Bytecode | None,
     self_sponsored: bool,
+    chain_id: int,
 ):
     """
     Tests directly calling the account which delegation is being cleared.
@@ -3068,9 +3253,11 @@ def test_delegation_clearing_tx_to(
                 address=Spec.RESET_DELEGATION_ADDRESS,  # Reset
                 nonce=auth_signer.nonce + (1 if self_sponsored else 0),
                 signer=auth_signer,
+                chain_id=chain_id,
             ),
         ],
         sender=sender,
+        chain_id=chain_id,
     )
 
     state_test(
@@ -3084,6 +3271,7 @@ def test_delegation_clearing_tx_to(
                 storage={},
             ),
         },
+        chain_id=chain_id,
     )
 
 
@@ -3098,6 +3286,7 @@ def test_delegation_clearing_and_set(
     state_test: StateTestFiller,
     pre: Alloc,
     pre_set_delegation_code: Bytecode | None,
+    chain_id: int,
 ):
     """
     Tests clearing and setting the delegation again in the same authorization list.
@@ -3132,9 +3321,11 @@ def test_delegation_clearing_and_set(
                 address=reset_code_address,
                 nonce=auth_signer.nonce + 1,
                 signer=auth_signer,
+                chain_id=chain_id,
             ),
         ],
         sender=sender,
+        chain_id=chain_id,
     )
 
     state_test(
@@ -3150,6 +3341,7 @@ def test_delegation_clearing_and_set(
                 },
             ),
         },
+        chain_id=chain_id,
     )
 
 
@@ -3165,6 +3357,7 @@ def test_delegation_clearing_failing_tx(
     state_test: StateTestFiller,
     pre: Alloc,
     entry_code: Bytecode,
+    chain_id: int,
 ):
     """Test clearing the delegation of an account in a transaction that fails, OOGs or reverts."""  # noqa: D417
     pre_set_delegation_code = Op.RETURN(0, 1)
@@ -3178,6 +3371,7 @@ def test_delegation_clearing_failing_tx(
         address=Spec.RESET_DELEGATION_ADDRESS,  # Reset
         nonce=auth_signer.nonce,
         signer=auth_signer,
+        chain_id=chain_id,
     )
 
     tx = Transaction(
@@ -3186,6 +3380,7 @@ def test_delegation_clearing_failing_tx(
         value=0,
         authorization_list=[authorization],
         sender=pre.fund_eoa(),
+        chain_id=chain_id,
     )
 
     state_test(
@@ -3199,12 +3394,14 @@ def test_delegation_clearing_failing_tx(
                 storage={},
             ),
         },
+        chain_id=chain_id,
     )
 
 
 def test_deploying_delegation_designation_contract(
     state_test: StateTestFiller,
     pre: Alloc,
+    chain_id: int,
 ):
     """
     Test attempting to deploy a contract that has the same format as a
@@ -3222,6 +3419,7 @@ def test_deploying_delegation_designation_contract(
         to=None,
         gas_limit=100_000,
         data=initcode,
+        chain_id=chain_id,
     )
 
     state_test(
@@ -3234,12 +3432,14 @@ def test_deploying_delegation_designation_contract(
             ),
             tx.created_contract: Account.NONEXISTENT,
         },
+        chain_id=chain_id,
     )
 
 
 @pytest.mark.parametrize("create_opcode", [Op.CREATE, Op.CREATE2])
 def test_creating_delegation_designation_contract(
-    state_test: StateTestFiller, pre: Alloc, create_opcode: Op
+    state_test: StateTestFiller, pre: Alloc, create_opcode: Op,
+    chain_id: int,
 ):
     """
     Tx -> create -> pointer bytecode
@@ -3271,6 +3471,7 @@ def test_creating_delegation_designation_contract(
         data=create_init,
         value=0,
         sender=sender,
+        chain_id=chain_id,
     )
 
     create_address = compute_create_address(
@@ -3280,7 +3481,7 @@ def test_creating_delegation_designation_contract(
         contract_a: Account(balance=100, storage=storage),
         create_address: Account.NONEXISTENT,
     }
-    state_test(env=env, pre=pre, post=post, tx=tx)
+    state_test(env=env, pre=pre, post=post, tx=tx, chain_id=chain_id)
 
 
 @pytest.mark.parametrize(
@@ -3314,6 +3515,7 @@ def test_many_delegations(
     pre: Alloc,
     max_gas: int,
     signer_balance: int,
+    chain_id: int,
 ):
     """
     Perform as many delegations as possible in a single 120 million gas transaction.
@@ -3344,10 +3546,12 @@ def test_many_delegations(
                 address=Address(i + 1),
                 nonce=0,
                 signer=signer,
+                chain_id=chain_id,
             )
             for (i, signer) in enumerate(signers)
         ],
         sender=pre.fund_eoa(),
+        chain_id=chain_id,
     )
 
     post = {
@@ -3366,4 +3570,5 @@ def test_many_delegations(
         pre=pre,
         tx=tx,
         post=post,
+        chain_id=chain_id,
     )
