@@ -104,7 +104,7 @@ class DepositInteractionBase:
     Deposit request to be included in the block.
     """
 
-    def transactions(self) -> List[Transaction]:
+    def transactions(self, chain_id: int) -> List[Transaction]:
         """Return a transaction for the deposit request."""
         raise NotImplementedError
 
@@ -121,7 +121,7 @@ class DepositInteractionBase:
 class DepositTransaction(DepositInteractionBase):
     """Class used to describe a deposit originated from an externally owned account."""
 
-    def transactions(self) -> List[Transaction]:
+    def transactions(self, chain_id: int) -> List[Transaction]:
         """Return a transaction for the deposit request."""
         assert self.sender_account is not None, "Sender account not initialized"
         return [
@@ -132,6 +132,7 @@ class DepositTransaction(DepositInteractionBase):
                 value=request.value,
                 data=request.calldata,
                 sender=self.sender_account,
+                chain_id=chain_id,
             )
             for request in self.requests
         ]
@@ -205,7 +206,7 @@ class DepositContract(DepositInteractionBase):
             current_offset += len(r.calldata)
         return code + self.extra_code
 
-    def transactions(self) -> List[Transaction]:
+    def transactions(self, chain_id: int) -> List[Transaction]:
         """Return a transaction for the deposit request."""
         return [
             Transaction(
@@ -215,6 +216,7 @@ class DepositContract(DepositInteractionBase):
                 value=0,
                 data=b"".join(r.calldata for r in self.requests),
                 sender=self.sender_account,
+                chain_id=chain_id,
             )
         ]
 

@@ -699,6 +699,7 @@ def test_deposit(
     blockchain_test: BlockchainTestFiller,
     pre: Alloc,
     blocks: List[Block],
+    chain_id: int
 ):
     """Test making a deposit to the beacon chain deposit contract."""
     blockchain_test(
@@ -706,6 +707,7 @@ def test_deposit(
         pre=pre,
         post={},
         blocks=blocks,
+        chain_id=chain_id,
     )
 
 
@@ -953,6 +955,7 @@ def test_deposit_negative(
     blockchain_test: BlockchainTestFiller,
     pre: Alloc,
     blocks: List[Block],
+    chain_id: int,
 ):
     """
     Test producing a block with the incorrect deposits in the body of the block,
@@ -963,4 +966,5 @@ def test_deposit_negative(
         pre=pre,
         post={},
         blocks=blocks,
+        chain_id=chain_id,
     )

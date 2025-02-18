@@ -24,11 +24,12 @@ def update_pre(pre: Alloc, requests: List[DepositInteractionBase]):
 def txs(
     requests: List[DepositInteractionBase],
     update_pre: None,  # Fixture is used for its side effects
+    chain_id: int,
 ) -> List[Transaction]:
     """List of transactions to include in the block."""
     txs = []
     for r in requests:
-        txs += r.transactions()
+        txs += r.transactions(chain_id=chain_id)
     return txs
 
 
