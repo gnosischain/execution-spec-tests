@@ -197,11 +197,12 @@ def authorization_list_with_properties(
     authorize_to_address: Address,
     self_sponsored: bool,
     re_authorize: bool,
+    chain_id: int,
 ) -> List[AuthorizationWithProperties]:
     """Fixture to return the authorization-list-with-properties for the given case."""
-    chain_id = 0 if chain_id_type == ChainIDType.GENERIC else 1
+    resolved_chain_id = 0 if chain_id_type == ChainIDType.GENERIC else chain_id
     if authorization_invalidity_type == AuthorizationInvalidityType.INVALID_CHAIN_ID:
-        chain_id = 2
+        resolved_chain_id = 2
 
     authorization_list: List[AuthorizationWithProperties] = []
     match signer_type:
@@ -241,7 +242,7 @@ def authorization_list_with_properties(
                 authorization_list.append(
                     AuthorizationWithProperties(
                         tuple=AuthorizationTuple(
-                            chain_id=chain_id,
+                            chain_id=resolved_chain_id,
                             address=authorize_to_address,
                             nonce=nonce,
                             signer=authority_with_properties.authority,
@@ -660,6 +661,7 @@ def test_gas_cost(
     data: bytes,
     access_list: List[AccessList],
     sender: EOA,
+    chain_id: int,
 ):
     """Test gas at the execution start of a set-code transaction in multiple scenarios."""
     # Calculate the intrinsic gas cost of the authorizations, by default the
@@ -736,6 +738,7 @@ def test_gas_cost(
         access_list=access_list,
         sender=sender,
         expected_receipt=TransactionReceipt(gas_used=gas_used),
+        chain_id=chain_id,
     )
 
     state_test(
@@ -745,6 +748,7 @@ def test_gas_cost(
         post={
             test_code_address: Account(storage=test_code_storage),
         },
+        chain_id=chain_id,
     )
 
 
@@ -760,6 +764,7 @@ def test_account_warming(
     data: bytes,
     sender: EOA,
     check_delegated_account_first: bool,
+    chain_id: int,
 ):
     """Test warming of the authority and authorized accounts for set-code transactions."""
     # Overhead cost is the single push operation required for the address to check.
@@ -876,6 +881,7 @@ def test_account_warming(
         access_list=access_list,
         sender=sender,
         data=data,
+        chain_id=chain_id,
     )
     post = {
         callee_address: Account(
@@ -888,6 +894,7 @@ def test_account_warming(
         pre=pre,
         tx=tx,
         post=post,
+        chain_id=chain_id,
     )
 
 
@@ -905,6 +912,7 @@ def test_intrinsic_gas_cost(
     access_list: List[AccessList],
     sender: EOA,
     valid: bool,
+    chain_id: int,
 ):
     """
     Test sending a transaction with the exact intrinsic gas required and also insufficient
@@ -934,6 +942,7 @@ def test_intrinsic_gas_cost(
         access_list=access_list,
         sender=sender,
         error=TransactionException.INTRINSIC_GAS_TOO_LOW if not valid else None,
+        chain_id=chain_id,
     )
 
     state_test(
@@ -941,6 +950,7 @@ def test_intrinsic_gas_cost(
         pre=pre,
         tx=tx,
         post={},
+        chain_id=chain_id,
     )
 
 
@@ -949,6 +959,7 @@ def test_self_set_code_cost(
     state_test: StateTestFiller,
     pre: Alloc,
     pre_authorized: bool,
+    chain_id: int,
 ):
     """Test set to code account access cost when it delegates to itself."""
     if pre_authorized:
@@ -984,6 +995,7 @@ def test_self_set_code_cost(
         if not pre_authorized
         else None,
         sender=pre.fund_eoa(),
+        chain_id=chain_id,
     )
 
     state_test(
@@ -997,4 +1009,5 @@ def test_self_set_code_cost(
                 code=Spec.delegation_designation(auth_signer),
             ),
         },
+        chain_id=chain_id,
     )
