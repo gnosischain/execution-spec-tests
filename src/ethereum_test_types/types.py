@@ -439,6 +439,7 @@ class AuthorizationTupleGeneric(CamelModel, Generic[NumberBoundTypeVar]):
     v: NumberBoundTypeVar = Field(0)  # type: ignore
     r: NumberBoundTypeVar = Field(0)  # type: ignore
     s: NumberBoundTypeVar = Field(0)  # type: ignore
+    y_parity: NumberBoundTypeVar = Field(0)  # type: ignore
 
     magic: ClassVar[int] = 0x05
 
@@ -542,7 +543,7 @@ class AuthorizationTuple(AuthorizationTupleGeneric[HexNumber]):
         """Signs the authorization tuple with a private key."""
         signature = self.signature(private_key)
 
-        self.v = HexNumber(signature[0])
+        self.y_parity = self.v = HexNumber(signature[0])
         self.r = HexNumber(signature[1])
         self.s = HexNumber(signature[2])
 
