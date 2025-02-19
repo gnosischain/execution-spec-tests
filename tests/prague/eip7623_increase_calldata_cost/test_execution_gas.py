@@ -83,6 +83,7 @@ class TestGasConsumption:
         state_test: StateTestFiller,
         pre: Alloc,
         tx: Transaction,
+        chain_id: int,
     ) -> None:
         """Test executing a transaction that fully consumes its execution gas allocation."""
         tx.expected_receipt = TransactionReceipt(gas_used=tx.gas_limit)
@@ -90,6 +91,7 @@ class TestGasConsumption:
             pre=pre,
             post={},
             tx=tx,
+            chain_id=chain_id,
         )
 
 
@@ -153,6 +155,7 @@ class TestGasConsumptionBelowDataFloor:
         pre: Alloc,
         tx: Transaction,
         tx_floor_data_cost: int,
+        chain_id: int
     ) -> None:
         """Test executing a transaction that almost consumes the floor data cost."""
         tx.expected_receipt = TransactionReceipt(gas_used=tx_floor_data_cost)
@@ -160,4 +163,5 @@ class TestGasConsumptionBelowDataFloor:
             pre=pre,
             post={},
             tx=tx,
+            chain_id=chain_id,
         )

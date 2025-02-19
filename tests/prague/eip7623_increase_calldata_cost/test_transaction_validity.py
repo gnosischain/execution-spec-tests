@@ -79,12 +79,14 @@ def test_transaction_validity_type_0(
     state_test: StateTestFiller,
     pre: Alloc,
     tx: Transaction,
+    chain_id: int,
 ) -> None:
     """Test transaction validity for transactions without access lists and contract creation."""
     state_test(
         pre=pre,
         post={},
         tx=tx,
+        chain_id=chain_id,
     )
 
 
@@ -140,12 +142,14 @@ def test_transaction_validity_type_1_type_2(
     state_test: StateTestFiller,
     pre: Alloc,
     tx: Transaction,
+    chain_id: int,
 ) -> None:
     """Test transaction validity for transactions with access lists and contract creation."""
     state_test(
         pre=pre,
         post={},
         tx=tx,
+        chain_id=chain_id,
     )
 
 
@@ -215,6 +219,7 @@ def test_transaction_validity_type_3(
     state_test: StateTestFiller,
     pre: Alloc,
     tx: Transaction,
+    chain_id: int,
 ) -> None:
     """
     Test transaction validity for transactions with access lists, blobs,
@@ -224,6 +229,7 @@ def test_transaction_validity_type_3(
         pre=pre,
         post={},
         tx=tx,
+        chain_id=chain_id,
     )
 
 
@@ -285,6 +291,7 @@ def test_transaction_validity_type_4(
     state_test: StateTestFiller,
     pre: Alloc,
     tx: Transaction,
+    chain_id: int,
 ) -> None:
     """
     Test transaction validity for transactions with access lists, authorization lists, but no
@@ -294,4 +301,5 @@ def test_transaction_validity_type_4(
         pre=pre,
         post={},
         tx=tx,
+        chain_id=chain_id,
     )

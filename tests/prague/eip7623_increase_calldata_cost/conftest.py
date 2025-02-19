@@ -77,6 +77,7 @@ def authorization_list(
     request: pytest.FixtureRequest,
     pre: Alloc,
     authorization_refund: bool,
+    chain_id: int,
 ) -> List[AuthorizationTuple] | None:
     """
     Authorization-list for the transaction.
@@ -90,7 +91,8 @@ def authorization_list(
     if request.param is None:
         return None
     return [
-        AuthorizationTuple(signer=pre.fund_eoa(1 if authorization_refund else 0), address=address)
+        AuthorizationTuple(signer=pre.fund_eoa(1 if authorization_refund else 0), address=address,
+                           chain_id=chain_id)
         for address in request.param
     ]
 
@@ -319,6 +321,7 @@ def tx(
     blob_versioned_hashes: Sequence[Hash] | None,
     tx_gas_limit: int,
     tx_error: TransactionException | None,
+    chain_id: int,
 ) -> Transaction:
     """Create the transaction used in each test."""
     return Transaction(
@@ -332,4 +335,5 @@ def tx(
         gas_limit=tx_gas_limit,
         blob_versioned_hashes=blob_versioned_hashes,
         error=tx_error,
+        chain_id=chain_id,
     )
