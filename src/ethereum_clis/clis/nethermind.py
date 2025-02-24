@@ -14,10 +14,10 @@ from ethereum_test_exceptions import (
     ExceptionMessage,
     TransactionException,
 )
-from ethereum_test_fixtures import BlockchainFixture, StateFixture
+from ethereum_test_fixtures import BlockchainFixture, FixtureFormat, StateFixture
 from ethereum_test_forks import Fork
 
-from ..transition_tool import FixtureFormat, TransitionTool, dump_files_to_directory
+from ..transition_tool import TransitionTool, dump_files_to_directory
 
 
 class NethermindTransitionTool(TransitionTool):
@@ -26,7 +26,7 @@ class NethermindTransitionTool(TransitionTool):
     is_gnosis_supported = True
     default_binary = Path("NethermindEvm")
     detect_binary_pattern = re.compile(r"^Nethermind EVM version\b")
-    t8n_subcommand: Optional[str] = "t8n"
+    subcommand: Optional[str] = "t8n"
     statetest_subcommand: Optional[str] = "statetest"
     blocktest_subcommand: Optional[str] = "blocktest"
     binary: Path
@@ -42,7 +42,7 @@ class NethermindTransitionTool(TransitionTool):
     ):
         """Initialize the Go-ethereum Transition tool interface."""
         super().__init__(exception_mapper=NethermindExceptionMapper(), binary=binary, trace=trace)
-        args = [str(self.binary), str(self.t8n_subcommand), "--help"]
+        args = [str(self.binary), str(self.subcommand), "--help"]
         try:
             result = subprocess.run(args, capture_output=True, text=True)
         except subprocess.CalledProcessError as e:
@@ -192,7 +192,7 @@ class NethermindExceptionMapper(ExceptionMapper):
             # This message is the same as TYPE_3_TX_MAX_BLOB_GAS_ALLOWANCE_EXCEEDED
             ExceptionMessage(
                 TransactionException.TYPE_3_TX_BLOB_COUNT_EXCEEDED,
-                "BlobTxGasLimitExceeded: Transaction's totalDataGas=\d+ exceeded MaxBlobGas per transaction=\d+.",
+                r"BlobTxGasLimitExceeded: Transaction's totalDataGas=\d+ exceeded MaxBlobGas per transaction=\d+.",
             ),
             ExceptionMessage(
                 TransactionException.TYPE_3_TX_ZERO_BLOBS,
