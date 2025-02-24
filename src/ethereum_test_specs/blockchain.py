@@ -1,7 +1,7 @@
 """Ethereum blockchain test spec definition and filler."""
 
 from pprint import pprint
-from typing import Any, Callable, ClassVar, Dict, Generator, List, Optional, Tuple, Type
+from typing import Any, Callable, ClassVar, Dict, Generator, List, Optional, Sequence, Tuple, Type
 
 import pytest
 from pydantic import ConfigDict, Field, field_validator
@@ -20,12 +20,18 @@ from ethereum_test_base_types import (
     Number,
 )
 from ethereum_test_exceptions import BlockException, EngineAPIError, TransactionException
-from ethereum_test_execution import BaseExecute, ExecuteFormat, TransactionPost
+from ethereum_test_execution import (
+    BaseExecute,
+    ExecuteFormat,
+    LabeledExecuteFormat,
+    TransactionPost,
+)
 from ethereum_test_fixtures import (
     BaseFixture,
     BlockchainEngineFixture,
     BlockchainFixture,
     FixtureFormat,
+    LabeledFixtureFormat,
 )
 from ethereum_test_fixtures.blockchain import (
     FixtureBlock,
@@ -167,9 +173,9 @@ class Header(CamelModel):
                 assert baseline_value is not Header.REMOVE_FIELD, "invalid header"
                 value = getattr(target, field_name)
                 if baseline_value is Header.EMPTY_FIELD:
-                    assert (
-                        value is None
-                    ), f"invalid header field {field_name}, got {value}, want None"
+                    assert value is None, (
+                        f"invalid header field {field_name}, got {value}, want None"
+                    )
                     continue
                 assert value == baseline_value, (
                     f"invalid header field ({field_name}) value, "
@@ -287,30 +293,51 @@ class BlockchainTest(BaseTest):
     verify_sync: bool = False
     chain_id: int = 1
 
-    supported_fixture_formats: ClassVar[List[FixtureFormat]] = [
+    supported_fixture_formats: ClassVar[Sequence[FixtureFormat | LabeledFixtureFormat]] = [
         BlockchainFixture,
         BlockchainEngineFixture,
     ]
-    supported_execute_formats: ClassVar[List[ExecuteFormat]] = [
+    supported_execute_formats: ClassVar[Sequence[ExecuteFormat | LabeledExecuteFormat]] = [
         TransactionPost,
     ]
 
+    supported_markers: ClassVar[Dict[str, str]] = {
+        "blockchain_test_engine_only": "Only generate a blockchain test engine fixture",
+        "blockchain_test_only": "Only generate a blockchain test fixture",
+    }
+
+    @classmethod
+    def discard_fixture_format_by_marks(
+        cls,
+        fixture_format: FixtureFormat,
+        fork: Fork,
+        markers: List[pytest.Mark],
+    ) -> bool:
+        """Discard a fixture format from filling if the appropriate marker is used."""
+        if "blockchain_test_only" in [m.name for m in markers]:
+            return fixture_format != BlockchainFixture
+        if "blockchain_test_engine_only" in [m.name for m in markers]:
+            return fixture_format != BlockchainEngineFixture
+        return False
+
+    @staticmethod
     def make_genesis(
-        self,
+        genesis_environment: Environment,
+        pre: Alloc,
         fork: Fork,
     ) -> Tuple[Alloc, FixtureBlock]:
         """Create a genesis block from the blockchain test definition."""
-        env = self.genesis_environment.set_fork_requirements(fork)
-        assert (
-            env.withdrawals is None or len(env.withdrawals) == 0
-        ), "withdrawals must be empty at genesis"
-        assert env.parent_beacon_block_root is None or env.parent_beacon_block_root == Hash(
-            0
-        ), "parent_beacon_block_root must be empty at genesis"
+        env = genesis_environment.set_fork_requirements(fork)
+        assert env.withdrawals is None or len(env.withdrawals) == 0, (
+            "withdrawals must be empty at genesis"
+        )
+        assert env.parent_beacon_block_root is None or env.parent_beacon_block_root == Hash(0), (
+            "parent_beacon_block_root must be empty at genesis"
+        )
 
         pre_alloc = Alloc.merge(
             Alloc.model_validate(fork.pre_allocation_blockchain()),
-            self.pre,
+            pre,
         )
         if empty_accounts := pre_alloc.empty_accounts():
             raise Exception(f"Empty accounts in pre state: {empty_accounts}")
@@ -448,9 +475,9 @@ class BlockchainTest(BaseTest):
 
         requests_list: List[Bytes] | None = None
         if fork.header_requests_required(header.number, header.timestamp):
-            assert (
-                transition_tool_output.result.requests is not None
-            ), "Requests are required for this block"
+            assert transition_tool_output.result.requests is not None, (
+                "Requests are required for this block"
+            )
             requests = Requests(requests_lists=list(transition_tool_output.result.requests))
 
             if Hash(requests) != header.requests_hash:
@@ -480,7 +507,8 @@ class BlockchainTest(BaseTest):
             env,
         )
 
-    def network_info(self, fork: Fork, eips: Optional[List[int]] = None):
+    @staticmethod
+    def network_info(fork: Fork, eips: Optional[List[int]] = None):
         """Return fixture network information for the fork & EIP/s."""
         return (
             "+".join([fork.blockchain_test_network_name()] + [str(eip) for eip in eips])
@@ -509,7 +537,7 @@ class BlockchainTest(BaseTest):
         """Create a fixture from the blockchain test definition."""
         fixture_blocks: List[FixtureBlock | InvalidFixtureBlock] = []
 
-        pre, genesis = self.make_genesis(fork)
+        pre, genesis = BlockchainTest.make_genesis(self.genesis_environment, self.pre, fork)
 
         alloc = pre
         env = environment_from_parent_header(genesis.header)
@@ -576,7 +604,7 @@ class BlockchainTest(BaseTest):
                 )
 
         self.verify_post_state(t8n, t8n_state=alloc)
-        network_info = self.network_info(fork, eips)
+        network_info = BlockchainTest.network_info(fork, eips)
         return BlockchainFixture(
             fork=network_info,
             genesis=genesis.header,
@@ -588,6 +616,7 @@ class BlockchainTest(BaseTest):
             config=FixtureConfig(
                 fork=network_info,
                 blob_schedule=FixtureBlobSchedule.from_blob_schedule(fork.blob_schedule()),
+                chain_id=self.chain_id,
             ),
         )
 
@@ -601,7 +630,7 @@ class BlockchainTest(BaseTest):
         """Create a hive fixture from the blocktest definition."""
         fixture_payloads: List[FixtureEngineNewPayload] = []
 
-        pre, genesis = self.make_genesis(fork)
+        pre, genesis = BlockchainTest.make_genesis(self.genesis_environment, self.pre, fork)
         alloc = pre
         env = environment_from_parent_header(genesis.header)
         head_hash = genesis.header.block_hash
@@ -639,19 +668,19 @@ class BlockchainTest(BaseTest):
                 )
 
         fcu_version = fork.engine_forkchoice_updated_version(header.number, header.timestamp)
-        assert (
-            fcu_version is not None
-        ), "A hive fixture was requested but no forkchoice update is defined. The framework should"
-        " never try to execute this test case."
+        assert fcu_version is not None, (
+            "A hive fixture was requested but no forkchoice update is defined."
+            " The framework should never try to execute this test case."
+        )
 
         self.verify_post_state(t8n, t8n_state=alloc)
 
         sync_payload: Optional[FixtureEngineNewPayload] = None
         if self.verify_sync:
             # Test is marked for syncing verification.
-            assert (
-                genesis.header.block_hash != head_hash
-            ), "Invalid payload tests negative test via sync is not supported yet."
+            assert genesis.header.block_hash != head_hash, (
+                "Invalid payload tests negative test via sync is not supported yet."
+            )
 
             # Most clients require the header to start the sync process, so we create an empty
             # block on top of the last block of the test to send it as new payload and trigger the
@@ -674,7 +703,7 @@ class BlockchainTest(BaseTest):
                 error_code=None,
             )
 
-        network_info = self.network_info(fork, eips)
+        network_info = BlockchainTest.network_info(fork, eips)
         return BlockchainEngineFixture(
             fork=network_info,
             genesis=genesis.header,
@@ -686,6 +715,7 @@ class BlockchainTest(BaseTest):
             last_block_hash=head_hash,
             config=FixtureConfig(
                 fork=network_info,
+                chain_id=self.chain_id,
                 blob_schedule=FixtureBlobSchedule.from_blob_schedule(fork.blob_schedule()),
             ),
         )
@@ -728,18 +758,3 @@ class BlockchainTest(BaseTest):
 
 BlockchainTestSpec = Callable[[str], Generator[BlockchainTest, None, None]]
 BlockchainTestFiller = Type[BlockchainTest]
-
-
-class BlockchainTestEngine(BlockchainTest):
-    """
-    Filler type that tests multiple blocks (valid or invalid) in a chain,
-    only for the Engine API.
-    """
-
-    supported_fixture_formats: ClassVar[List[FixtureFormat]] = [
-        BlockchainEngineFixture,
-    ]
-
-
-BlockchainTestEngineSpec = Callable[[str], Generator[BlockchainTestEngine, None, None]]
-BlockchainTestEngineFiller = Type[BlockchainTestEngine]

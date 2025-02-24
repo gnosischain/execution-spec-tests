@@ -22,8 +22,9 @@ from pytest_metadata.plugin import metadata_key  # type: ignore
 from cli.gen_index import generate_fixtures_index
 from config import AppConfig
 from ethereum_clis import TransitionTool
+from ethereum_clis.clis.geth import FixtureConsumerTool
 from ethereum_test_base_types import Alloc, ReferenceSpec
-from ethereum_test_fixtures import BaseFixture, FixtureCollector, TestInfo
+from ethereum_test_fixtures import BaseFixture, FixtureCollector, FixtureConsumer, TestInfo
 from ethereum_test_forks import Fork
 from ethereum_test_specs import SPEC_TYPES, BaseTest
 from ethereum_test_tools.utility.versioning import (
@@ -31,6 +32,8 @@ from ethereum_test_tools.utility.versioning import (
     get_current_commit_hash_or_tag,
 )
 from pytest_plugins.spec_version_checker.spec_version_checker import EIPSpecTestItem
+
+from ..shared.helpers import get_spec_format_for_item, labeled_format_parameter_set
 
 
 def default_output_directory() -> str:
@@ -264,6 +267,7 @@ def pytest_report_header(config: pytest.Config):
     return [(f"{t8n_version}")]
 
 
+@pytest.hookimpl(tryfirst=True)
 def pytest_report_teststatus(report, config: pytest.Config):
     """
     Modify test results in pytest's terminal output.
@@ -292,6 +296,8 @@ def pytest_terminal_summary(
     actually run the tests.
     """
     yield
+    if is_output_stdout(config.getoption("output")):
+        return
     stats = terminalreporter.stats
     if "passed" in stats and stats["passed"]:
         # append / to indicate this is a directory
@@ -431,10 +437,11 @@ def do_fixture_verification(
 
 @pytest.fixture(autouse=True, scope="session")
 def evm_fixture_verification(
+    request: pytest.FixtureRequest,
     do_fixture_verification: bool,
     evm_bin: Path,
     verify_fixtures_bin: Path | None,
-) -> Generator[TransitionTool | None, None, None]:
+) -> Generator[FixtureConsumer | None, None, None]:
     """
     Return configured evm binary for executing statetest and blocktest
     commands used to verify generated JSON fixtures.
@@ -442,17 +449,33 @@ def evm_fixture_verification(
     if not do_fixture_verification:
         yield None
         return
+    reused_evm_bin = False
     if not verify_fixtures_bin and evm_bin:
         verify_fixtures_bin = evm_bin
-    evm_fixture_verification = TransitionTool.from_binary_path(binary_path=verify_fixtures_bin)
-    if not evm_fixture_verification.blocktest_subcommand:
-        pytest.exit(
-            "Only geth's evm tool is supported to verify fixtures: "
-            "Either remove --verify-fixtures or set --verify-fixtures-bin to a Geth evm binary.",
-            returncode=pytest.ExitCode.USAGE_ERROR,
+        reused_evm_bin = True
+    if not verify_fixtures_bin:
+        return
+    try:
+        evm_fixture_verification = FixtureConsumerTool.from_binary_path(
+            binary_path=Path(verify_fixtures_bin),
+            trace=request.config.getoption("evm_collect_traces"),
         )
+    except Exception:
+        if reused_evm_bin:
+            pytest.exit(
+                "The binary specified in --evm-bin could not be recognized as a known "
+                "FixtureConsumerTool. Either remove --verify-fixtures or set "
+                "--verify-fixtures-bin to a known fixture consumer binary.",
+                returncode=pytest.ExitCode.USAGE_ERROR,
+            )
+        else:
+            pytest.exit(
+                "Specified binary in --verify-fixtures-bin could not be recognized as a known "
+                "FixtureConsumerTool. Please see `GethFixtureConsumer` for an example "
+                "of how a new fixture consumer can be defined.",
+                returncode=pytest.ExitCode.USAGE_ERROR,
+            )
     yield evm_fixture_verification
-    evm_fixture_verification.shutdown()
 
 
 @pytest.fixture(scope="session")
@@ -487,6 +510,8 @@ def output_dir(request: pytest.FixtureRequest, is_output_tarball: bool) -> Path:
 @pytest.fixture(scope="session")
 def output_metadata_dir(output_dir: Path) -> Path:
     """Return metadata directory to store fixture meta files."""
+    if is_output_stdout(output_dir):
+        return output_dir
     return output_dir / ".meta"
 
 
@@ -581,7 +606,7 @@ def get_fixture_collection_scope(fixture_name, config):
 def fixture_collector(
     request: pytest.FixtureRequest,
     do_fixture_verification: bool,
-    evm_fixture_verification: TransitionTool,
+    evm_fixture_verification: FixtureConsumer,
     filler_path: Path,
     base_dump_dir: Path | None,
     output_dir: Path,
@@ -700,7 +725,7 @@ def base_test_parametrizer(cls: Type[BaseTest]):
                 request.node.config.fixture_path_relative = str(
                     fixture_path.relative_to(output_dir)
                 )
-                request.node.config.fixture_format = fixture_format.fixture_format_name
+                request.node.config.fixture_format = fixture_format.format_name
 
         return BaseTestWrapper
 
@@ -723,12 +748,8 @@ def pytest_generate_tests(metafunc: pytest.Metafunc):
             metafunc.parametrize(
                 [test_type.pytest_parameter_name()],
                 [
-                    pytest.param(
-                        fixture_format,
-                        id=fixture_format.fixture_format_name.lower(),
-                        marks=[getattr(pytest.mark, fixture_format.fixture_format_name.lower())],
-                    )
-                    for fixture_format in test_type.supported_fixture_formats
+                    labeled_format_parameter_set(format_with_or_without_label)
+                    for format_with_or_without_label in test_type.supported_fixture_formats
                 ],
                 scope="function",
                 indirect=True,
@@ -751,11 +772,16 @@ def pytest_collection_modifyitems(config: pytest.Config, items: List[pytest.Item
             items.remove(item)
             continue
         fork: Fork = params["fork"]
-        for spec_name in [spec_type.pytest_parameter_name() for spec_type in SPEC_TYPES]:
-            if spec_name in params and not params[spec_name].supports_fork(fork):
-                items.remove(item)
-                break
-        for marker in item.iter_markers():
+        spec_type, fixture_format = get_spec_format_for_item(params)
+        assert issubclass(fixture_format, BaseFixture)
+        if not fixture_format.supports_fork(fork):
+            items.remove(item)
+            continue
+        markers = list(item.iter_markers())
+        if spec_type.discard_fixture_format_by_marks(fixture_format, fork, markers):
+            items.remove(item)
+            continue
+        for marker in markers:
             if marker.name == "fill":
                 for mark in marker.args:
                     item.add_marker(mark)

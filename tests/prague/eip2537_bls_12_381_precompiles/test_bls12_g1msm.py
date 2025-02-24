@@ -45,7 +45,7 @@ def test_valid(
     tx: Transaction,
     chain_id: int,
 ):
-    """Test the BLS12_G1MSM precompile."""
+    """Test valid calls to the BLS12_G1MSM precompile."""
     state_test(
         env=Environment(),
         pre=pre,
@@ -109,7 +109,7 @@ def test_invalid(
     tx: Transaction,
     chain_id: int,
 ):
-    """Test the BLS12_G1MSM precompile."""
+    """Test invalid calls to the BLS12_G1MSM precompile."""
     state_test(
         env=Environment(),
         pre=pre,

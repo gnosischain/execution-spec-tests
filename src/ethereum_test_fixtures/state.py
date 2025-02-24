@@ -98,12 +98,13 @@ class FixtureConfig(CamelModel):
     """Chain configuration for a fixture."""
 
     blob_schedule: FixtureBlobSchedule | None = None
+    chain_id: ZeroPaddedHexNumber = Field(ZeroPaddedHexNumber(1), alias="chainid")
 
 
 class StateFixture(BaseFixture):
     """Fixture for a single StateTest."""
 
-    fixture_format_name: ClassVar[str] = "state_test"
+    format_name: ClassVar[str] = "state_test"
     description: ClassVar[str] = "Tests that generate a state test fixture."
 
     env: FixtureEnvironment

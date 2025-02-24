@@ -334,6 +334,7 @@ perf
 permalink
 petersburg
 pformat
+platformdirs
 pluginmanager
 png
 Pomerantz
@@ -395,6 +396,7 @@ sha
 SHA
 sharding
 SignerType
+simlimit
 solc
 soliditylang
 Spec4844
@@ -410,6 +412,7 @@ StateTestFiller
 StateTests
 staticcalled
 stdin
+stdout
 stExample
 str
 streetsidesoftware
@@ -488,6 +491,7 @@ wds
 wei
 wikipedia
 wordlist
+workspaces
 www
 xdist
 xF
@@ -537,6 +541,8 @@ makereport
 metafunc
 modifyitems
 monkeypatching
+neth
+nethtest
 nodeid
 noop
 oog
@@ -582,6 +588,7 @@ tryfirst
 trylast
 usefixtures
 verifier
+verifiers
 writelines
 xfail
 ZeroPaddedHexNumber
@@ -747,6 +754,7 @@ callcode
 return
 delegatecall
 eofcreate
+eoftest
 extcall
 extcalls
 extdelegatecall
@@ -832,3 +840,17 @@ EF
 F6
 FC
 ef01
+uv
+EthereumCLI
+TransitionTool
+rebase
+deps
+datatables
+jinja
+templating
+EOFv
+subcontainers
+ize
+nectos
+fibonacci
+CPython

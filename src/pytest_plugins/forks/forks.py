@@ -474,7 +474,7 @@ def pytest_configure(config: pytest.Config):
 
     dev_forks_help = textwrap.dedent(
         "To run tests for a fork under active development, it must be "
-        "specified explicitly via --forks-until=FORK.\n"
+        "specified explicitly via --until=FORK.\n"
         "Tests are only ran for deployed mainnet forks by default, i.e., "
         f"until {get_deployed_forks()[-1].name()}.\n"
     )
@@ -613,8 +613,7 @@ class ValidityMarker(ABC):
             fork_names |= set(fork_names_list)
             if len(fork_names) != expected_length_after_append:
                 pytest.fail(
-                    f"'{self.test_name}': Duplicate argument specified in "
-                    f"'{self.marker_name}'."
+                    f"'{self.test_name}': Duplicate argument specified in '{self.marker_name}'."
                 )
         forks: Set[Fork] = set()
         for fork_name in fork_names:
@@ -815,14 +814,12 @@ class ValidAtTransitionTo(ValidityMarker, mutually_exclusive=True):
         )
         if len(forks) == 0:
             pytest.fail(
-                f"'{self.test_name}': Missing fork argument with 'valid_at_transition_to' "
-                "marker."
+                f"'{self.test_name}': Missing fork argument with 'valid_at_transition_to' marker."
             )
 
         if len(forks) > 1:
             pytest.fail(
-                f"'{self.test_name}': Too many forks specified to 'valid_at_transition_to' "
-                "marker."
+                f"'{self.test_name}': Too many forks specified to 'valid_at_transition_to' marker."
             )
 
         resulting_set: Set[Fork] = set()

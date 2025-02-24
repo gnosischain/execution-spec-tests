@@ -1145,11 +1145,15 @@ def test_ext_code_on_set_code(
             raise ValueError(f"Unsupported set code type: {set_code_type}")
 
     callee_storage = Storage()
-    callee_storage[slot_ext_code_size_result] = len(Spec.DELEGATION_DESIGNATION_READING)
-    callee_storage[slot_ext_code_hash_result] = Spec.DELEGATION_DESIGNATION_READING.keccak256()
-    callee_storage[slot_ext_code_copy_result] = Spec.DELEGATION_DESIGNATION_READING.ljust(
-        32, b"\x00"
-    )[:32]
+    callee_storage[slot_ext_code_size_result] = len(
+        Spec.delegation_designation(set_code_to_address)
+    )
+    callee_storage[slot_ext_code_hash_result] = Spec.delegation_designation(
+        set_code_to_address
+    ).keccak256()
+    callee_storage[slot_ext_code_copy_result] = Hash(
+        Spec.delegation_designation(set_code_to_address), right_padding=True
+    )
     callee_storage[slot_ext_balance_result] = balance
 
     tx = Transaction(
@@ -1218,11 +1222,15 @@ def test_ext_code_on_self_set_code(
     set_code_address = pre.deploy_contract(set_code)
 
     set_code_storage = Storage()
-    set_code_storage[slot_ext_code_size_result] = len(Spec.DELEGATION_DESIGNATION_READING)
-    set_code_storage[slot_ext_code_hash_result] = Spec.DELEGATION_DESIGNATION_READING.keccak256()
-    set_code_storage[slot_ext_code_copy_result] = Spec.DELEGATION_DESIGNATION_READING.ljust(
-        32, b"\x00"
-    )[:32]
+    set_code_storage[slot_ext_code_size_result] = len(
+        Spec.delegation_designation(set_code_address)
+    )
+    set_code_storage[slot_ext_code_hash_result] = Spec.delegation_designation(
+        set_code_address
+    ).keccak256()
+    set_code_storage[slot_ext_code_copy_result] = Hash(
+        Spec.delegation_designation(set_code_address), right_padding=True
+    )
     set_code_storage[slot_ext_balance_result] = balance
 
     tx = Transaction(
@@ -1450,11 +1458,13 @@ def test_ext_code_on_self_delegating_set_code(
     callee_address = pre.deploy_contract(callee_code)
     callee_storage = Storage()
 
-    callee_storage[slot_ext_code_size_result] = len(Spec.DELEGATION_DESIGNATION_READING)
-    callee_storage[slot_ext_code_hash_result] = Spec.DELEGATION_DESIGNATION_READING.keccak256()
-    callee_storage[slot_ext_code_copy_result] = Spec.DELEGATION_DESIGNATION_READING.ljust(
-        32, b"\x00"
-    )[:32]
+    callee_storage[slot_ext_code_size_result] = len(Spec.delegation_designation(auth_signer))
+    callee_storage[slot_ext_code_hash_result] = Spec.delegation_designation(
+        auth_signer
+    ).keccak256()
+    callee_storage[slot_ext_code_copy_result] = Hash(
+        Spec.delegation_designation(auth_signer), right_padding=True
+    )
     callee_storage[slot_ext_balance_result] = balance
 
     tx = Transaction(
@@ -1533,18 +1543,22 @@ def test_ext_code_on_chain_delegating_set_code(
     callee_address = pre.deploy_contract(callee_code)
     callee_storage = Storage()
 
-    callee_storage[slot_ext_code_size_result_1] = len(Spec.DELEGATION_DESIGNATION_READING)
-    callee_storage[slot_ext_code_hash_result_1] = Spec.DELEGATION_DESIGNATION_READING.keccak256()
-    callee_storage[slot_ext_code_copy_result_1] = Spec.DELEGATION_DESIGNATION_READING.ljust(
-        32, b"\x00"
-    )[:32]
+    callee_storage[slot_ext_code_size_result_1] = len(Spec.delegation_designation(auth_signer_2))
+    callee_storage[slot_ext_code_hash_result_1] = Spec.delegation_designation(
+        auth_signer_2
+    ).keccak256()
+    callee_storage[slot_ext_code_copy_result_1] = Hash(
+        Spec.delegation_designation(auth_signer_2), right_padding=True
+    )
     callee_storage[slot_ext_balance_result_1] = auth_signer_1_balance
 
-    callee_storage[slot_ext_code_size_result_2] = len(Spec.DELEGATION_DESIGNATION_READING)
-    callee_storage[slot_ext_code_hash_result_2] = Spec.DELEGATION_DESIGNATION_READING.keccak256()
-    callee_storage[slot_ext_code_copy_result_2] = Spec.DELEGATION_DESIGNATION_READING.ljust(
-        32, b"\x00"
-    )[:32]
+    callee_storage[slot_ext_code_size_result_2] = len(Spec.delegation_designation(auth_signer_1))
+    callee_storage[slot_ext_code_hash_result_2] = Spec.delegation_designation(
+        auth_signer_1
+    ).keccak256()
+    callee_storage[slot_ext_code_copy_result_2] = Hash(
+        Spec.delegation_designation(auth_signer_1), right_padding=True
+    )
     callee_storage[slot_ext_balance_result_2] = auth_signer_2_balance
 
     tx = Transaction(
@@ -2752,7 +2766,7 @@ def test_set_code_to_system_contract(
     call_opcode: Op,
     chain_id: int,
 ):
-    """Test setting the code of an account to a pre-compile address."""
+    """Test setting the code of an account to a system contract."""
     caller_code_storage = Storage()
     call_return_code_slot = caller_code_storage.store_next(
         call_return_code(
@@ -2793,7 +2807,7 @@ def test_set_code_to_system_contract(
             )
             caller_payload = deposit_request.calldata
             call_value = deposit_request.value
-        case Address(0x0C15F14308530B7CDB8460094BBB9CC28B9AAAAA):  # EIP-7002
+        case Address(0x00000961EF480EB55E80D19AD83579A64C007002):  # EIP-7002
             # Fabricate a valid withdrawal request to the set-code account
             withdrawal_request = WithdrawalRequest(
                 source_address=0x01,
@@ -2803,7 +2817,7 @@ def test_set_code_to_system_contract(
             )
             caller_payload = withdrawal_request.calldata
             call_value = withdrawal_request.value
-        case Address(0x00431F263CE400F4455C2DCF564E53007CA4BBBB):  # EIP-7251
+        case Address(0x0000BBDDC7CE488642FB579F8B00F3A590007251):  # EIP-7251
             # Fabricate a valid consolidation request to the set-code account
             consolidation_request = ConsolidationRequest(
                 source_address=0x01,
@@ -2813,7 +2827,7 @@ def test_set_code_to_system_contract(
             )
             caller_payload = consolidation_request.calldata
             call_value = consolidation_request.value
-        case Address(0x0F792BE4B0C0CB4DAE440EF133E90C0ECD48CCCC):  # EIP-2935
+        case Address(0x0000F90827F1C53A10CB7A02335B175320002935):  # EIP-2935
             caller_payload = Hash(0)
             caller_code_storage[call_return_data_size_slot] = 32
         case _:
@@ -3571,4 +3585,96 @@ def test_many_delegations(
         tx=tx,
         post=post,
         chain_id=chain_id,
+    )
+
+
+def test_invalid_transaction_after_authorization(
+    blockchain_test: BlockchainTestFiller,
+    pre: Alloc,
+):
+    """
+    Test an invalid block due to a transaction reusing the same nonce as an authorization
+    included in a prior transaction.
+    """
+    auth_signer = pre.fund_eoa()
+
+    txs = [
+        Transaction(
+            sender=pre.fund_eoa(),
+            gas_limit=500_000,
+            to=Address(0),
+            value=0,
+            authorization_list=[
+                AuthorizationTuple(
+                    address=Address(1),
+                    nonce=0,
+                    signer=auth_signer,
+                ),
+            ],
+        ),
+        Transaction(
+            sender=auth_signer,
+            nonce=0,
+            gas_limit=21_000,
+            to=Address(0),
+            value=1,
+            error=TransactionException.NONCE_MISMATCH_TOO_LOW,
+        ),
+    ]
+
+    blockchain_test(
+        pre=pre,
+        blocks=[
+            Block(
+                txs=txs,
+                exception=TransactionException.NONCE_MISMATCH_TOO_LOW,
+            )
+        ],
+        post={
+            Address(0): None,
+        },
+    )
+
+
+def test_authorization_reusing_nonce(
+    blockchain_test: BlockchainTestFiller,
+    pre: Alloc,
+):
+    """
+    Test an authorization reusing the same nonce as a prior transaction included in the same
+    block.
+    """
+    auth_signer = pre.fund_eoa()
+    sender = pre.fund_eoa()
+    txs = [
+        Transaction(
+            sender=auth_signer,
+            nonce=0,
+            gas_limit=21_000,
+            to=Address(0),
+            value=1,
+        ),
+        Transaction(
+            sender=sender,
+            gas_limit=500_000,
+            to=Address(0),
+            value=0,
+            authorization_list=[
+                AuthorizationTuple(
+                    address=Address(1),
+                    nonce=0,
+                    signer=auth_signer,
+                ),
+            ],
+        ),
+    ]
+
+    blockchain_test(
+        pre=pre,
+        blocks=[Block(txs=txs)],
+        post={
+            Address(0): Account(balance=1),
+            auth_signer: Account(nonce=1, code=b""),
+            sender: Account(nonce=1),
+        },
     )

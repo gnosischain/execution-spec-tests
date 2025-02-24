@@ -4,6 +4,7 @@ Ethereum Specs EVM Resolver Transition Tool Interface.
 https://github.com/petertdavies/ethereum-spec-evm-resolver
 """
 
+import os
 import re
 import subprocess
 import time
@@ -53,6 +54,7 @@ class ExecutionSpecsTransitionTool(TransitionTool):
         trace: bool = False,
     ):
         """Initialize the Ethereum Specs EVM Resolver Transition Tool interface."""
+        os.environ.setdefault("NO_PROXY", "*")  # Disable proxy for local connections
         super().__init__(
             exception_mapper=ExecutionSpecsExceptionMapper(), binary=binary, trace=trace
         )
@@ -178,6 +180,14 @@ class ExecutionSpecsExceptionMapper(ExceptionMapper):
             ExceptionMessage(
                 TransactionException.PRIORITY_GREATER_THAN_MAX_FEE_PER_GAS,
                 "nsaction: ",
+            ),
+            ExceptionMessage(
+                TransactionException.NONCE_MISMATCH_TOO_HIGH,
+                "saction: ",
+            ),
+            ExceptionMessage(
+                TransactionException.NONCE_MISMATCH_TOO_LOW,
+                "action: ",
             ),
             # TODO EVMONE needs to differentiate when the section is missing in the header or body
             ExceptionMessage(EOFException.MISSING_STOP_OPCODE, "err: no_terminating_instruction"),

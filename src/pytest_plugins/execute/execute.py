@@ -8,13 +8,14 @@ import pytest
 from pytest_metadata.plugin import metadata_key  # type: ignore
 
 from ethereum_test_base_types import Number
-from ethereum_test_execution import EXECUTE_FORMATS, BaseExecute
+from ethereum_test_execution import BaseExecute
 from ethereum_test_forks import Fork
 from ethereum_test_rpc import EthRPC
 from ethereum_test_tools import SPEC_TYPES, BaseTest, TestInfo, Transaction
 from ethereum_test_types import TransactionDefaults
 from pytest_plugins.spec_version_checker.spec_version_checker import EIPSpecTestItem
 
+from ..shared.helpers import get_spec_format_for_item, labeled_format_parameter_set
 from .pre_alloc import Alloc
 
 
@@ -95,10 +96,18 @@ def pytest_configure(config):
     command_line_args = "fill " + " ".join(config.invocation_params.args)
     config.stash[metadata_key]["Command-line args"] = f"<code>{command_line_args}</code>"
 
-    if len(config.selected_fork_set) != 1:
+    selected_fork_set = config.selected_fork_set
+
+    # remove the transition forks from the selected forks
+    for fork in set(selected_fork_set):
+        if hasattr(fork, "transitions_to"):
+            selected_fork_set.remove(fork)
+
+    if len(selected_fork_set) != 1:
         pytest.exit(
             f"""
-            Expected exactly one fork to be specified, got {len(config.selected_fork_set)}.
+            Expected exactly one fork to be specified, got {len(selected_fork_set)}
+            ({selected_fork_set}).
             Make sure to specify exactly one fork using the --fork command line argument.
             """,
             returncode=pytest.ExitCode.USAGE_ERROR,
@@ -256,7 +265,7 @@ def base_test_parametrizer(cls: Type[BaseTest]):
         When parametrize, indirect must be used along with the fixture format as value.
         """
         execute_format = request.param
-        assert execute_format in EXECUTE_FORMATS.values()
+        assert execute_format in BaseExecute.formats.values()
 
         class BaseTestWrapper(cls):  # type: ignore
             def __init__(self, *args, **kwargs):
@@ -335,12 +344,8 @@ def pytest_generate_tests(metafunc: pytest.Metafunc):
             metafunc.parametrize(
                 [test_type.pytest_parameter_name()],
                 [
-                    pytest.param(
-                        execute_format,
-                        id=execute_format.execute_format_name.lower(),
-                        marks=[getattr(pytest.mark, execute_format.execute_format_name.lower())],
-                    )
-                    for execute_format in test_type.supported_execute_formats
+                    labeled_format_parameter_set(format_with_or_without_label)
+                    for format_with_or_without_label in test_type.supported_execute_formats
                 ],
                 scope="function",
                 indirect=True,
@@ -348,21 +353,26 @@ def pytest_generate_tests(metafunc: pytest.Metafunc):
 
 
 def pytest_collection_modifyitems(config: pytest.Config, items: List[pytest.Item]):
-    """
-    Remove pre-Paris tests parametrized to generate hive type fixtures; these
-    can't be used in the Hive Pyspec Simulator.
-
-    This can't be handled in this plugins pytest_generate_tests() as the fork
-    parametrization occurs in the forks plugin.
-    """
+    """Remove transition tests and add the appropriate execute markers to the test."""
     for item in items[:]:  # use a copy of the list, as we'll be modifying it
         if isinstance(item, EIPSpecTestItem):
             continue
-        for marker in item.iter_markers():
+        params: Dict[str, Any] = item.callspec.params  # type: ignore
+        if "fork" not in params or params["fork"] is None:
+            items.remove(item)
+            continue
+        fork: Fork = params["fork"]
+        spec_type, execute_format = get_spec_format_for_item(params)
+        assert issubclass(execute_format, BaseExecute)
+        markers = list(item.iter_markers())
+        if spec_type.discard_execute_format_by_marks(execute_format, fork, markers):
+            items.remove(item)
+            continue
+        for marker in markers:
             if marker.name == "execute":
                 for mark in marker.args:
                     item.add_marker(mark)
             elif marker.name == "valid_at_transition_to":
-                item.add_marker(pytest.mark.skip(reason="transition tests not executable"))
+                items.remove(item)
         if "yul" in item.fixturenames:  # type: ignore
             item.add_marker(pytest.mark.yul_test)

@@ -6,12 +6,12 @@ from dataclasses import dataclass
 from functools import cached_property
 from typing import Any, ClassVar, Dict, Generic, List, Literal, Sequence, SupportsBytes, Tuple
 
+import ethereum_rlp as eth_rlp
 from coincurve.keys import PrivateKey, PublicKey
-from ethereum import rlp as eth_rlp
 from ethereum.frontier.fork_types import Account as FrontierAccount
 from ethereum.frontier.fork_types import Address as FrontierAddress
 from ethereum.frontier.state import State, set_account, set_storage, state_root
-from ethereum_types.numeric import U256, Uint
+from ethereum_types.numeric import U256, Bytes32, Uint
 from pydantic import (
     BaseModel,
     ConfigDict,
@@ -231,7 +231,7 @@ class Alloc(BaseAlloc):
                     set_storage(
                         state=state,
                         address=FrontierAddress(address),
-                        key=Hash(key),
+                        key=Bytes32(Hash(key)),
                         value=U256(value),
                     )
         return state_root(state)
@@ -351,16 +351,16 @@ class EnvironmentGeneric(CamelModel, Generic[NumberBoundTypeVar]):
     parent_gas_limit: NumberBoundTypeVar | None = Field(None)
 
 
-class Environment(EnvironmentGeneric[Number]):
+class Environment(EnvironmentGeneric[HexNumber]):
     """
     Structure used to keep track of the context in which a block
     must be executed.
     """
 
-    blob_gas_used: Number | None = Field(None, alias="currentBlobGasUsed")
+    blob_gas_used: HexNumber | None = Field(None, alias="currentBlobGasUsed")
     parent_ommers_hash: Hash = Field(Hash(EmptyOmmersRoot), alias="parentUncleHash")
-    parent_blob_gas_used: Number | None = Field(None)
-    parent_excess_blob_gas: Number | None = Field(None)
+    parent_blob_gas_used: HexNumber | None = Field(None)
+    parent_excess_blob_gas: HexNumber | None = Field(None)
     parent_beacon_block_root: Hash | None = Field(None)
 
     block_hashes: Dict[Number, Hash] = Field(default_factory=dict)

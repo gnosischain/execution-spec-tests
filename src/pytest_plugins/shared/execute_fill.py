@@ -5,8 +5,8 @@ from typing import List, cast
 
 import pytest
 
-from ethereum_test_execution import EXECUTE_FORMATS
-from ethereum_test_fixtures import FIXTURE_FORMATS
+from ethereum_test_execution import BaseExecute
+from ethereum_test_fixtures import BaseFixture
 from ethereum_test_forks import (
     Fork,
     get_closest_fork_with_solc_support,
@@ -34,19 +34,26 @@ def pytest_configure(config: pytest.Config):
         it uses the modified `htmlpath` option.
     """
     if config.pluginmanager.has_plugin("pytest_plugins.filler.filler"):
-        for fixture_format in FIXTURE_FORMATS.values():
+        for fixture_format in BaseFixture.formats.values():
             config.addinivalue_line(
                 "markers",
-                (f"{fixture_format.fixture_format_name.lower()}: {fixture_format.description}"),
+                (f"{fixture_format.format_name.lower()}: {fixture_format.description}"),
             )
     elif config.pluginmanager.has_plugin("pytest_plugins.execute.execute"):
-        for execute_format in EXECUTE_FORMATS.values():
+        for execute_format in BaseExecute.formats.values():
             config.addinivalue_line(
                 "markers",
-                (f"{execute_format.execute_format_name.lower()}: {execute_format.description}"),
+                (f"{execute_format.format_name.lower()}: {execute_format.description}"),
             )
     else:
         raise Exception("Neither the filler nor the execute plugin is loaded.")
+
+    for spec_type in SPEC_TYPES:
+        for marker, description in spec_type.supported_markers.items():
+            config.addinivalue_line(
+                "markers",
+                (f"{marker}: {description}"),
+            )
 
     config.addinivalue_line(
         "markers",
@@ -164,7 +171,7 @@ def pytest_runtest_call(item: pytest.Item):
 
     if "state_test" in item.fixturenames and "blockchain_test" in item.fixturenames:
         raise InvalidFillerError(
-            "A filler should only implement either a state test or " "a blockchain test; not both."
+            "A filler should only implement either a state test or a blockchain test; not both."
         )
 
     # Check that the test defines either test type as parameter.

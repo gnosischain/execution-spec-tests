@@ -14,9 +14,9 @@ from typing import (
     get_type_hints,
 )
 
-from ethereum import rlp as eth_rlp
+import ethereum_rlp as eth_rlp
 from ethereum_types.numeric import Uint
-from pydantic import AliasChoices, Field, PlainSerializer, computed_field
+from pydantic import AliasChoices, Field, PlainSerializer, computed_field, model_validator
 
 from ethereum_test_base_types import (
     Address,
@@ -401,6 +401,7 @@ class FixtureConfig(CamelModel):
     """Chain configuration for a fixture."""
 
     fork: str = Field(..., alias="network")
+    chain_id: ZeroPaddedHexNumber = Field(ZeroPaddedHexNumber(1), alias="chainid")
     blob_schedule: FixtureBlobSchedule | None = None
 
 
@@ -422,6 +423,23 @@ class BlockchainFixtureCommon(BaseFixture):
     last_block_hash: Hash = Field(..., alias="lastblockhash")  # FIXME: lastBlockHash
     config: FixtureConfig
 
+    @model_validator(mode="before")
+    @classmethod
+    def config_defaults_for_backwards_compatibility(cls, data: Any) -> Any:
+        """
+        Check if the config field is populated, otherwise use the root-level field values for
+        backwards compatibility.
+        """
+        if isinstance(data, dict):
+            if "config" not in data:
+                data["config"] = {}
+            if isinstance(data["config"], dict):
+                if "network" not in data["config"]:
+                    data["config"]["network"] = data["network"]
+                if "chainid" not in data["config"]:
+                    data["config"]["chainid"] = "0x01"
+        return data
+
     def get_fork(self) -> str | None:
         """Return fork of the fixture as a string."""
         return self.fork
@@ -430,7 +448,7 @@ class BlockchainFixtureCommon(BaseFixture):
 class BlockchainFixture(BlockchainFixtureCommon):
     """Cross-client specific blockchain test model use in JSON fixtures."""
 
-    fixture_format_name: ClassVar[str] = "blockchain_test"
+    format_name: ClassVar[str] = "blockchain_test"
     description: ClassVar[str] = "Tests that generate a blockchain test fixture."
 
     genesis_rlp: Bytes = Field(..., alias="genesisRLP")
@@ -441,7 +459,7 @@ class BlockchainFixture(BlockchainFixtureCommon):
 class BlockchainEngineFixture(BlockchainFixtureCommon):
     """Engine specific test fixture information."""
 
-    fixture_format_name: ClassVar[str] = "blockchain_test_engine"
+    format_name: ClassVar[str] = "blockchain_test_engine"
     description: ClassVar[str] = (
         "Tests that generate a blockchain test fixture in Engine API format."
     )

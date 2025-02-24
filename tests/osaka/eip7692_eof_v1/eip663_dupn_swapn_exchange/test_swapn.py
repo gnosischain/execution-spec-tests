@@ -38,7 +38,7 @@ def test_swapn_all_valid_immediates(eof_state_test: EOFStateTestFiller):
 
     eof_state_test(
         tx_sender_funding_amount=1_000_000_000,
-        data=eof_code,
+        container=eof_code,
         container_post=post,
     )
 
@@ -55,7 +55,7 @@ def test_swapn_on_max_stack(
     swapn_operand: int,
     eof_test: EOFTestFiller,
 ):
-    """Test case out of bounds DUPN immediate."""
+    """Test case out of bounds SWAPN (max stack)."""
     eof_code = Container(
         sections=[
             Section.Code(
@@ -66,7 +66,7 @@ def test_swapn_on_max_stack(
         ],
     )
     eof_test(
-        data=eof_code,
+        container=eof_code,
     )
 
 
@@ -84,7 +84,7 @@ def test_swapn_stack_underflow(
     stack_height: int,
     eof_test: EOFTestFiller,
 ):
-    """Test case out of bounds DUPN immediate."""
+    """Test case out of bounds SWAPN (underflow)."""
     eof_code = Container(
         sections=[
             Section.Code(
@@ -96,6 +96,6 @@ def test_swapn_stack_underflow(
         ],
     )
     eof_test(
-        data=eof_code,
+        container=eof_code,
         expect_exception=EOFException.STACK_UNDERFLOW,
     )

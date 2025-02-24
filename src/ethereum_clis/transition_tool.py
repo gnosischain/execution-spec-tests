@@ -19,7 +19,6 @@ from requests_unixsocket import Session  # type: ignore
 
 from ethereum_test_base_types import BlobSchedule
 from ethereum_test_exceptions import ExceptionMapper
-from ethereum_test_fixtures import FixtureFormat, FixtureVerifier
 from ethereum_test_forks import Fork
 from ethereum_test_types import Alloc, Environment, Transaction
 
@@ -39,7 +38,7 @@ NORMAL_SERVER_TIMEOUT = 20
 SLOW_REQUEST_TIMEOUT = 60
 
 
-class TransitionTool(EthereumCLI, FixtureVerifier):
+class TransitionTool(EthereumCLI):
     """
     Transition tool abstract base class which should be inherited by all transition tool
     implementations.
@@ -51,12 +50,9 @@ class TransitionTool(EthereumCLI, FixtureVerifier):
     registered_tools: List[Type["TransitionTool"]] = []
     default_tool: Optional[Type["TransitionTool"]] = None
 
-    t8n_subcommand: Optional[str] = None
-    statetest_subcommand: Optional[str] = None
-    blocktest_subcommand: Optional[str] = None
+    subcommand: Optional[str] = None
     cached_version: Optional[str] = None
     t8n_use_stream: bool = False
-
     t8n_use_server: bool = False
     server_url: str
     process: Optional[subprocess.Popen] = None
@@ -323,6 +319,11 @@ class TransitionTool(EthereumCLI, FixtureVerifier):
         request_data = t8n_data.get_request_data()
         request_data_json = request_data.model_dump(mode="json", **model_dump_config)
 
+        temp_dir = tempfile.TemporaryDirectory()
+        request_data_json["trace"] = self.trace
+        if self.trace:
+            request_data_json["output-basedir"] = temp_dir.name
+
         if debug_output_path:
             request_info = (
                 f"Server URL: {self.server_url}\n\n"
@@ -350,6 +351,10 @@ class TransitionTool(EthereumCLI, FixtureVerifier):
         self._info_metadata = response_json.pop("_info_metadata", {})
 
         output: TransitionToolOutput = TransitionToolOutput.model_validate(response_json)
+
+        if self.trace:
+            self.collect_traces(output.result.receipts, temp_dir, debug_output_path)
+        temp_dir.cleanup()
 
         if debug_output_path:
             response_info = (
@@ -416,8 +421,8 @@ class TransitionTool(EthereumCLI, FixtureVerifier):
     ) -> List[str]:
         """Construct arguments for t8n interaction via streams."""
         command: list[str] = [str(self.binary)]
-        if self.t8n_subcommand:
-            command.append(self.t8n_subcommand)
+        if self.subcommand:
+            command.append(self.subcommand)
 
         args = command + [
             "--input.alloc=stdin",
@@ -532,20 +537,4 @@ class TransitionTool(EthereumCLI, FixtureVerifier):
         return self._evaluate_filesystem(
             t8n_data=t8n_data,
             debug_output_path=debug_output_path,
-        )
-
-    def verify_fixture(
-        self,
-        fixture_format: FixtureFormat,
-        fixture_path: Path,
-        fixture_name: Optional[str] = None,
-        debug_output_path: Optional[Path] = None,
-    ):
-        """
-        Execute `evm [state|block]test` to verify the fixture at `fixture_path`.
-
-        Currently only implemented by geth's evm.
-        """
-        raise NotImplementedError(
-            "The `verify_fixture()` function is not supported by this tool. Use geth's evm tool."
         )

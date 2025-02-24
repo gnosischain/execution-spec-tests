@@ -226,7 +226,7 @@ def test_gas(
     tx: Transaction,
     chain_id: int,
 ):
-    """Test the BLS12_G1MUL precompile gas requirements."""
+    """Test the BLS12_G2MUL precompile gas requirements."""
     state_test(
         env=Environment(),
         pre=pre,

@@ -14,7 +14,6 @@ from ethereum_test_tools import (
     Account,
     Alloc,
     Block,
-    BlockchainTestEngineFiller,
     BlockchainTestFiller,
     BlockException,
     Bytecode,
@@ -465,7 +464,31 @@ def invalid_requests_block_combinations(fork: Fork) -> List[Any]:
             correct_order_transactions,
             correct_order + [bytes([fork.max_request_type() + 1])],
             BlockException.INVALID_REQUESTS,
-            id="extra_invalid_type_request",
+            id="extra_invalid_type_request_with_no_data",
+        ),
+    )
+    combinations.append(
+        pytest.param(
+            correct_order_transactions,
+            correct_order + [bytes([fork.max_request_type() + 1, 0x00])],
+            BlockException.INVALID_REQUESTS,
+            id="extra_invalid_type_request_with_data_0x00",
+        ),
+    )
+    combinations.append(
+        pytest.param(
+            correct_order_transactions,
+            correct_order + [bytes([fork.max_request_type() + 1, 0x01])],
+            BlockException.INVALID_REQUESTS,
+            id="extra_invalid_type_request_with_data_0x01",
+        ),
+    )
+    combinations.append(
+        pytest.param(
+            correct_order_transactions,
+            correct_order + [bytes([fork.max_request_type() + 1, 0xFF])],
+            BlockException.INVALID_REQUESTS,
+            id="extra_invalid_type_request_with_data_0xff",
         ),
     )
 
@@ -502,8 +525,9 @@ def test_invalid_deposit_withdrawal_consolidation_requests(
     invalid_requests_block_combinations,
 )
 @pytest.mark.parametrize("correct_requests_hash_in_header", [True])
+@pytest.mark.blockchain_test_engine_only
 def test_invalid_deposit_withdrawal_consolidation_requests_engine(
-    blockchain_test_engine: BlockchainTestEngineFiller,
+    blockchain_test: BlockchainTestFiller,
     pre: Alloc,
     blocks: List[Block],
 ):
@@ -516,10 +540,16 @@ def test_invalid_deposit_withdrawal_consolidation_requests_engine(
     so the block might execute properly if the client ignores the requests in the new payload
     parameters.
 
+    Note that the only difference between the engine version produced by this test and
+    the ones produced by `test_invalid_deposit_withdrawal_consolidation_requests` is the
+    `blockHash` value in the new payloads, which is calculated using different request hashes
+    for each test, but since the request hash is not a value that is included in the payload,
+    it might not be immediately apparent.
+
     Also these tests would not fail if the block is imported via RLP (syncing from a peer),
     so we only generate the BlockchainTestEngine for them.
     """
-    blockchain_test_engine(
+    blockchain_test(
         genesis_environment=Environment(),
         pre=pre,
         post={},

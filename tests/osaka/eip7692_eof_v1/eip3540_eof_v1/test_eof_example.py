@@ -60,7 +60,7 @@ def test_eof_example(eof_test: EOFTestFiller):
     )
 
     eof_test(
-        data=eof_code,
+        container=eof_code,
         expect_exception=eof_code.validity_error,
     )
 
@@ -110,7 +110,7 @@ def test_eof_example_custom_fields(eof_test: EOFTestFiller):
     )
 
     eof_test(
-        data=eof_code,
+        container=eof_code,
         expect_exception=eof_code.validity_error,
     )
 
@@ -129,7 +129,7 @@ def test_eof_example_parameters(
     code_section_code: Bytecode,
     exception: EOFException,
 ):
-    """Example of python EOF classes."""
+    """Example of EOF example parameters."""
     eof_code = Container(
         name="parametrized_eof_example",
         sections=[
@@ -143,6 +143,6 @@ def test_eof_example_parameters(
     )
 
     eof_test(
-        data=eof_code,
+        container=eof_code,
         expect_exception=eof_code.validity_error,
     )

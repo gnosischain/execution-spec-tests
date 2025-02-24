@@ -50,7 +50,7 @@ class BesuTransitionTool(TransitionTool):
             result = subprocess.run(args, capture_output=True, text=True)
         except subprocess.CalledProcessError as e:
             raise Exception(
-                "evm process unexpectedly returned a non-zero status code: " f"{e}."
+                f"evm process unexpectedly returned a non-zero status code: {e}."
             ) from e
         except Exception as e:
             raise Exception(f"Unexpected exception calling evm tool: {e}.") from e
@@ -260,6 +260,10 @@ class BesuExceptionMapper(ExceptionMapper):
             ExceptionMessage(
                 TransactionException.INITCODE_SIZE_EXCEEDED,
                 "exceeds maximum size",
+            ),
+            ExceptionMessage(
+                TransactionException.NONCE_MISMATCH_TOO_LOW,
+                "below sender account nonce",
             ),
             # TODO EVMONE needs to differentiate when the section is missing in the header or body
             ExceptionMessage(EOFException.MISSING_STOP_OPCODE, "err: no_terminating_instruction"),

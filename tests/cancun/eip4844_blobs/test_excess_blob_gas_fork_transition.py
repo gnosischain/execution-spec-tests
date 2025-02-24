@@ -94,7 +94,7 @@ def pre_fork_excess_blobs(
     pre_fork_blocks: List[Block],
 ) -> int:
     """
-    Return the cummulative excess blobs up until the fork given the pre_fork_blobs_per_block
+    Return the cumulative excess blobs up until the fork given the pre_fork_blobs_per_block
     and the target blobs in the fork prior.
     """
     if not fork.supports_blobs(timestamp=0):
@@ -388,12 +388,7 @@ def test_fork_transition_excess_blob_gas_post_blob_genesis(
     post_fork_blocks: List[Block],
     post: Mapping[Address, Account],
 ):
-    """
-    Test `excessBlobGas` calculation in the header when the fork is activated.
-
-    Also produce enough blocks to test the blob gas price increase when the block is full with
-    `SpecHelpers.max_blobs_per_block()` blobs.
-    """
+    """Test `excessBlobGas` calculation in the header when the fork is activated."""
     blockchain_test(
         pre=pre,
         post=post,

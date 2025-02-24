@@ -16,7 +16,7 @@ classifiers = [
 ]
 dependencies = [
     "click>=8.1.0,<9",
-    "ethereum @ git+https://github.com/ethereum/execution-specs",
+    "ethereum @ git+https://github.com/ethereum/execution-specs@78fb726158c69d8fa164e28f195fabf6ab59b915",
     "hive.py @ git+https://github.com/marioevz/hive.py",
     "ethereum-spec-evm-resolver @ git+https://github.com/petertdavies/ethereum-spec-evm-resolver",
     "setuptools",
@@ -50,7 +50,8 @@ dependencies = [
     # https://ethereum.github.io/execution-spec-tests/main/dev/interactive_usage/
     "questionary @ git+https://github.com/tmbo/questionary@ff22aeae1cd9c1c734f14329934e349bec7873bc",
     "prompt_toolkit>=3.0.48,<4", # ensure we have a new enough version for ipython
-    "ethereum-rlp==0.1.3",
+    "ethereum-rlp>=0.1.3,<0.2",
+    "pytest-regex>=0.2.0,<0.3",
 ]
 
 [project.urls]
@@ -63,8 +64,8 @@ Changelog = "https://ethereum.github.io/execution-spec-tests/main/CHANGELOG/"
 [project.optional-dependencies]
 test = ["pytest-cov>=4.1.0,<5"]
 lint = [
-    "ruff==0.8.2",
-    "mypy==0.991; implementation_name == 'cpython'",
+    "ruff==0.9.4",
+    "mypy>=1.15.0,<1.16",
     "types-requests"
 ]
 docs = [
@@ -115,9 +116,12 @@ line-length = 99
 [tool.ruff.lint]
 select = ["E", "F", "B", "W", "I", "A", "N", "D", "C"]
 fixable = ["I", "B", "E", "F", "W", "D", "C"]
-ignore = ["D205", "D203", "D212", "D415", "C901"] 
+ignore = ["D205", "D203", "D212", "D415", "C901", "A005"] 
 
 
 [tool.mypy]
 mypy_path = ["src", "$MYPY_CONFIG_FILE_DIR/stubs"]
 plugins = ["pydantic.mypy"]
+
+[tool.uv.sources]
+ethereum = { git = "https://github.com/ethereum/execution-specs", rev = "78fb726158c69d8fa164e28f195fabf6ab59b915" }
