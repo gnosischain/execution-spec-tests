@@ -73,7 +73,7 @@ class WithdrawalRequestInteractionBase:
     Withdrawal request to be included in the block.
     """
 
-    def transactions(self) -> List[Transaction]:
+    def transactions(self, chain_id: int) -> List[Transaction]:
         """Return a transaction for the withdrawal request."""
         raise NotImplementedError
 
@@ -90,7 +90,7 @@ class WithdrawalRequestInteractionBase:
 class WithdrawalRequestTransaction(WithdrawalRequestInteractionBase):
     """Class used to describe a withdrawal request originated from an externally owned account."""
 
-    def transactions(self) -> List[Transaction]:
+    def transactions(self, chain_id: int) -> List[Transaction]:
         """Return a transaction for the withdrawal request."""
         assert self.sender_account is not None, "Sender account not initialized"
         return [
@@ -101,6 +101,7 @@ class WithdrawalRequestTransaction(WithdrawalRequestInteractionBase):
                 value=request.value,
                 data=request.calldata,
                 sender=self.sender_account,
+                chain_id=chain_id,
             )
             for request in self.requests
         ]
@@ -175,7 +176,7 @@ class WithdrawalRequestContract(WithdrawalRequestInteractionBase):
             current_offset += len(r.calldata)
         return code + self.extra_code
 
-    def transactions(self) -> List[Transaction]:
+    def transactions(self, chain_id: int) -> List[Transaction]:
         """Return a transaction for the deposit request."""
         assert self.entry_address is not None, "Entry address not initialized"
         return [
@@ -186,6 +187,7 @@ class WithdrawalRequestContract(WithdrawalRequestInteractionBase):
                 value=0,
                 data=b"".join(r.calldata for r in self.requests),
                 sender=self.sender_account,
+                chain_id=chain_id,
             )
         ]
 
