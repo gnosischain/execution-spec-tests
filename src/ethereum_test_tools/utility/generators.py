@@ -41,6 +41,7 @@ class SystemContractDeployTestFunction(Protocol):
         pre: Alloc,
         post: Alloc,
         test_type: DeploymentTestType,
+        chain_id: int,
     ) -> Generator[Block, None, None]:
         """
         Args:
@@ -132,11 +133,13 @@ def generate_system_contract_deploy_test(
             pre: Alloc,
             test_type: DeploymentTestType,
             fork: Fork,
+            chain_id: int
         ):
             assert deployer_address is not None
             assert deploy_tx.created_contract == expected_deploy_address
             blocks: List[Block] = []
 
+            deploy_tx.chain_id = chain_id
             if test_type == DeploymentTestType.DEPLOY_BEFORE_FORK:
                 blocks = [
                     Block(  # Deployment block
@@ -193,12 +196,13 @@ def generate_system_contract_deploy_test(
 
             # Extra blocks (if any) returned by the decorated function to add after the
             # contract is deployed.
-            blocks += list(func(fork=fork, pre=pre, post=post, test_type=test_type))
+            blocks += list(func(fork=fork, pre=pre, post=post, test_type=test_type, chain_id=chain_id))
 
             blockchain_test(
                 pre=pre,
                 blocks=blocks,
                 post=post,
+                chain_id=chain_id,
             )
 
         wrapper.__name__ = func.__name__  # type: ignore
