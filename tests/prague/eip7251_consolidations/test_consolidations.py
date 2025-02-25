@@ -737,6 +737,7 @@ def test_consolidation_requests_negative(
     requests: List[ConsolidationRequestInteractionBase],
     block_body_override_requests: List[ConsolidationRequest],
     exception: BlockException,
+    chain_id: int,
 ):
     """
     Test blocks where the requests list and the actual consolidation requests that happened in the
@@ -758,7 +759,7 @@ def test_consolidation_requests_negative(
         post={},
         blocks=[
             Block(
-                txs=sum((r.transactions() for r in requests), []),
+                txs=sum((r.transactions(chain_id=chain_id) for r in requests), []),
                 header_verify=Header(
                     requests_hash=Requests(*included_requests),
                 ),
@@ -770,4 +771,5 @@ def test_consolidation_requests_negative(
                 exception=exception,
             )
         ],
+        chain_id=chain_id,
     )
