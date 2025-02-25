@@ -35,6 +35,7 @@ def test_system_contract_deployment(
     pre: Alloc,
     post: Alloc,
     test_type: DeploymentTestType,
+    chain_id: int,
     **kwargs,
 ):
     """Verify deployment of the block hashes system contract."""
@@ -65,6 +66,7 @@ def test_system_contract_deployment(
         to=deployed_contract,
         gas_limit=10_000_000,
         sender=pre.fund_eoa(),
+        chain_id=chain_id
     )
 
     yield Block(txs=[tx])
