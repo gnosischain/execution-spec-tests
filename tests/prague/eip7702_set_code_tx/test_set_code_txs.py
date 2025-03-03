@@ -2698,7 +2698,6 @@ def test_set_code_to_system_contract(
                     signer=auth_signer,
                 ),
             ],
-
         )
     ]
 
@@ -2755,7 +2754,6 @@ def test_eoa_tx_after_set_code(
                     signer=auth_signer,
                 ),
             ],
-
         )
     ]
     auth_signer.nonce += 1  # type: ignore
@@ -2770,7 +2768,6 @@ def test_eoa_tx_after_set_code(
                     to=auth_signer,
                     value=0,
                     protected=True,
-
                 ),
             )
             txs.append(
@@ -2781,7 +2778,6 @@ def test_eoa_tx_after_set_code(
                     to=auth_signer,
                     value=0,
                     protected=False,
-
                 ),
             )
         case 1:
@@ -2798,7 +2794,6 @@ def test_eoa_tx_after_set_code(
                             storage_keys=[1],
                         )
                     ],
-
                 ),
             )
         case 2:
@@ -2811,7 +2806,6 @@ def test_eoa_tx_after_set_code(
                     value=0,
                     max_fee_per_gas=1_000,
                     max_priority_fee_per_gas=1_000,
-
                 ),
             )
         case 3:
@@ -2829,7 +2823,6 @@ def test_eoa_tx_after_set_code(
                         [Hash(1)],
                         Spec4844.BLOB_COMMITMENT_VERSION_KZG,
                     ),
-
                 ),
             )
         case _:
@@ -2887,7 +2880,6 @@ def test_reset_code(
                     signer=auth_signer,
                 ),
             ],
-
         )
     ]
 
@@ -2909,7 +2901,6 @@ def test_reset_code(
                     signer=auth_signer,
                 ),
             ],
-
         ),
     )
 
@@ -3258,7 +3249,7 @@ def test_deploying_delegation_designation_contract(
 
 @pytest.mark.parametrize("create_opcode", [Op.CREATE, Op.CREATE2])
 def test_creating_delegation_designation_contract(
-    state_test: StateTestFiller, pre: Alloc, create_opcode: Op,
+    state_test: StateTestFiller, pre: Alloc, create_opcode: Op
 ):
     """
     Tx -> create -> pointer bytecode
