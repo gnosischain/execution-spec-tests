@@ -123,7 +123,6 @@ def test_valid_gas_g1msm(
     pre: Alloc,
     post: dict,
     tx: Transaction,
-    chain_id: int,
 ):
     """
     Test the BLS12_G1MSM discount gas table in full, by expecting the call to succeed for
@@ -136,7 +135,6 @@ def test_valid_gas_g1msm(
         pre=pre,
         tx=tx,
         post=post,
-        chain_id=chain_id,
     )
 
 
@@ -166,7 +164,6 @@ def test_invalid_gas_g1msm(
     pre: Alloc,
     post: dict,
     tx: Transaction,
-    chain_id: int,
 ):
     """
     Test the BLS12_G1MSM discount gas table in full, by expecting the call to fail for
@@ -179,7 +176,6 @@ def test_invalid_gas_g1msm(
         pre=pre,
         tx=tx,
         post=post,
-        chain_id=chain_id,
     )
 
 
@@ -211,7 +207,6 @@ def test_invalid_length_g1msm(
     pre: Alloc,
     post: dict,
     tx: Transaction,
-    chain_id: int,
 ):
     """
     Test the BLS12_G1MSM discount gas table in full, by expecting the call to fail for
@@ -224,7 +219,6 @@ def test_invalid_length_g1msm(
         pre=pre,
         tx=tx,
         post=post,
-        chain_id=chain_id,
     )
 
 
@@ -254,7 +248,6 @@ def test_valid_gas_g2msm(
     pre: Alloc,
     post: dict,
     tx: Transaction,
-    chain_id: int,
 ):
     """
     Test the BLS12_G2MSM discount gas table in full, by expecting the call to succeed for
@@ -267,7 +260,6 @@ def test_valid_gas_g2msm(
         pre=pre,
         tx=tx,
         post=post,
-        chain_id=chain_id,
     )
 
 
@@ -297,7 +289,6 @@ def test_invalid_gas_g2msm(
     pre: Alloc,
     post: dict,
     tx: Transaction,
-    chain_id: int,
 ):
     """
     Test the BLS12_G2MSM discount gas table in full, by expecting the call to fail for
@@ -310,7 +301,6 @@ def test_invalid_gas_g2msm(
         pre=pre,
         tx=tx,
         post=post,
-        chain_id=chain_id,
     )
 
 
@@ -342,7 +332,6 @@ def test_invalid_length_g2msm(
     pre: Alloc,
     post: dict,
     tx: Transaction,
-    chain_id: int,
 ):
     """
     Test the BLS12_G2MSM discount gas table in full, by expecting the call to fail for
@@ -355,7 +344,6 @@ def test_invalid_length_g2msm(
         pre=pre,
         tx=tx,
         post=post,
-        chain_id=chain_id,
     )
 
 
@@ -382,7 +370,6 @@ def test_valid_gas_pairing(
     pre: Alloc,
     post: dict,
     tx: Transaction,
-    chain_id: int,
 ):
     """
     Test the BLS12_PAIRING precompile, by expecting the call to succeed for all possible input
@@ -395,7 +382,6 @@ def test_valid_gas_pairing(
         pre=pre,
         tx=tx,
         post=post,
-        chain_id=chain_id,
     )
 
 
@@ -422,7 +408,6 @@ def test_invalid_gas_pairing(
     pre: Alloc,
     post: dict,
     tx: Transaction,
-    chain_id: int,
 ):
     """
     Test the BLS12_PAIRING precompile, by expecting the call to fail for all possible input
@@ -435,7 +420,6 @@ def test_invalid_gas_pairing(
         pre=pre,
         tx=tx,
         post=post,
-        chain_id=chain_id,
     )
 
 
@@ -467,7 +451,6 @@ def test_invalid_length_pairing(
     pre: Alloc,
     post: dict,
     tx: Transaction,
-    chain_id: int,
 ):
     """
     Test the BLS12_PAIRING precompile, by expecting the call to fail for all possible input
@@ -480,5 +463,4 @@ def test_invalid_length_pairing(
         pre=pre,
         tx=tx,
         post=post,
-        chain_id=chain_id,
     )

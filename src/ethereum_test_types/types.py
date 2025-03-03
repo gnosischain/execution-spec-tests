@@ -434,7 +434,7 @@ class Environment(EnvironmentGeneric[ZeroPaddedHexNumber]):
 class AuthorizationTupleGeneric(CamelModel, Generic[NumberBoundTypeVar]):
     """Authorization tuple for transactions."""
 
-    chain_id: NumberBoundTypeVar = Field(0)  # type: ignore
+    chain_id: int = Field(default_factory=lambda: TransactionDefaults.chain_id)
     address: Address
     nonce: List[NumberBoundTypeVar] | NumberBoundTypeVar = Field(0)  # type: ignore
 

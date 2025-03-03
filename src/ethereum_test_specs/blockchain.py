@@ -45,7 +45,15 @@ from ethereum_test_fixtures.blockchain import (
 )
 from ethereum_test_fixtures.common import FixtureBlobSchedule
 from ethereum_test_forks import Fork
-from ethereum_test_types import Alloc, Environment, Removable, Requests, Transaction, Withdrawal
+from ethereum_test_types import (
+    Alloc,
+    Environment,
+    Removable,
+    Requests,
+    Transaction,
+    TransactionDefaults,
+    Withdrawal,
+)
 
 from .base import BaseTest, verify_result
 from .debugging import print_traces
@@ -291,7 +299,7 @@ class BlockchainTest(BaseTest):
     blocks: List[Block]
     genesis_environment: Environment = Field(default_factory=Environment)
     verify_sync: bool = False
-    chain_id: int = 1
+    chain_id: int = Field(default_factory=lambda: TransactionDefaults.chain_id)
 
     supported_fixture_formats: ClassVar[Sequence[FixtureFormat | LabeledFixtureFormat]] = [
         BlockchainFixture,

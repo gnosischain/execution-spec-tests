@@ -179,7 +179,6 @@ def tx(
     tx_gas_limit: int,
     call_contract_address: Address,
     sender: EOA,
-    chain_id: int,
 ) -> Transaction:
     """Transaction for the test."""
     return Transaction(
@@ -187,5 +186,4 @@ def tx(
         data=input_data,
         to=call_contract_address,
         sender=sender,
-        chain_id=chain_id,
     )

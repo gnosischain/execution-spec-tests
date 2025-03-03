@@ -62,7 +62,6 @@ def test_precompile_before_fork(
     pre: Alloc,
     post: dict,
     tx: Transaction,
-    chain_id: int
 ):
     """
     Test all BLS12 precompiles before the Prague hard fork is active.
@@ -74,5 +73,4 @@ def test_precompile_before_fork(
         pre=pre,
         tx=tx,
         post=post,
-        chain_id=chain_id,
     )

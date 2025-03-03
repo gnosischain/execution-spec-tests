@@ -31,6 +31,7 @@ from ethereum_test_tools.utility.versioning import (
     generate_github_url,
     get_current_commit_hash_or_tag,
 )
+from ethereum_test_types import TransactionDefaults
 from pytest_plugins.spec_version_checker.spec_version_checker import EIPSpecTestItem
 
 from ..shared.helpers import get_spec_format_for_item, labeled_format_parameter_set
@@ -415,6 +416,10 @@ def t8n(request: pytest.FixtureRequest, evm_bin: Path) -> Generator[TransitionTo
     t8n = TransitionTool.from_binary_path(
         binary_path=evm_bin, trace=request.config.getoption("evm_collect_traces")
     )
+    if request.config.getoption("gnosis"):
+        if not t8n.is_gnosis_supported:
+            raise Exception(f'gnosis is not supported for: {t8n.__class__.__name__}')
+        TransactionDefaults.chain_id = 100
     yield t8n
     t8n.shutdown()
 

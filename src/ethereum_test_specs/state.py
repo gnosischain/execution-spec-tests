@@ -28,7 +28,7 @@ from ethereum_test_fixtures.state import (
     FixtureTransaction,
 )
 from ethereum_test_forks import Fork
-from ethereum_test_types import Alloc, Environment, Transaction
+from ethereum_test_types import Alloc, Environment, Transaction, TransactionDefaults
 
 from .base import BaseTest
 from .blockchain import Block, BlockchainTest, Header
@@ -46,7 +46,7 @@ class StateTest(BaseTest):
     engine_api_error_code: Optional[EngineAPIError] = None
     blockchain_test_header_verify: Optional[Header] = None
     blockchain_test_rlp_modifier: Optional[Header] = None
-    chain_id: int = 1
+    chain_id: int = Field(default_factory=lambda: TransactionDefaults.chain_id)
 
     supported_fixture_formats: ClassVar[Sequence[FixtureFormat | LabeledFixtureFormat]] = [
         StateFixture,
