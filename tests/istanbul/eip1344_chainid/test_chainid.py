@@ -28,7 +28,6 @@ def test_chainid(state_test: StateTestFiller, pre: Alloc):
 
     tx = Transaction(
         ty=0x0,
-        chain_id=0x01,
         to=contract_address,
         gas_limit=100000000,
         gas_price=10,

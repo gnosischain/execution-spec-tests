@@ -29,7 +29,6 @@ def test_access_list(state_test: StateTestFiller, pre: Alloc):
 
     tx = Transaction(
         ty=1,
-        chain_id=0x01,
         to=contract_address,
         value=1,
         gas_limit=323328,

@@ -149,7 +149,6 @@ def test_fill_state_test(
 
     if tx_type == TransactionType.LEGACY:
         tx = Transaction(
-            chain_id=0x0,
             nonce=0,
             to="0x1000000000000000000000000000000000000000",
             gas_limit=100000000,
@@ -159,7 +158,6 @@ def test_fill_state_test(
     elif tx_type == TransactionType.ACCESS_LIST:
         tx = Transaction(
             ty=0x1,
-            chain_id=0x1,
             nonce=0,
             to="0x1000000000000000000000000000000000000000",
             gas_limit=100000000,
