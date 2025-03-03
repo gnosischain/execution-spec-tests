@@ -811,10 +811,9 @@ def transactions_per_block(request) -> int:  # noqa: D103
 
 
 @pytest.fixture(scope="session")
-def chain_id() -> int:
+def chain_id(request: pytest.FixtureRequest) -> int:
     """Return chain id where the tests will be executed."""
-    return 1
-
+    return 100 if request.config.getoption("chain_id") else 1
 
 @pytest.fixture(autouse=True, scope="session")
 def eth_rpc(

@@ -15,6 +15,7 @@ from ethereum_test_tools import (
     TransactionException,
     TransactionTestFiller,
 )
+from ethereum_test_types import TransactionDefaults
 
 from .spec import Spec, ref_spec_7702
 
@@ -78,7 +79,6 @@ def test_invalid_auth_signature(
             AuthorizationTuple(
                 address=delegate_address,
                 nonce=0,
-                chain_id=1,
                 v=v,
                 r=r,
                 s=s,
