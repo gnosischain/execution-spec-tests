@@ -493,7 +493,6 @@ def test_set_code_to_self_destruct(
                 address=set_code_to_address,
                 nonce=0,
                 signer=auth_signer,
-
             ),
         ],
         sender=pre.fund_eoa(),
@@ -583,7 +582,6 @@ def test_set_code_to_contract_creator(
                 address=creator_code_address,
                 nonce=0,
                 signer=auth_signer,
-
             ),
         ],
         sender=pre.fund_eoa(),
@@ -650,7 +648,6 @@ def test_set_code_to_self_caller(
                 address=set_code_to_address,
                 nonce=0,
                 signer=auth_signer,
-
             ),
         ],
         sender=pre.fund_eoa(),
@@ -697,7 +694,6 @@ def test_set_code_max_depth_call_stack(
                 address=set_code_to_address,
                 nonce=0,
                 signer=auth_signer,
-
             ),
         ],
         sender=pre.fund_eoa(),
@@ -764,13 +760,11 @@ def test_set_code_call_set_code(
                 address=set_code_to_address_1,
                 nonce=0,
                 signer=auth_signer_1,
-
             ),
             AuthorizationTuple(
                 address=set_code_to_address_2,
                 nonce=0,
                 signer=auth_signer_2,
-
             ),
         ],
         sender=pre.fund_eoa(),
@@ -825,7 +819,6 @@ def test_address_from_set_code(
                 address=set_code_to_address,
                 nonce=0,
                 signer=auth_signer,
-
             ),
         ],
         sender=pre.fund_eoa(),
@@ -862,7 +855,6 @@ def test_tx_into_self_delegating_set_code(
                 address=auth_signer,
                 nonce=0,
                 signer=auth_signer,
-
             ),
         ],
         sender=pre.fund_eoa(),
@@ -901,13 +893,11 @@ def test_tx_into_chain_delegating_set_code(
                 address=auth_signer_2,
                 nonce=0,
                 signer=auth_signer_1,
-
             ),
             AuthorizationTuple(
                 address=auth_signer_1,
                 nonce=0,
                 signer=auth_signer_2,
-
             ),
         ],
         sender=pre.fund_eoa(),
@@ -958,7 +948,6 @@ def test_call_into_self_delegating_set_code(
                 address=auth_signer,
                 nonce=0,
                 signer=auth_signer,
-
             ),
         ],
         sender=pre.fund_eoa(),
@@ -1010,13 +999,11 @@ def test_call_into_chain_delegating_set_code(
                 address=auth_signer_2,
                 nonce=0,
                 signer=auth_signer_1,
-
             ),
             AuthorizationTuple(
                 address=auth_signer_1,
                 nonce=0,
                 signer=auth_signer_2,
-
             ),
         ],
         sender=pre.fund_eoa(),
@@ -1107,7 +1094,6 @@ def test_ext_code_on_set_code(
                 address=set_code_to_address,
                 nonce=0,
                 signer=auth_signer,
-
             ),
         ],
         sender=pre.fund_eoa(),
@@ -1181,7 +1167,6 @@ def test_ext_code_on_self_set_code(
                 address=set_code_address,
                 nonce=0,
                 signer=auth_signer,
-
             ),
         ],
         sender=pre.fund_eoa(),
@@ -1265,7 +1250,6 @@ def test_set_code_address_and_authority_warm_state(
                 address=set_code_to_address,
                 nonce=0,
                 signer=auth_signer,
-
             ),
         ],
         sender=pre.fund_eoa(),
@@ -1339,7 +1323,6 @@ def test_set_code_address_and_authority_warm_state_call_types(
                 address=set_code_to_address,
                 nonce=0,
                 signer=auth_signer,
-
             ),
         ],
         sender=pre.fund_eoa(),
@@ -1406,7 +1389,6 @@ def test_ext_code_on_self_delegating_set_code(
                 address=auth_signer,
                 nonce=0,
                 signer=auth_signer,
-
             ),
         ],
         sender=pre.fund_eoa(),  # TODO: Test with sender as auth_signer
@@ -1497,13 +1479,11 @@ def test_ext_code_on_chain_delegating_set_code(
                 address=auth_signer_2,
                 nonce=0,
                 signer=auth_signer_1,
-
             ),
             AuthorizationTuple(
                 address=auth_signer_1,
                 nonce=0,
                 signer=auth_signer_2,
-
             ),
         ],
         sender=pre.fund_eoa(),  # TODO: Test with sender as auth_signer
@@ -1568,7 +1548,6 @@ def test_self_code_on_set_code(
                 address=set_code_to_address,
                 nonce=0,
                 signer=auth_signer,
-
             ),
         ],
         sender=pre.fund_eoa(),
@@ -1668,7 +1647,6 @@ def test_set_code_to_account_deployed_in_same_tx(
                 address=deployed_contract_address,
                 nonce=0,
                 signer=auth_signer,
-
             ),
         ],
         sender=pre.fund_eoa(),
@@ -1780,7 +1758,6 @@ def test_set_code_to_self_destructing_account_deployed_in_same_tx(
                 address=deployed_contract_address,
                 nonce=0,
                 signer=auth_signer,
-
             ),
         ],
         sender=pre.fund_eoa(),
@@ -1839,7 +1816,6 @@ def test_set_code_multiple_first_valid_authorization_tuples_same_signer(
                 address=address,
                 nonce=0,
                 signer=auth_signer,
-
             )
             for address in addresses
         ],
@@ -1887,7 +1863,6 @@ def test_set_code_multiple_valid_authorization_tuples_same_signer_increasing_non
                 address=address,
                 nonce=i,
                 signer=auth_signer,
-
             )
             for i, address in enumerate(addresses)
         ],
@@ -1936,7 +1911,6 @@ def test_set_code_multiple_valid_authorization_tuples_same_signer_increasing_non
                 address=address,
                 nonce=i + 1,
                 signer=auth_signer,
-
             )
             for i, address in enumerate(addresses)
         ],
@@ -1984,7 +1958,6 @@ def test_set_code_multiple_valid_authorization_tuples_first_invalid_same_signer(
                 address=address,
                 nonce=1 if i == 0 else 0,
                 signer=auth_signer,
-
             )
             for i, address in enumerate(addresses)
         ],
@@ -2030,7 +2003,6 @@ def test_set_code_all_invalid_authorization_tuples(
                 address=address,
                 nonce=1,
                 signer=auth_signer,
-
             )
             for _, address in enumerate(addresses)
         ],
@@ -2067,7 +2039,6 @@ def test_set_code_using_chain_specific_id(
             AuthorizationTuple(
                 address=set_code_to_address,
                 nonce=0,
-
                 signer=auth_signer,
             )
         ],
@@ -2456,13 +2427,11 @@ def test_nonce_overflow_after_first_authorization(
             address=set_code_to_address_1,
             nonce=nonce,
             signer=auth_signer,
-
         ),
         AuthorizationTuple(
             address=set_code_to_address_2,
             nonce=nonce + 1,
             signer=auth_signer,
-
         ),
     ]
 
@@ -2535,7 +2504,6 @@ def test_set_code_to_log(
                 address=set_to_address,
                 nonce=1,
                 signer=sender,
-
             ),
         ],
         sender=sender,
@@ -2590,7 +2558,6 @@ def test_set_code_to_precompile(
                 address=Address(precompile),
                 nonce=0,
                 signer=auth_signer,
-
             ),
         ],
     )
@@ -2729,7 +2696,6 @@ def test_set_code_to_system_contract(
                     address=Address(system_contract),
                     nonce=auth_signer.nonce,
                     signer=auth_signer,
-
                 ),
             ],
 
@@ -2787,7 +2753,6 @@ def test_eoa_tx_after_set_code(
                     address=set_code_to_address,
                     nonce=0,
                     signer=auth_signer,
-
                 ),
             ],
 
@@ -2920,7 +2885,6 @@ def test_reset_code(
                     address=set_code_1_address,
                     nonce=0,
                     signer=auth_signer,
-
                 ),
             ],
 
@@ -2943,7 +2907,6 @@ def test_reset_code(
                     address=set_code_2_address,
                     nonce=auth_signer.nonce + 1 if self_sponsored else auth_signer.nonce,
                     signer=auth_signer,
-
                 ),
             ],
 
@@ -3124,7 +3087,6 @@ def test_delegation_clearing_tx_to(
                 address=Spec.RESET_DELEGATION_ADDRESS,  # Reset
                 nonce=auth_signer.nonce + (1 if self_sponsored else 0),
                 signer=auth_signer,
-
             ),
         ],
         sender=sender,
@@ -3189,7 +3151,6 @@ def test_delegation_clearing_and_set(
                 address=reset_code_address,
                 nonce=auth_signer.nonce + 1,
                 signer=auth_signer,
-
             ),
         ],
         sender=sender,
@@ -3402,7 +3363,6 @@ def test_many_delegations(
                 address=Address(i + 1),
                 nonce=0,
                 signer=signer,
-
             )
             for (i, signer) in enumerate(signers)
         ],

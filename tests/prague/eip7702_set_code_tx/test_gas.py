@@ -55,7 +55,6 @@ class AuthorizationInvalidityType(Enum):
 
     INVALID_NONCE = auto()
     REPEATED_NONCE = auto()
-    REPEATED_NONCE = auto()
     INVALID_CHAIN_ID = auto()
     AUTHORITY_IS_CONTRACT = auto()
 
@@ -204,7 +203,6 @@ def authorization_list_with_properties(
     chain_id = 0 if chain_id_type == ChainIDType.GENERIC else TransactionDefaults.chain_id
     if authorization_invalidity_type == AuthorizationInvalidityType.INVALID_CHAIN_ID:
         chain_id = 2
-
 
     authorization_list: List[AuthorizationWithProperties] = []
     match signer_type:
