@@ -71,7 +71,7 @@ class ConsolidationRequestInteractionBase:
     Consolidation requests to be included in the block.
     """
 
-    def transactions(self, chain_id: int) -> List[Transaction]:
+    def transactions(self) -> List[Transaction]:
         """Return a transaction for the consolidation request."""
         raise NotImplementedError
 
@@ -88,7 +88,7 @@ class ConsolidationRequestInteractionBase:
 class ConsolidationRequestTransaction(ConsolidationRequestInteractionBase):
     """Class to describe a consolidation request originated from an externally owned account."""
 
-    def transactions(self, chain_id: int) -> List[Transaction]:
+    def transactions(self) -> List[Transaction]:
         """Return a transaction for the consolidation request."""
         assert self.sender_account is not None, "Sender account not initialized"
         return [
@@ -99,7 +99,6 @@ class ConsolidationRequestTransaction(ConsolidationRequestInteractionBase):
                 value=request.value,
                 data=request.calldata,
                 sender=self.sender_account,
-                chain_id=chain_id,
             )
             for request in self.requests
         ]
@@ -174,7 +173,7 @@ class ConsolidationRequestContract(ConsolidationRequestInteractionBase):
             current_offset += len(r.calldata)
         return code + self.extra_code
 
-    def transactions(self, chain_id: int) -> List[Transaction]:
+    def transactions(self) -> List[Transaction]:
         """Return a transaction for the consolidation request."""
         assert self.entry_address is not None, "Entry address not initialized"
         return [
@@ -185,7 +184,6 @@ class ConsolidationRequestContract(ConsolidationRequestInteractionBase):
                 value=0,
                 data=b"".join(r.calldata for r in self.requests),
                 sender=self.sender_account,
-                chain_id=chain_id,
             )
         ]
 

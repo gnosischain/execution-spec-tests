@@ -511,7 +511,6 @@ def test_withdrawal_requests(
     blockchain_test: BlockchainTestFiller,
     blocks: List[Block],
     pre: Alloc,
-    chain_id: int,
 ):
     """Test making a withdrawal request to the beacon chain."""
     blockchain_test(
@@ -519,7 +518,6 @@ def test_withdrawal_requests(
         pre=pre,
         post={},
         blocks=blocks,
-        chain_id=chain_id,
     )
 
 
@@ -688,7 +686,6 @@ def test_withdrawal_requests_negative(
     requests: List[WithdrawalRequestInteractionBase],
     block_body_override_requests: List[WithdrawalRequest],
     exception: BlockException,
-    chain_id: int,
 ):
     """
     Test blocks where the requests list and the actual withdrawal requests that happened in the
@@ -710,7 +707,7 @@ def test_withdrawal_requests_negative(
         post={},
         blocks=[
             Block(
-                txs=sum((r.transactions(chain_id=chain_id) for r in requests), []),
+                txs=sum((r.transactions() for r in requests), []),
                 header_verify=Header(
                     requests_hash=Requests(
                         *included_requests,
@@ -726,5 +723,4 @@ def test_withdrawal_requests_negative(
                 exception=exception,
             )
         ],
-        chain_id=chain_id,
     )

@@ -66,11 +66,11 @@ def data_test_type() -> DataTestType:
 
 
 @pytest.fixture
-def authorization_list(pre: Alloc, refund_type: RefundType, chain_id: int) -> List[AuthorizationTuple] | None:
+def authorization_list(pre: Alloc, refund_type: RefundType) -> List[AuthorizationTuple] | None:
     """Modify fixture from conftest to automatically read the refund_type information."""
     if RefundType.AUTHORIZATION_EXISTING_AUTHORITY not in refund_type:
         return None
-    return [AuthorizationTuple(chain_id=chain_id, signer=pre.fund_eoa(1), address=Address(1))]
+    return [AuthorizationTuple(signer=pre.fund_eoa(1), address=Address(1))]
 
 
 @pytest.fixture
@@ -264,7 +264,6 @@ def test_gas_refunds_from_data_floor(
     execution_gas_used: int,
     refund: int,
     refund_test_type: RefundTestType,
-    chain_id: int,
 ) -> None:
     """Test gas refunds deducted from the execution gas cost and not the data floor."""
     gas_used = tx_intrinsic_gas_cost_before_execution + execution_gas_used - refund
@@ -294,5 +293,4 @@ def test_gas_refunds_from_data_floor(
             }
         },
         tx=tx,
-        chain_id=chain_id,
     )

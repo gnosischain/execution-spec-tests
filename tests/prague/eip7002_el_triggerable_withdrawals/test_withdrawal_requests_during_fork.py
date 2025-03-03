@@ -87,7 +87,6 @@ def test_withdrawal_requests_during_fork(
     blockchain_test: BlockchainTestFiller,
     blocks: List[Block],
     pre: Alloc,
-    chain_id: int,
 ):
     """Test making a withdrawal request to the beacon chain at the time of the fork."""
     # We need to delete the deployed contract that comes by default in the pre state.
@@ -112,7 +111,6 @@ def test_withdrawal_requests_during_fork(
     pre.fund_address(Spec.WITHDRAWAL_REQUEST_PREDEPLOY_SENDER, deployer_required_balance)
 
     # Append the deployment transaction to the first block
-    deploy_tx.chain_id = chain_id
     blocks[0].txs.append(deploy_tx)
 
     blockchain_test(
@@ -120,5 +118,4 @@ def test_withdrawal_requests_during_fork(
         pre=pre,
         post={},
         blocks=blocks,
-        chain_id=chain_id,
     )

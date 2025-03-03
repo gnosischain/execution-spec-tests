@@ -224,7 +224,6 @@ def test_valid_deposit_withdrawal_consolidation_requests(
     blockchain_test: BlockchainTestFiller,
     pre: Alloc,
     blocks: List[Block],
-    chain_id: int,
 ):
     """
     Test making a deposit to the beacon chain deposit contract and a withdrawal
@@ -235,7 +234,6 @@ def test_valid_deposit_withdrawal_consolidation_requests(
         pre=pre,
         post={},
         blocks=blocks,
-        chain_id=chain_id,
     )
 
 
@@ -245,7 +243,6 @@ def test_valid_deposit_withdrawal_consolidation_request_from_same_tx(
     pre: Alloc,
     requests: List[DepositRequest | WithdrawalRequest | ConsolidationRequest],
     fork: Fork,
-    chain_id: int,
 ):
     """
     Test making a deposit to the beacon chain deposit contract and a withdrawal in
@@ -301,7 +298,6 @@ def test_valid_deposit_withdrawal_consolidation_request_from_same_tx(
         value=total_value,
         data=calldata,
         sender=sender,
-        chain_id=chain_id,
     )
 
     blockchain_test(
@@ -325,7 +321,6 @@ def test_valid_deposit_withdrawal_consolidation_request_from_same_tx(
                 ),
             )
         ],
-        chain_id=chain_id,
     )
 
 
@@ -508,7 +503,6 @@ def test_invalid_deposit_withdrawal_consolidation_requests(
     blockchain_test: BlockchainTestFiller,
     pre: Alloc,
     blocks: List[Block],
-    chain_id: int,
 ):
     """
     Negative testing for all request types in the same block.
@@ -523,7 +517,6 @@ def test_invalid_deposit_withdrawal_consolidation_requests(
         pre=pre,
         post={},
         blocks=blocks,
-        chain_id=chain_id,
     )
 
 
@@ -537,7 +530,6 @@ def test_invalid_deposit_withdrawal_consolidation_requests_engine(
     blockchain_test: BlockchainTestFiller,
     pre: Alloc,
     blocks: List[Block],
-    chain_id: int,
 ):
     """
     Negative testing for all request types in the same block with incorrect parameters
@@ -562,5 +554,4 @@ def test_invalid_deposit_withdrawal_consolidation_requests_engine(
         pre=pre,
         post={},
         blocks=blocks,
-        chain_id=chain_id,
     )

@@ -79,7 +79,6 @@ def blocks(
     blocks_withdrawal_requests: List[List[WithdrawalRequestInteractionBase]],
     included_requests: List[List[WithdrawalRequest]],
     timestamp: int,
-    chain_id: int,
 ) -> List[Block]:
     """Return the list of blocks that should be included in the test."""
     blocks: List[Block] = []
@@ -103,7 +102,7 @@ def blocks(
             assert not block_included_requests
         blocks.append(
             Block(
-                txs=sum((r.transactions(chain_id=chain_id) for r in block_requests), []),
+                txs=sum((r.transactions() for r in block_requests), []),
                 header_verify=header_verify,
                 timestamp=timestamp,
             )

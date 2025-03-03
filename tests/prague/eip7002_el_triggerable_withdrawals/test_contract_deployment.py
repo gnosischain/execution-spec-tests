@@ -34,7 +34,6 @@ def test_system_contract_deployment(
     *,
     fork: Fork,
     pre: Alloc,
-    chain_id: int,
     **kwargs,
 ) -> Generator[Block, None, None]:
     """Verify calling the withdrawals system contract after deployment."""
@@ -55,7 +54,6 @@ def test_system_contract_deployment(
         to=Spec.WITHDRAWAL_REQUEST_PREDEPLOY_ADDRESS,
         sender=sender,
         value=withdrawal_request.value,
-        chain_id=chain_id,
     )
 
     yield Block(

@@ -323,7 +323,6 @@ def test_invalid_history_contract_calls(
     pre: Alloc,
     block_number: int,
     reverts: bool,
-    chain_id: int,
 ):
     """
     Test calling the history contract with invalid block numbers, such as blocks from the future
@@ -365,7 +364,6 @@ def test_invalid_history_contract_calls(
             to=check_contract_address,
             gas_limit=10_000_000,
             sender=pre.fund_eoa(),
-            chain_id=chain_id,
         )
     ]
     post = {check_contract_address: Account(storage=storage)}
@@ -376,7 +374,6 @@ def test_invalid_history_contract_calls(
         blocks=blocks,
         post=post,
         reverts=reverts,
-        chain_id=chain_id,
     )
 
 
@@ -394,7 +391,6 @@ def test_invalid_history_contract_calls_input_size(
     pre: Alloc,
     reverts: bool,
     args_size: int,
-    chain_id: int,
 ):
     """Test calling the history contract with invalid input sizes."""
     storage = Storage()
@@ -428,7 +424,6 @@ def test_invalid_history_contract_calls_input_size(
             to=check_contract_address,
             gas_limit=10_000_000,
             sender=pre.fund_eoa(),
-            chain_id=chain_id,
         )
     ]
     post = {check_contract_address: Account(storage=storage)}
@@ -439,5 +434,4 @@ def test_invalid_history_contract_calls_input_size(
         blocks=blocks,
         post=post,
         reverts=reverts,
-        chain_id=chain_id,
     )

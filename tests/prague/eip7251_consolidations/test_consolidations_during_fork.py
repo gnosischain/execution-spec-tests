@@ -87,7 +87,6 @@ def test_consolidation_requests_during_fork(
     blockchain_test: BlockchainTestFiller,
     blocks: List[Block],
     pre: Alloc,
-    chain_id: int,
 ):
     """Test making a consolidation request to the beacon chain at the time of the fork."""
     # We need to delete the deployed contract that comes by default in the pre state.
@@ -101,7 +100,6 @@ def test_consolidation_requests_during_fork(
     with open(Path(realpath(__file__)).parent / "contract_deploy_tx.json", mode="r") as f:
         deploy_tx = Transaction.model_validate_json(f.read()).with_signature_and_sender()  # type: ignore
 
-    deploy_tx.chain_id = chain_id
     deployer_address = deploy_tx.sender
     assert deployer_address is not None
     assert Address(deployer_address) == Spec.CONSOLIDATION_REQUEST_PREDEPLOY_SENDER
@@ -120,5 +118,4 @@ def test_consolidation_requests_during_fork(
         pre=pre,
         post={},
         blocks=blocks,
-        chain_id=chain_id,
     )

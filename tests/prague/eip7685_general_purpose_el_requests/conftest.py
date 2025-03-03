@@ -83,7 +83,6 @@ def blocks(
     correct_requests_hash_in_header: bool,
     exception: BlockException | None,
     engine_api_error_code: EngineAPIError | None,
-    chain_id: int,
 ) -> List[Block]:
     """List of blocks that comprise the test."""
     valid_requests_list: List[DepositRequest | WithdrawalRequest | ConsolidationRequest] = []
@@ -108,7 +107,7 @@ def blocks(
         )
     return [
         Block(
-            txs=sum((r.transactions(chain_id=chain_id) for r in requests), []),
+            txs=sum((r.transactions() for r in requests), []),
             header_verify=Header(requests_hash=valid_requests),
             requests=block_body_override_requests,
             exception=exception,
