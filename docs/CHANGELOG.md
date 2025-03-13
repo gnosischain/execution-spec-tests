@@ -4,9 +4,29 @@ Test fixtures for use by clients are available for each release on the [Github r
 
 **Key:** ✨ = New, 🐞 = Fixed, 🔀 = Changed.
 
-## 🔜 [Unreleased](https://github.com/ethereum/execution-spec-tests/releases/tag/UNRELEASED) - 2025-XX-XX
+## 🔜 [Unreleased]
 
 ### 💥 Breaking Change
+
+### 🛠️ Framework
+
+#### `consume`
+
+- ✨ Allow filtering of test cases by fork via pytest marks (e.g., via -m "Cancun or Prague") [#1304](https://github.com/ethereum/execution-spec-tests/pull/1304).
+- 🐞 Improve index generation of ethereum/tests fixtures: Allow generation at any directory level and include `generatedTestHash` in the index file for the `fixture_hash` [#1303](https://github.com/ethereum/execution-spec-tests/pull/1303).
+
+### 📋 Misc
+
+### 🧪 Test Cases
+
+## [v4.1.0](https://github.com/ethereum/execution-spec-tests/releases/tag/v4.1.0) - 2025-03-11
+
+### 💥 Breaking Changes
+
+The following changes may be potentially breaking (all clients were tested with these changes with the state test format, but not the blockchain test format):
+
+- 💥 Add a `yParity` field (that duplicates `v`) to transaction authorization tuples in fixture formats to have fields that conform to EIP-7702 spec, resolves [erigontech/erigon#14073](https://github.com/erigontech/erigon/issues/14073) ([#1286](https://github.com/ethereum/execution-spec-tests/pull/1286)).
+- 💥 Rename the recently introduced `_info` field `fixture_format` to `fixture-format` for consistency [#1295](https://github.com/ethereum/execution-spec-tests/pull/1295).
 
 ### 🛠️ Framework
 
@@ -28,13 +48,16 @@ Test fixtures for use by clients are available for each release on the [Github r
 - ✨ Improve the `uv run eest make test` interactive CLI to enable creation of new test modules within existing test sub-folders ([#1241](https://github.com/ethereum/execution-spec-tests/pull/1241)).
 - ✨ Update `mypy` to latest release `>=1.15.0,<1.16` ([#1209](https://github.com/ethereum/execution-spec-tests/pull/1209)).
 - 🐞 Bug fix for filling with EELS for certain Python versions due to an issue with CPython ([#1231](https://github.com/ethereum/execution-spec-tests/pull/1231)).
+- 🐞 Fix HTML site deployment due to the site's index file exceeding Github's max file size limit ([#1292](https://github.com/ethereum/execution-spec-tests/pull/1292)).
+- ✨ Update the build fixtures workflow to use multiple self-hosted runners, remove `pectra-devnet-6` feature build ([#1296](https://github.com/ethereum/execution-spec-tests/pull/1296)).
 
 ### 🧪 Test Cases
 
 - ✨ Add gas cost of delegation access in CALL opcode ([#1208](https://github.com/ethereum/execution-spec-tests/pull/1208)).
 - ✨ Add EIP-7698 failed nonce and short data tests ([#1211](https://github.com/ethereum/execution-spec-tests/pull/1211)).
+- ✨ Add EIP-2537 additional pairing precompile tests cases, and then update all BLS12 test vectors ([#1275](https://github.com/ethereum/execution-spec-tests/pull/1275), [#1289](https://github.com/ethereum/execution-spec-tests/pull/1289)).
 
-## [v4.0.0](https://github.com/ethereum/execution-spec-tests/releases/tag/v3.0.0) - 2025-02-14 - 💕
+## [v4.0.0](https://github.com/ethereum/execution-spec-tests/releases/tag/v4.0.0) - 2025-02-14 - 💕
 
 ### 📁 Fixture Releases
 
