@@ -15,7 +15,9 @@ import requests
 import rich
 
 from cli.gen_index import generate_fixtures_index
-from ethereum_test_fixtures.consume import TestCases
+from ethereum_test_fixtures import BaseFixture
+from ethereum_test_fixtures.consume import IndexFile, TestCases
+from ethereum_test_forks import get_forks, get_relative_fork_markers, get_transition_forks
 from ethereum_test_tools.utility.versioning import get_current_commit_hash_or_tag
 
 from .releases import ReleaseTag, get_release_page_url, get_release_url
@@ -39,6 +41,58 @@ def default_html_report_file_path() -> str:
     function to allow for easier testing.
     """
     return ".meta/report_consume.html"
+
+
+class FixtureDownloader:
+    """Handles downloading and extracting fixture archives."""
+
+    def __init__(self, url: str, base_directory: Path):  # noqa: D107
+        self.url = url
+        self.base_directory = base_directory
+        self.parsed_url = urlparse(url)
+        self.org_repo = self.extract_github_repo()
+        self.version = Path(self.parsed_url.path).parts[-2]
+        self.archive_name = self.strip_archive_extension(Path(self.parsed_url.path).name)
+        self.extract_to = base_directory / self.org_repo / self.version / self.archive_name
+
+    def download_and_extract(self) -> Tuple[bool, Path]:
+        """Download the URL and extract it locally if it hasn't already been downloaded."""
+        if self.extract_to.exists():
+            return True, self.detect_extracted_directory()
+
+        return False, self.fetch_and_extract()
+
+    def extract_github_repo(self) -> str:
+        """Extract <username>/<repo> from GitHub URLs, otherwise return 'other'."""
+        parts = self.parsed_url.path.strip("/").split("/")
+        return (
+            f"{parts[0]}/{parts[1]}"
+            if self.parsed_url.netloc == "github.com" and len(parts) >= 2
+            else "other"
+        )
+
+    @staticmethod
+    def strip_archive_extension(filename: str) -> str:
+        """Remove .tar.gz or .tgz extensions from filename."""
+        return filename.removesuffix(".tar.gz").removesuffix(".tgz")
+
+    def fetch_and_extract(self) -> Path:
+        """Download and extract an archive from the given URL."""
+        self.extract_to.mkdir(parents=True, exist_ok=False)
+        response = requests.get(self.url)
+        response.raise_for_status()
+
+        with tarfile.open(fileobj=BytesIO(response.content), mode="r:gz") as tar:
+            tar.extractall(path=self.extract_to)
+
+        return self.detect_extracted_directory()
+
+    def detect_extracted_directory(self) -> Path:
+        """
+        Detect a single top-level dir within the extracted archive, otherwise return extract_to.
+        """  # noqa: D200
+        extracted_dirs = [d for d in self.extract_to.iterdir() if d.is_dir()]
+        return extracted_dirs[0] if len(extracted_dirs) == 1 else self.extract_to
 
 
 @dataclass
@@ -68,7 +122,8 @@ class FixturesSource:
     def from_url(cls, url: str) -> "FixturesSource":
         """Create a fixture source from a direct URL."""
         release_page = get_release_page_url(url)
-        was_cached, path = download_and_extract(url, CACHED_DOWNLOADS_DIRECTORY)
+        downloader = FixtureDownloader(url, CACHED_DOWNLOADS_DIRECTORY)
+        was_cached, path = downloader.download_and_extract()
         return cls(
             input_option=url,
             path=path,
@@ -83,7 +138,8 @@ class FixturesSource:
         """Create a fixture source from a release spec (e.g., develop@latest)."""
         url = get_release_url(spec)
         release_page = get_release_page_url(url)
-        was_cached, path = download_and_extract(url, CACHED_DOWNLOADS_DIRECTORY)
+        downloader = FixtureDownloader(url, CACHED_DOWNLOADS_DIRECTORY)
+        was_cached, path = downloader.download_and_extract()
         return cls(
             input_option=spec,
             path=path,
@@ -107,25 +163,6 @@ def is_url(string: str) -> bool:
     """Check if a string is a remote URL."""
     result = urlparse(string)
     return all([result.scheme, result.netloc])
-
-
-def download_and_extract(url: str, base_directory: Path) -> Tuple[bool, Path]:
-    """Download the URL and extract it locally if it hasn't already been downloaded."""
-    parsed_url = urlparse(url)
-    filename = Path(parsed_url.path).name
-    version = Path(parsed_url.path).parts[-2]
-    extract_to = base_directory / version / filename.removesuffix(".tar.gz")
-    already_cached = extract_to.exists()
-    if already_cached:
-        return already_cached, extract_to / "fixtures"
-
-    extract_to.mkdir(parents=True, exist_ok=False)
-    response = requests.get(url)
-    response.raise_for_status()
-
-    with tarfile.open(fileobj=BytesIO(response.content), mode="r:gz") as tar:
-        tar.extractall(path=extract_to)
-    return already_cached, extract_to / "fixtures"
 
 
 class SimLimitBehavior:
@@ -208,13 +245,6 @@ def pytest_addoption(parser):  # noqa: D103
     if "cache" in sys.argv:
         return
     consume_group.addoption(
-        "--fork",
-        action="store",
-        dest="single_fork",
-        default=None,
-        help="Only consume tests for the specified fork.",
-    )
-    consume_group.addoption(
         "--no-html",
         action="store_true",
         dest="disable_html",
@@ -296,7 +326,24 @@ def pytest_configure(config):  # noqa: D103
             force_flag=False,
             disable_infer_format=False,
         )
-    config.test_cases = TestCases.from_index_file(index_file)
+
+    index = IndexFile.model_validate_json(index_file.read_text())
+    config.test_cases = index.test_cases
+
+    for fixture_format in BaseFixture.formats.values():
+        config.addinivalue_line(
+            "markers",
+            f"{fixture_format.format_name}: Tests in `{fixture_format.format_name}` format ",
+        )
+
+    # All forked defined within EEST
+    all_forks = {  # type: ignore
+        fork for fork in set(get_forks()) | get_transition_forks() if not fork.ignore()
+    }
+    # Append all forks within the index file (compatibility with `ethereum/tests`)
+    all_forks.update(getattr(index, "forks", []))
+    for fork in all_forks:
+        config.addinivalue_line("markers", f"{fork}: Tests for the {fork} fork")
 
     if config.option.sim_limit:
         if config.option.dest_regex != ".*":
@@ -309,7 +356,7 @@ def pytest_configure(config):  # noqa: D103
             config.option.collectonly = True
             config.option.verbose = -1  # equivalent to -q; only print test ids
 
-    if config.option.collectonly:
+    if config.option.collectonly or config.option.markers:
         return
     if not config.getoption("disable_html") and config.getoption("htmlpath") is None:
         # generate an html report by default, unless explicitly disabled
@@ -353,16 +400,21 @@ def pytest_generate_tests(metafunc):
     if "cache" in sys.argv:
         return
 
-    fork = metafunc.config.getoption("single_fork")
-    metafunc.parametrize(
-        "test_case,fixture_format",
-        (
-            pytest.param(test_case, test_case.format, id=test_case.id)
-            for test_case in metafunc.config.test_cases
-            if test_case.format in metafunc.function.fixture_format
-            and (not fork or test_case.fork == fork)
-        ),
-    )
+    test_cases = metafunc.config.test_cases
+    param_list = []
+    for test_case in test_cases:
+        if test_case.format.format_name not in metafunc.config._supported_fixture_formats:
+            continue
+        fork_markers = get_relative_fork_markers(test_case.fork, strict_mode=False)
+        param = pytest.param(
+            test_case,
+            id=test_case.id,
+            marks=[getattr(pytest.mark, m) for m in fork_markers]
+            + [getattr(pytest.mark, test_case.format.format_name)],
+        )
+        param_list.append(param)
+
+    metafunc.parametrize("test_case", param_list)
 
     if "client_type" in metafunc.fixturenames:
         client_ids = [client.name for client in metafunc.config.hive_execution_clients]
