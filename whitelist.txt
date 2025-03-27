@@ -302,6 +302,7 @@ nav
 ncheck
 nektos
 nethermind
+Nethermind's
 nexternal
 nGo
 nJSON
@@ -374,6 +375,7 @@ reentrant
 repo
 repo's
 repos
+returncode
 returncontract
 returndata
 returndatacopy
@@ -855,3 +857,5 @@ ize
 nectos
 fibonacci
 CPython
+legacytests
+pycryptodome
