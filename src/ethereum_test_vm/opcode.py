@@ -312,7 +312,7 @@ class Macro(Bytecode):
             instance.lambda_operation = lambda_operation
             return instance
 
-    def __call__(self, *args_t: OpcodeCallArg) -> Bytecode:
+    def __call__(self, *args_t: OpcodeCallArg, **kwargs) -> Bytecode:
         """Perform macro operation if any. Otherwise is a no-op."""
         if self.lambda_operation is not None:
             return self.lambda_operation(*args_t)
@@ -5092,12 +5092,41 @@ class Opcodes(Opcode, Enum):
         popped_stack_items=4,
         pushed_stack_items=1,
         data_portion_length=1,
-        kwargs=["value", "salt", "input_offset", "input_size"],
+        kwargs=["salt", "input_offset", "input_size", "value"],
     )
     """
     !!! Note: This opcode is under development
 
-    EOFCREATE[initcontainer_index] (value, salt, input_offset, input_size)
+    EOFCREATE[initcontainer_index] (salt, input_offset, input_size, value)
+    ----
+
+    Description
+    ----
+
+    Inputs
+    ----
+
+    Outputs
+    ----
+
+    Fork
+    ----
+
+    Gas
+    ----
+
+    """
+
+    TXCREATE = Opcode(
+        0xED,
+        popped_stack_items=5,
+        pushed_stack_items=1,
+        kwargs=["tx_initcode_hash", "salt", "input_offset", "input_size", "value"],
+    )
+    """
+    !!! Note: This opcode is under development
+
+    TXCREATE (tx_initcode_hash, salt, input_offset, input_size, value)
     ----
 
     Description
@@ -5869,7 +5898,6 @@ class UndefinedOpcodes(Opcode, Enum):
     OPCODE_E9 = Opcode(0xE9)
     OPCODE_EA = Opcode(0xEA)
     OPCODE_EB = Opcode(0xEB)
-    OPCODE_ED = Opcode(0xED)
     OPCODE_EF = Opcode(0xEF)
     OPCODE_F6 = Opcode(0xF6)
     OPCODE_FC = Opcode(0xFC)

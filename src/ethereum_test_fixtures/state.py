@@ -9,13 +9,13 @@ from ethereum_test_base_types import (
     Address,
     Alloc,
     Bytes,
+    CamelModel,
     Hash,
     ZeroPaddedHexNumber,
 )
 from ethereum_test_exceptions import TransactionExceptionInstanceOrList
-from ethereum_test_types.types import (
-    CamelModel,
-    EnvironmentGeneric,
+from ethereum_test_types.block_types import EnvironmentGeneric
+from ethereum_test_types.transaction_types import (
     Transaction,
     TransactionFixtureConverter,
 )
@@ -43,6 +43,7 @@ class FixtureTransaction(TransactionFixtureConverter):
     data: List[Bytes]
     access_lists: List[List[AccessList] | None] | None = None
     authorization_list: List[FixtureAuthorizationTuple] | None = None
+    initcodes: List[Bytes] | None = None
     max_fee_per_blob_gas: ZeroPaddedHexNumber | None = None
     blob_versioned_hashes: Sequence[Hash] | None = None
     sender: Address | None = None

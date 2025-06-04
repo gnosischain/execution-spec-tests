@@ -37,7 +37,7 @@ pytestmark += [
             # the data floor does not consume more gas than it should.
             pytest.param(1, id="extra_gas"),
             pytest.param(0, id="exact_gas"),
-            pytest.param(-1, id="insufficient_gas"),
+            pytest.param(-1, id="insufficient_gas", marks=pytest.mark.exception_test),
         ],
     ),
     pytest.mark.parametrize(
@@ -70,6 +70,7 @@ pytestmark += [
 @pytest.mark.parametrize(
     "to",
     [
+        pytest.param("eoa", id="to_eoa"),
         pytest.param(None, id="contract_creating"),
         pytest.param(Op.STOP, id=""),
     ],
@@ -91,6 +92,7 @@ def test_transaction_validity_type_0(
 @pytest.mark.parametrize(
     "to",
     [
+        pytest.param("eoa", id="to_eoa"),
         pytest.param(None, id="contract_creating"),
         pytest.param(Op.STOP, id=""),
     ],

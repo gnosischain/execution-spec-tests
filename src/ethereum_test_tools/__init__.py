@@ -9,6 +9,7 @@ from ethereum_test_base_types import (
     Address,
     Bytes,
     Hash,
+    Storage,
     TestAddress,
     TestAddress2,
     TestPrivateKey,
@@ -21,10 +22,11 @@ from ethereum_test_exceptions import (
     EOFException,
     TransactionException,
 )
-from ethereum_test_fixtures import BaseFixture, FixtureCollector, TestInfo
+from ethereum_test_fixtures import BaseFixture, FixtureCollector
 from ethereum_test_specs import (
-    SPEC_TYPES,
     BaseTest,
+    BlobsTest,
+    BlobsTestFiller,
     BlockchainTest,
     BlockchainTestFiller,
     EOFStateTest,
@@ -41,12 +43,13 @@ from ethereum_test_types import (
     EOA,
     Alloc,
     AuthorizationTuple,
+    Blob,
     ConsolidationRequest,
     DepositRequest,
     Environment,
+    NetworkWrappedTransaction,
     Removable,
     Requests,
-    Storage,
     TestParameterGroup,
     Transaction,
     TransactionReceipt,
@@ -78,14 +81,18 @@ from .code import (
     Conditional,
     Initcode,
     Switch,
+    While,
     Yul,
     YulCompiler,
 )
-from .utility.generators import DeploymentTestType, generate_system_contract_deploy_test
+from .utility.generators import (
+    DeploymentTestType,
+    generate_system_contract_deploy_test,
+    generate_system_contract_error_test,
+)
 from .utility.pytest import extend_with_defaults
 
 __all__ = (
-    "SPEC_TYPES",
     "AccessList",
     "Account",
     "Address",
@@ -93,6 +100,9 @@ __all__ = (
     "AuthorizationTuple",
     "BaseFixture",
     "BaseTest",
+    "Blob",
+    "BlobsTest",
+    "BlobsTestFiller",
     "Block",
     "BlockchainTest",
     "BlockchainTestFiller",
@@ -121,6 +131,7 @@ __all__ = (
     "Initcode",
     "Macro",
     "Macros",
+    "NetworkWrappedTransaction",
     "Opcode",
     "OpcodeCallArg",
     "Opcodes",
@@ -134,7 +145,6 @@ __all__ = (
     "Switch",
     "TestAddress",
     "TestAddress2",
-    "TestInfo",
     "TestParameterGroup",
     "TestPrivateKey",
     "TestPrivateKey2",
@@ -144,6 +154,7 @@ __all__ = (
     "TransactionTest",
     "TransactionTestFiller",
     "UndefinedOpcodes",
+    "While",
     "Withdrawal",
     "WithdrawalRequest",
     "Yul",
@@ -156,6 +167,7 @@ __all__ = (
     "compute_eofcreate_address",
     "extend_with_defaults",
     "generate_system_contract_deploy_test",
+    "generate_system_contract_error_test",
     "keccak256",
     "vm",
 )

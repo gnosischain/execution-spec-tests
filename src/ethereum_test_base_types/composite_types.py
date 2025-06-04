@@ -8,6 +8,7 @@ from pydantic import Field, PrivateAttr, TypeAdapter
 from .base_types import Address, Bytes, Hash, HashInt, HexNumber, ZeroPaddedHexNumber
 from .conversions import BytesConvertible, NumberConvertible
 from .pydantic import CamelModel, EthereumTestRootModel
+from .serialization import RLPSerializable
 
 StorageKeyValueTypeConvertible = NumberConvertible
 StorageKeyValueType = HashInt
@@ -29,6 +30,7 @@ class Storage(EthereumTestRootModel[Dict[StorageKeyValueType, StorageKeyValueTyp
 
     _current_slot: int = PrivateAttr(0)
     _hint_map: Dict[StorageKeyValueType, str] = PrivateAttr(default_factory=dict)
+    _any_map: Dict[StorageKeyValueType, bool] = PrivateAttr(default_factory=dict)
 
     StorageDictType: ClassVar[TypeAlias] = Dict[
         str | int | bytes | SupportsBytes, str | int | bytes | SupportsBytes
@@ -133,7 +135,7 @@ class Storage(EthereumTestRootModel[Dict[StorageKeyValueType, StorageKeyValueTyp
         self,
         key: StorageKeyValueTypeConvertible | StorageKeyValueType,
         value: StorageKeyValueTypeConvertible | StorageKeyValueType,
-    ):  # noqa: SC200
+    ):
         """Set an item in the storage."""
         self.root[StorageKeyValueTypeAdapter.validate_python(key)] = (
             StorageKeyValueTypeAdapter.validate_python(value)
@@ -179,6 +181,10 @@ class Storage(EthereumTestRootModel[Dict[StorageKeyValueType, StorageKeyValueTyp
     def items(self):
         """Return the items of the storage."""
         return self.root.items()
+
+    def set_expect_any(self, key: StorageKeyValueTypeConvertible | StorageKeyValueType):
+        """Mark key to be able to have any expected value when comparing storages."""
+        self._any_map[StorageKeyValueTypeAdapter.validate_python(key)] = True
 
     def store_next(
         self, value: StorageKeyValueTypeConvertible | StorageKeyValueType | bool, hint: str = ""
@@ -264,6 +270,9 @@ class Storage(EthereumTestRootModel[Dict[StorageKeyValueType, StorageKeyValueTyp
                     )
 
             elif other[key] != 0:
+                # Skip key verification if we allow this key to be ANY
+                if self._any_map.get(key) is True:
+                    continue
                 raise Storage.KeyValueMismatchError(
                     address=address,
                     key=key,
@@ -460,15 +469,13 @@ class Alloc(EthereumTestRootModel[Dict[Address, Account | None]]):
     root: Dict[Address, Account | None] = Field(default_factory=dict, validate_default=True)
 
 
-class AccessList(CamelModel):
+class AccessList(CamelModel, RLPSerializable):
     """Access List for transactions."""
 
     address: Address
     storage_keys: List[Hash]
 
-    def to_list(self) -> List[Address | List[Hash]]:
-        """Return access list as a list of serializable elements."""
-        return [self.address, self.storage_keys]
+    rlp_fields: ClassVar[List[str]] = ["address", "storage_keys"]
 
 
 class ForkBlobSchedule(CamelModel):

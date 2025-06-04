@@ -199,6 +199,7 @@ class Frontier(BaseFork, solc_name="homestead"):
             assert authorization_list_or_count is None, (
                 f"Authorizations are not supported in {cls.name()}"
             )
+
             intrinsic_cost: int = gas_costs.G_TRANSACTION
 
             if contract_creation:
@@ -331,6 +332,11 @@ class Frontier(BaseFork, solc_name="homestead"):
         return cls.engine_new_payload_version(block_number, timestamp)
 
     @classmethod
+    def engine_get_blobs_version(cls, block_number: int = 0, timestamp: int = 0) -> Optional[int]:
+        """At genesis, blobs cannot be retrieved through the engine API."""
+        return None
+
+    @classmethod
     def get_reward(cls, block_number: int = 0, timestamp: int = 0) -> int:
         """
         At Genesis the expected reward amount in wei is
@@ -362,6 +368,18 @@ class Frontier(BaseFork, solc_name="homestead"):
     def evm_code_types(cls, block_number: int = 0, timestamp: int = 0) -> List[EVMCodeType]:
         """At Genesis, only legacy EVM code is supported."""
         return [EVMCodeType.LEGACY]
+
+    @classmethod
+    def max_code_size(cls) -> int:
+        """At genesis, there is no upper bound for code size (bounded by block gas limit)."""
+        """However, the default is set to the limit of EIP-170 (Spurious Dragon)"""
+        return 0x6000
+
+    @classmethod
+    def max_initcode_size(cls) -> int:
+        """At genesis, there is no upper bound for initcode size."""
+        """However, the default is set to the limit of EIP-3860 (Shanghai)"""
+        return 0xC000
 
     @classmethod
     def call_opcodes(
@@ -629,6 +647,12 @@ class Byzantium(Homestead):
         )
 
     @classmethod
+    def max_code_size(cls) -> int:
+        # NOTE: Move this to Spurious Dragon once this fork is introduced. See EIP-170.
+        """At Spurious Dragon, an upper bound was introduced for max contract code size."""
+        return 0x6000
+
+    @classmethod
     def call_opcodes(
         cls, block_number: int = 0, timestamp: int = 0
     ) -> List[Tuple[Opcodes, EVMCodeType]]:
@@ -642,7 +666,12 @@ class Byzantium(Homestead):
         cls,
     ) -> List[Opcodes]:
         """Return list of Opcodes that are valid to work on this fork."""
-        return [Opcodes.RETURNDATASIZE, Opcodes.STATICCALL] + super(Byzantium, cls).valid_opcodes()
+        return [
+            Opcodes.REVERT,
+            Opcodes.RETURNDATASIZE,
+            Opcodes.RETURNDATACOPY,
+            Opcodes.STATICCALL,
+        ] + super(Byzantium, cls).valid_opcodes()
 
 
 class Constantinople(Byzantium):
@@ -850,6 +879,11 @@ class Shanghai(Paris):
         return 2
 
     @classmethod
+    def max_initcode_size(cls) -> int:
+        """From Shanghai, the initcode size is now limited. See EIP-3860."""
+        return 0xC000
+
+    @classmethod
     def valid_opcodes(
         cls,
     ) -> List[Opcodes]:
@@ -964,19 +998,13 @@ class Cancun(Shanghai):
         """
         parent_fork = cls.parent()
         assert parent_fork is not None, "Parent fork must be defined"
-        blob_schedule = parent_fork.blob_schedule(block_number, timestamp)
-        if blob_schedule is None:
-            last_blob_schedule = None
-            blob_schedule = BlobSchedule()
-        else:
-            last_blob_schedule = blob_schedule.last()
+        blob_schedule = parent_fork.blob_schedule(block_number, timestamp) or BlobSchedule()
         current_blob_schedule = ForkBlobSchedule(
             target_blobs_per_block=cls.target_blobs_per_block(block_number, timestamp),
             max_blobs_per_block=cls.max_blobs_per_block(block_number, timestamp),
             base_fee_update_fraction=cls.blob_base_fee_update_fraction(block_number, timestamp),
         )
-        if last_blob_schedule is None or last_blob_schedule != current_blob_schedule:
-            blob_schedule.append(fork=cls.__name__, schedule=current_blob_schedule)
+        blob_schedule.append(fork=cls.name(), schedule=current_blob_schedule)
         return blob_schedule
 
     @classmethod
@@ -1016,6 +1044,11 @@ class Cancun(Shanghai):
     ) -> Optional[int]:
         """From Cancun, new payload calls must use version 3."""
         return 3
+
+    @classmethod
+    def engine_get_blobs_version(cls, block_number: int = 0, timestamp: int = 0) -> Optional[int]:
+        """At Cancun, the engine get blobs version is 1."""
+        return 1
 
     @classmethod
     def engine_new_payload_blob_hashes(cls, block_number: int = 0, timestamp: int = 0) -> bool:
@@ -1073,6 +1106,11 @@ class Prague(Cancun):
         return [Address(i) for i in range(0xB, 0x11 + 1)] + super(Prague, cls).precompiles(
             block_number, timestamp
         )
+
+    @classmethod
+    def tx_types(cls, block_number: int = 0, timestamp: int = 0) -> List[int]:
+        """At Prague, set-code type transactions are introduced."""
+        return [4] + super(Prague, cls).tx_types(block_number, timestamp)
 
     @classmethod
     def gas_costs(cls, block_number: int = 0, timestamp: int = 0) -> GasCosts:
@@ -1287,45 +1325,20 @@ class Prague(Cancun):
         return 3
 
 
-class CancunEIP7692(  # noqa: SC200
-    Cancun,
-    transition_tool_name="Prague",  # Evmone enables (only) EOF at Prague
-    blockchain_test_network_name="Prague",  # Evmone enables (only) EOF at Prague
-    solc_name="cancun",
-):
-    """Cancun + EIP-7692 (EOF) fork (Deprecated)."""
+class Osaka(Prague, solc_name="cancun"):
+    """Osaka fork."""
 
     @classmethod
-    def evm_code_types(cls, block_number: int = 0, timestamp: int = 0) -> List[EVMCodeType]:
-        """EOF V1 is supported starting from this fork."""
-        return super(CancunEIP7692, cls).evm_code_types(  # noqa: SC200
-            block_number,
-            timestamp,
-        ) + [EVMCodeType.EOF_V1]
-
-    @classmethod
-    def call_opcodes(
+    def engine_get_payload_version(
         cls, block_number: int = 0, timestamp: int = 0
-    ) -> List[Tuple[Opcodes, EVMCodeType]]:
-        """EOF V1 introduces EXTCALL, EXTSTATICCALL, EXTDELEGATECALL."""
-        return [
-            (Opcodes.EXTCALL, EVMCodeType.EOF_V1),
-            (Opcodes.EXTSTATICCALL, EVMCodeType.EOF_V1),
-            (Opcodes.EXTDELEGATECALL, EVMCodeType.EOF_V1),
-        ] + super(
-            CancunEIP7692,
-            cls,  # noqa: SC200
-        ).call_opcodes(block_number, timestamp)
+    ) -> Optional[int]:
+        """From Osaka, get payload calls must use version 5."""
+        return 5
 
     @classmethod
-    def create_opcodes(
-        cls, block_number: int = 0, timestamp: int = 0
-    ) -> List[Tuple[Opcodes, EVMCodeType]]:
-        """EOF V1 introduces `EOFCREATE`."""
-        return [(Opcodes.EOFCREATE, EVMCodeType.EOF_V1)] + super(
-            CancunEIP7692,
-            cls,  # noqa: SC200
-        ).create_opcodes(block_number, timestamp)
+    def engine_get_blobs_version(cls, block_number: int = 0, timestamp: int = 0) -> Optional[int]:
+        """At Osaka, the engine get blobs version is 2."""
+        return 2
 
     @classmethod
     def is_deployed(cls) -> bool:
@@ -1341,13 +1354,13 @@ class CancunEIP7692(  # noqa: SC200
         return Version.parse("1.0.0")  # set a high version; currently unknown
 
 
-class Osaka(Prague, solc_name="cancun"):
-    """Osaka fork."""
+class EOFv1(Prague, solc_name="cancun"):
+    """EOF fork."""
 
     @classmethod
     def evm_code_types(cls, block_number: int = 0, timestamp: int = 0) -> List[EVMCodeType]:
         """EOF V1 is supported starting from Osaka."""
-        return super(Osaka, cls).evm_code_types(
+        return super(EOFv1, cls).evm_code_types(
             block_number,
             timestamp,
         ) + [EVMCodeType.EOF_V1]
@@ -1361,7 +1374,7 @@ class Osaka(Prague, solc_name="cancun"):
             (Opcodes.EXTCALL, EVMCodeType.EOF_V1),
             (Opcodes.EXTSTATICCALL, EVMCodeType.EOF_V1),
             (Opcodes.EXTDELEGATECALL, EVMCodeType.EOF_V1),
-        ] + super(Osaka, cls).call_opcodes(block_number, timestamp)
+        ] + super(EOFv1, cls).call_opcodes(block_number, timestamp)
 
     @classmethod
     def is_deployed(cls) -> bool:
