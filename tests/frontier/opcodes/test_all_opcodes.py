@@ -34,6 +34,8 @@ def prepare_stack(opcode: Opcode) -> Bytecode:
         return Op.PUSH1(1) + Op.PUSH1(5)
     if opcode == Op.JUMP:
         return Op.PUSH1(3)
+    if opcode == Op.RETURNDATACOPY:
+        return Op.PUSH1(0) * 3
     return Op.PUSH1(0x01) * 32
 
 
@@ -44,6 +46,13 @@ def prepare_suffix(opcode: Opcode) -> Bytecode:
     return Op.STOP
 
 
+@pytest.mark.ported_from(
+    [
+        "https://github.com/ethereum/tests/blob/v13.3/src/GeneralStateTestsFiller/stBadOpcode/badOpcodesFiller.json",
+        "https://github.com/ethereum/tests/blob/v13.3/src/GeneralStateTestsFiller/stBugs/evmBytecodeFiller.json",
+    ],
+    pr=["https://github.com/ethereum/execution-spec-tests/pull/748"],
+)
 @pytest.mark.valid_from("Frontier")
 def test_all_opcodes(state_test: StateTestFiller, pre: Alloc, fork: Fork):
     """
@@ -66,7 +75,9 @@ def test_all_opcodes(state_test: StateTestFiller, pre: Alloc, fork: Fork):
         code=sum(
             Op.SSTORE(
                 Op.PUSH1(opcode.int()),
-                Op.CALL(1_000_000, opcode_address, 0, 0, 0, 0, 0),
+                # Limit gas to limit the gas consumed by the exceptional aborts in each
+                # subcall that uses an undefined opcode.
+                Op.CALL(35_000, opcode_address, 0, 0, 0, 0, 0),
             )
             for opcode, opcode_address in code_contract.items()
         )
@@ -76,20 +87,26 @@ def test_all_opcodes(state_test: StateTestFiller, pre: Alloc, fork: Fork):
 
     post = {
         contract_address: Account(
-            storage={**{opcode.int(): 1 for opcode in fork.valid_opcodes()}, code_worked: 1}
+            storage={
+                **{
+                    opcode.int(): 1 if opcode != Op.REVERT else 0
+                    for opcode in fork.valid_opcodes()
+                },
+                code_worked: 1,
+            }
         ),
     }
 
     tx = Transaction(
         sender=pre.fund_eoa(),
-        gas_limit=500_000_000,
+        gas_limit=9_000_000,
         to=contract_address,
         data=b"",
         value=0,
         protected=False,
     )
 
-    state_test(env=Environment(), pre=pre, post=post, tx=tx)
+    state_test(pre=pre, post=post, tx=tx)
 
 
 @pytest.mark.valid_from("Cancun")

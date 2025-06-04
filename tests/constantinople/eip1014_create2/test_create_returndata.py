@@ -6,14 +6,7 @@ Port call_then_create2_successful_then_returndatasizeFiller.json test.
 
 import pytest
 
-from ethereum_test_tools import (
-    Account,
-    Alloc,
-    Environment,
-    StateTestFiller,
-    Transaction,
-    keccak256,
-)
+from ethereum_test_tools import Account, Alloc, StateTestFiller, Transaction, keccak256
 from ethereum_test_tools import Opcodes as Op
 
 from .spec import ref_spec_1014
@@ -22,6 +15,13 @@ REFERENCE_SPEC_GIT_PATH = ref_spec_1014.git_path
 REFERENCE_SPEC_VERSION = ref_spec_1014.version
 
 
+@pytest.mark.ported_from(
+    [
+        "https://github.com/ethereum/tests/blob/v13.3/src/GeneralStateTestsFiller/stCreate2/call_outsize_then_create2_successful_then_returndatasizeFiller.json",
+        "https://github.com/ethereum/tests/blob/v13.3/src/GeneralStateTestsFiller/stCreate2/call_then_create2_successful_then_returndatasizeFiller.json",
+    ],
+    pr=["https://github.com/ethereum/execution-spec-tests/pull/497"],
+)
 @pytest.mark.valid_from("Istanbul")
 @pytest.mark.parametrize("call_return_size", [35, 32, 0])
 @pytest.mark.parametrize("create_type", [Op.CREATE, Op.CREATE2])
@@ -133,8 +133,8 @@ def test_create2_return_data(
         to=address_to,
         protected=False,
         data=initcode,
-        gas_limit=0x0A00000000,
+        gas_limit=500_000,
         value=0,
     )  # type: ignore
 
-    state_test(env=Environment(), pre=pre, post=post, tx=tx)
+    state_test(pre=pre, post=post, tx=tx)

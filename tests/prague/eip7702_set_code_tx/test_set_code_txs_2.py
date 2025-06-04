@@ -21,10 +21,12 @@ from ethereum_test_tools import (
     Storage,
     Switch,
     Transaction,
+    TransactionException,
     compute_create_address,
 )
-from ethereum_test_tools.eof.v1 import Container, Section
+from ethereum_test_tools.code.generators import CodeGasMeasure
 from ethereum_test_tools.vm.opcode import Opcodes as Op
+from ethereum_test_types.eof.v1 import Container, Section
 from ethereum_test_vm import Macros
 
 from .spec import Spec, ref_spec_7702
@@ -890,7 +892,7 @@ def test_static_to_pointer(state_test: StateTestFiller, pre: Alloc):
     )
 
 
-@pytest.mark.valid_from("Osaka")
+@pytest.mark.valid_from("EOFv1")
 def test_pointer_to_eof(state_test: StateTestFiller, pre: Alloc):
     """
     Tx -> call -> pointer A -> EOF
@@ -1688,4 +1690,119 @@ def test_pointer_resets_an_empty_code_account_with_storage(
             ),
             Block(txs=[tx_create_suicide_from_pointer]),
         ],
+    )
+
+
+@pytest.mark.parametrize(
+    "tx_value",
+    [0, 1],
+)
+@pytest.mark.exception_test
+@pytest.mark.valid_at_transition_to("Prague")
+def test_set_code_type_tx_pre_fork(
+    state_test: StateTestFiller,
+    pre: Alloc,
+    tx_value: int,
+):
+    """
+    Reject blocks with set code type transactions before the Prague fork.
+
+    This test was based on:
+    tests/prague/eip7702_set_code_tx/test_set_code_txs.py::test_self_sponsored_set_code
+    """
+    storage = Storage()
+    sender = pre.fund_eoa()
+
+    set_code = (
+        Op.SSTORE(storage.store_next(sender), Op.ORIGIN)
+        + Op.SSTORE(storage.store_next(sender), Op.CALLER)
+        + Op.SSTORE(storage.store_next(tx_value), Op.CALLVALUE)
+        + Op.STOP
+    )
+    set_code_to_address = pre.deploy_contract(
+        set_code,
+    )
+
+    tx = Transaction(
+        gas_limit=10_000_000,
+        to=sender,
+        value=tx_value,
+        authorization_list=[
+            AuthorizationTuple(
+                address=set_code_to_address,
+                nonce=1,
+                signer=sender,
+            ),
+        ],
+        sender=sender,
+        error=TransactionException.TYPE_4_TX_PRE_FORK,
+    )
+
+    state_test(
+        env=Environment(),
+        pre=pre,
+        tx=tx,
+        post={
+            set_code_to_address: Account(storage={k: 0 for k in storage}),
+            sender: Account(
+                nonce=0,
+                code="",
+                storage={},
+            ),
+        },
+    )
+
+
+@pytest.mark.valid_from("Prague")
+def test_delegation_replacement_call_previous_contract(
+    state_test: StateTestFiller,
+    pre: Alloc,
+    fork: Fork,
+):
+    """
+    Test setting the code of an EOA that already has
+    delegation, calling the previous delegated contract.
+    Previous contract shouldn't be warm when doing the CALL.
+    """
+    pre_set_delegation_code = Op.STOP
+    pre_set_delegation_address = pre.deploy_contract(pre_set_delegation_code)
+
+    auth_signer = pre.fund_eoa(delegation=pre_set_delegation_address)
+    sender = pre.fund_eoa()
+
+    gsc = fork.gas_costs()
+    overhead_cost = gsc.G_VERY_LOW * len(Op.CALL.kwargs)  # type: ignore
+    set_code = CodeGasMeasure(
+        code=Op.CALL(gas=0, address=pre_set_delegation_address),
+        overhead_cost=overhead_cost,
+        extra_stack_items=1,
+    )
+
+    set_code_to_address = pre.deploy_contract(
+        set_code,
+    )
+
+    tx = Transaction(
+        gas_limit=500_000,
+        to=auth_signer,
+        value=0,
+        authorization_list=[
+            AuthorizationTuple(
+                address=set_code_to_address,
+                nonce=auth_signer.nonce,
+                signer=auth_signer,
+            ),
+        ],
+        sender=sender,
+    )
+
+    state_test(
+        env=Environment(),
+        pre=pre,
+        tx=tx,
+        post={
+            auth_signer: Account(
+                storage={0: gsc.G_COLD_ACCOUNT_ACCESS},
+            )
+        },
     )

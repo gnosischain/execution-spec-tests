@@ -1,5 +1,6 @@
 """Ethereum blockchain test spec definition and filler."""
 
+import warnings
 from pprint import pprint
 from typing import Any, Callable, ClassVar, Dict, Generator, List, Optional, Sequence, Tuple, Type
 
@@ -57,7 +58,7 @@ from ethereum_test_types import (
 
 from .base import BaseTest, verify_result
 from .debugging import print_traces
-from .helpers import is_slow_test, verify_transactions
+from .helpers import verify_block, verify_transactions
 
 
 def environment_from_parent_header(parent: "FixtureHeader") -> "Environment":
@@ -217,6 +218,12 @@ class Block(Header):
     """
     If set, the block is expected to be rejected by the client.
     """
+    skip_exception_verification: bool = False
+    """
+    Skip verifying that the exception is returned by the transition tool.
+    This could be because the exception is inserted in the block after the transition tool
+    evaluates it.
+    """
     engine_api_error_code: EngineAPIError | None = None
     """
     If set, the block is expected to produce an error response from the Engine API.
@@ -254,6 +261,7 @@ class Block(Header):
         this block need to be set to their defaults.
         """
         new_env_values["difficulty"] = self.difficulty
+        new_env_values["prev_randao"] = self.prev_randao
         new_env_values["fee_recipient"] = (
             self.fee_recipient if self.fee_recipient is not None else Environment().fee_recipient
         )
@@ -300,13 +308,22 @@ class BlockchainTest(BaseTest):
     genesis_environment: Environment = Field(default_factory=Environment)
     verify_sync: bool = False
     chain_id: int = Field(default_factory=lambda: TransactionDefaults.chain_id)
+    exclude_full_post_state_in_output: bool = False
+    """
+    Exclude the post state from the fixture output.
+    In this case, the state verification is only performed based on the state root.
+    """
 
     supported_fixture_formats: ClassVar[Sequence[FixtureFormat | LabeledFixtureFormat]] = [
         BlockchainFixture,
         BlockchainEngineFixture,
     ]
-    supported_execute_formats: ClassVar[Sequence[ExecuteFormat | LabeledExecuteFormat]] = [
-        TransactionPost,
+    supported_execute_formats: ClassVar[Sequence[LabeledExecuteFormat]] = [
+        LabeledExecuteFormat(
+            TransactionPost,
+            "blockchain_test",
+            "An execute test derived from a blockchain test",
+        ),
     ]
 
     supported_markers: ClassVar[Dict[str, str]] = {
@@ -393,7 +410,6 @@ class BlockchainTest(BaseTest):
         previous_env: Environment,
         previous_alloc: Alloc,
         eips: Optional[List[int]] = None,
-        slow: bool = False,
     ) -> Tuple[FixtureHeader, List[Transaction], List[Bytes] | None, Alloc, Environment]:
         """Generate common block data for both make_fixture and make_hive_fixture."""
         if block.rlp and block.exception is not None:
@@ -407,6 +423,14 @@ class BlockchainTest(BaseTest):
         env = env.set_fork_requirements(fork)
 
         txs = [tx.with_signature_and_sender(keep_secret_key=True) for tx in block.txs]
+        for tx in block.txs:
+            if not self.is_tx_gas_heavy_test() and tx.gas_limit >= Environment().gas_limit:
+                warnings.warn(
+                    f"{self.node_id()} uses a high Transaction gas_limit: {tx.gas_limit}",
+                    stacklevel=2,
+                )
+
+            txs.append(tx.with_signature_and_sender())
 
         if failing_tx_count := len([tx for tx in txs if tx.error]) > 0:
             if failing_tx_count > 1:
@@ -429,15 +453,34 @@ class BlockchainTest(BaseTest):
             blob_schedule=fork.blob_schedule(),
             eips=eips,
             debug_output_path=self.get_next_transition_tool_output_path(),
-            slow_request=slow,
+            slow_request=self.is_tx_gas_heavy_test(),
         )
 
         try:
             rejected_txs = verify_transactions(
                 txs=txs,
-                exception_mapper=t8n.exception_mapper,
                 result=transition_tool_output.result,
+                transition_tool_exceptions_reliable=t8n.exception_mapper.reliable,
             )
+            if (
+                not rejected_txs
+                and block.rlp_modifier is None
+                and block.requests is None
+                and not block.skip_exception_verification
+            ):
+                # Only verify block level exception if:
+                # - No transaction exception was raised, because these are not reported as block
+                #   exceptions.
+                # - No RLP modifier was specified, because the modifier is what normally
+                #   produces the block exception.
+                # - No requests were specified, because modified requests are also what normally
+                #   produces the block exception.
+                verify_block(
+                    block_number=env.number,
+                    want_exception=block.exception,
+                    result=transition_tool_output.result,
+                    transition_tool_exceptions_reliable=t8n.exception_mapper.reliable,
+                )
             verify_result(transition_tool_output.result, env)
         except Exception as e:
             print_traces(t8n.get_traces())
@@ -540,7 +583,6 @@ class BlockchainTest(BaseTest):
         t8n: TransitionTool,
         fork: Fork,
         eips: Optional[List[int]] = None,
-        slow: bool = False,
     ) -> BlockchainFixture:
         """Create a fixture from the blockchain test definition."""
         fixture_blocks: List[FixtureBlock | InvalidFixtureBlock] = []
@@ -550,7 +592,7 @@ class BlockchainTest(BaseTest):
         alloc = pre
         env = environment_from_parent_header(genesis.header)
         head = genesis.header.block_hash
-
+        invalid_blocks = 0
         for block in self.blocks:
             if block.rlp is None:
                 # This is the most common case, the RLP needs to be constructed
@@ -563,7 +605,6 @@ class BlockchainTest(BaseTest):
                     previous_env=env,
                     previous_alloc=alloc,
                     eips=eips,
-                    slow=slow,
                 )
                 fixture_block = FixtureBlockBase(
                     header=header,
@@ -594,6 +635,7 @@ class BlockchainTest(BaseTest):
                             ),
                         ),
                     )
+                    invalid_blocks += 1
             else:
                 assert block.exception is not None, (
                     "test correctness: if the block's rlp is hard-coded, "
@@ -605,12 +647,13 @@ class BlockchainTest(BaseTest):
                         expect_exception=block.exception,
                     ),
                 )
+                invalid_blocks += 1
 
             if block.expected_post_state:
                 self.verify_post_state(
                     t8n, t8n_state=alloc, expected_state=block.expected_post_state
                 )
-
+        self.check_exception_test(exception=invalid_blocks > 0)
         self.verify_post_state(t8n, t8n_state=alloc)
         network_info = BlockchainTest.network_info(fork, eips)
         return BlockchainFixture(
@@ -620,7 +663,8 @@ class BlockchainTest(BaseTest):
             blocks=fixture_blocks,
             last_block_hash=head,
             pre=pre,
-            post_state=alloc,
+            post_state=alloc if not self.exclude_full_post_state_in_output else None,
+            post_state_hash=alloc.state_root() if self.exclude_full_post_state_in_output else None,
             config=FixtureConfig(
                 fork=network_info,
                 blob_schedule=FixtureBlobSchedule.from_blob_schedule(fork.blob_schedule()),
@@ -633,7 +677,6 @@ class BlockchainTest(BaseTest):
         t8n: TransitionTool,
         fork: Fork,
         eips: Optional[List[int]] = None,
-        slow: bool = False,
     ) -> BlockchainEngineFixture:
         """Create a hive fixture from the blocktest definition."""
         fixture_payloads: List[FixtureEngineNewPayload] = []
@@ -642,7 +685,7 @@ class BlockchainTest(BaseTest):
         alloc = pre
         env = environment_from_parent_header(genesis.header)
         head_hash = genesis.header.block_hash
-
+        invalid_blocks = 0
         for block in self.blocks:
             header, txs, requests, new_alloc, new_env = self.generate_block_data(
                 t8n=t8n,
@@ -651,7 +694,6 @@ class BlockchainTest(BaseTest):
                 previous_env=env,
                 previous_alloc=alloc,
                 eips=eips,
-                slow=slow,
             )
             if block.rlp is None:
                 fixture_payloads.append(
@@ -669,12 +711,14 @@ class BlockchainTest(BaseTest):
                     alloc = new_alloc
                     env = apply_new_parent(env, header)
                     head_hash = header.block_hash
+                else:
+                    invalid_blocks += 1
 
             if block.expected_post_state:
                 self.verify_post_state(
                     t8n, t8n_state=alloc, expected_state=block.expected_post_state
                 )
-
+        self.check_exception_test(exception=invalid_blocks > 0)
         fcu_version = fork.engine_forkchoice_updated_version(header.number, header.timestamp)
         assert fcu_version is not None, (
             "A hive fixture was requested but no forkchoice update is defined."
@@ -718,7 +762,8 @@ class BlockchainTest(BaseTest):
             payloads=fixture_payloads,
             fcu_version=fcu_version,
             pre=pre,
-            post_state=alloc,
+            post_state=alloc if not self.exclude_full_post_state_in_output else None,
+            post_state_hash=alloc.state_root() if self.exclude_full_post_state_in_output else None,
             sync_payload=sync_payload,
             last_block_hash=head_hash,
             config=FixtureConfig(
@@ -730,7 +775,6 @@ class BlockchainTest(BaseTest):
 
     def generate(
         self,
-        request: pytest.FixtureRequest,
         t8n: TransitionTool,
         fork: Fork,
         fixture_format: FixtureFormat,
@@ -739,9 +783,9 @@ class BlockchainTest(BaseTest):
         """Generate the BlockchainTest fixture."""
         t8n.reset_traces()
         if fixture_format == BlockchainEngineFixture:
-            return self.make_hive_fixture(t8n, fork, eips, slow=is_slow_test(request))
+            return self.make_hive_fixture(t8n, fork, eips)
         elif fixture_format == BlockchainFixture:
-            return self.make_fixture(t8n, fork, eips, slow=is_slow_test(request))
+            return self.make_fixture(t8n, fork, eips)
 
         raise Exception(f"Unknown fixture format: {fixture_format}")
 
@@ -754,11 +798,11 @@ class BlockchainTest(BaseTest):
     ) -> BaseExecute:
         """Generate the list of test fixtures."""
         if execute_format == TransactionPost:
-            txs: List[Transaction] = []
+            blocks: List[List[Transaction]] = []
             for block in self.blocks:
-                txs += block.txs
+                blocks += [block.txs]
             return TransactionPost(
-                transactions=txs,
+                blocks=blocks,
                 post=self.post,
             )
         raise Exception(f"Unsupported execute format: {execute_format}")

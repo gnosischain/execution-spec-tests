@@ -9,12 +9,16 @@ from pytest_metadata.plugin import metadata_key  # type: ignore
 
 from ethereum_test_execution import BaseExecute
 from ethereum_test_forks import Fork
-from ethereum_test_rpc import EthRPC
-from ethereum_test_tools import SPEC_TYPES, BaseTest, TestInfo
-from ethereum_test_types import TransactionDefaults
+from ethereum_test_rpc import EngineRPC, EthRPC
+from ethereum_test_tools import BaseTest
+from ethereum_test_types import EnvironmentDefaults, TransactionDefaults
 from pytest_plugins.spec_version_checker.spec_version_checker import EIPSpecTestItem
 
-from ..shared.helpers import get_spec_format_for_item, labeled_format_parameter_set
+from ..shared.helpers import (
+    get_spec_format_for_item,
+    is_help_or_collectonly_mode,
+    labeled_format_parameter_set,
+)
 from .pre_alloc import Alloc
 
 
@@ -56,6 +60,18 @@ def pytest_addoption(parser):
             "unless overridden by the test."
         ),
     )
+    execute_group.addoption(
+        "--transaction-gas-limit",
+        action="store",
+        dest="transaction_gas_limit",
+        default=EnvironmentDefaults.gas_limit // 4,
+        type=int,
+        help=(
+            "Maximum gas used to execute a single transaction. "
+            "Will be used as ceiling for tests that attempt to consume the entire block gas limit."
+            f"(Default: {EnvironmentDefaults.gas_limit // 4})"
+        ),
+    )
 
     report_group = parser.getgroup("tests", "Arguments defining html report behavior")
     report_group.addoption(
@@ -86,8 +102,13 @@ def pytest_configure(config):
         called before the pytest-html plugin's pytest_configure to ensure that
         it uses the modified `htmlpath` option.
     """
-    if config.option.collectonly:
+    # Modify the block gas limit if specified.
+    if config.getoption("transaction_gas_limit"):
+        EnvironmentDefaults.gas_limit = config.getoption("transaction_gas_limit")
+    if is_help_or_collectonly_mode(config):
         return
+
+    config.engine_rpc_supported = False
     if config.getoption("disable_html") and config.getoption("htmlpath") is None:
         # generate an html report by default, unless explicitly disabled
         config.option.htmlpath = Path(default_html_report_file_path())
@@ -224,16 +245,6 @@ def collector(
     yield collector
 
 
-def node_to_test_info(node) -> TestInfo:
-    """Return test info of the current node item."""
-    return TestInfo(
-        name=node.name,
-        id=node.nodeid,
-        original_name=node.originalname,
-        path=Path(node.path),
-    )
-
-
 def base_test_parametrizer(cls: Type[BaseTest]):
     """
     Generate pytest.fixture for a given BaseTest subclass.
@@ -252,6 +263,7 @@ def base_test_parametrizer(cls: Type[BaseTest]):
         pre: Alloc,
         eips: List[int],
         eth_rpc: EthRPC,
+        engine_rpc: EngineRPC | None,
         collector: Collector,
     ):
         """
@@ -266,6 +278,10 @@ def base_test_parametrizer(cls: Type[BaseTest]):
         """
         execute_format = request.param
         assert execute_format in BaseExecute.formats.values()
+        assert issubclass(execute_format, BaseExecute)
+
+        if execute_format.requires_engine_rpc:
+            assert engine_rpc is not None, "Engine RPC is required for this format."
 
         class BaseTestWrapper(cls):  # type: ignore
             def __init__(self, *args, **kwargs):
@@ -278,6 +294,7 @@ def base_test_parametrizer(cls: Type[BaseTest]):
                 request.node.config.sender_address = str(pre._sender)
 
                 super(BaseTestWrapper, self).__init__(*args, **kwargs)
+                self._request = request
 
                 # wait for pre-requisite transactions to be included in blocks
                 pre.wait_for_transactions()
@@ -295,7 +312,7 @@ def base_test_parametrizer(cls: Type[BaseTest]):
                 )
 
                 execute = self.execute(fork=fork, execute_format=execute_format, eips=eips)
-                execute.execute(eth_rpc)
+                execute.execute(fork=fork, eth_rpc=eth_rpc, engine_rpc=engine_rpc)
                 collector.collect(request.node.nodeid, execute)
 
         return BaseTestWrapper
@@ -304,7 +321,7 @@ def base_test_parametrizer(cls: Type[BaseTest]):
 
 
 # Dynamically generate a pytest fixture for each test spec type.
-for cls in SPEC_TYPES:
+for cls in BaseTest.spec_types.values():
     # Fixture needs to be defined in the global scope so pytest can detect it.
     globals()[cls.pytest_parameter_name()] = base_test_parametrizer(cls)
 
@@ -314,14 +331,18 @@ def pytest_generate_tests(metafunc: pytest.Metafunc):
     Pytest hook used to dynamically generate test cases for each fixture format a given
     test spec supports.
     """
-    for test_type in SPEC_TYPES:
+    engine_rpc_supported = metafunc.config.engine_rpc_supported  # type: ignore
+    for test_type in BaseTest.spec_types.values():
         if test_type.pytest_parameter_name() in metafunc.fixturenames:
+            parameter_set = []
+            for format_with_or_without_label in test_type.supported_execute_formats:
+                param = labeled_format_parameter_set(format_with_or_without_label)
+                if format_with_or_without_label.requires_engine_rpc and not engine_rpc_supported:
+                    param.marks.append(pytest.mark.skip(reason="Engine RPC is not supported"))  # type: ignore
+                parameter_set.append(param)
             metafunc.parametrize(
                 [test_type.pytest_parameter_name()],
-                [
-                    labeled_format_parameter_set(format_with_or_without_label)
-                    for format_with_or_without_label in test_type.supported_execute_formats
-                ],
+                parameter_set,
                 scope="function",
                 indirect=True,
             )
