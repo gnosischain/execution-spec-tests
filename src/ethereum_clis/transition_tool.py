@@ -35,7 +35,7 @@ from .types import (
 model_dump_config: Mapping = {"by_alias": True, "exclude_none": True}
 
 NORMAL_SERVER_TIMEOUT = 20
-SLOW_REQUEST_TIMEOUT = 60
+SLOW_REQUEST_TIMEOUT = 180
 
 
 class TransitionTool(EthereumCLI):
@@ -50,6 +50,8 @@ class TransitionTool(EthereumCLI):
     registered_tools: List[Type["TransitionTool"]] = []
     default_tool: Optional[Type["TransitionTool"]] = None
 
+    exception_mapper: ExceptionMapper
+
     subcommand: Optional[str] = None
     cached_version: Optional[str] = None
     t8n_use_stream: bool = False
@@ -61,11 +63,12 @@ class TransitionTool(EthereumCLI):
     def __init__(
         self,
         *,
-        exception_mapper: ExceptionMapper,
+        exception_mapper: Optional[ExceptionMapper] = None,
         binary: Optional[Path] = None,
         trace: bool = False,
     ):
         """Abstract initialization method that all subclasses must implement."""
+        assert exception_mapper is not None
         self.exception_mapper = exception_mapper
         super().__init__(binary=binary)
         self.trace = trace
@@ -263,7 +266,9 @@ class TransitionTool(EthereumCLI):
                 continue
             with open(file_path, "r+") as file:
                 output_contents[key] = json.load(file)
-        output = TransitionToolOutput(**output_contents)
+        output = TransitionToolOutput.model_validate(
+            output_contents, context={"exception_mapper": self.exception_mapper}
+        )
         if self.trace:
             self.collect_traces(output.result.receipts, temp_dir, debug_output_path)
 
@@ -350,7 +355,9 @@ class TransitionTool(EthereumCLI):
         # pop optional test ``_info`` metadata from response, if present
         self._info_metadata = response_json.pop("_info_metadata", {})
 
-        output: TransitionToolOutput = TransitionToolOutput.model_validate(response_json)
+        output: TransitionToolOutput = TransitionToolOutput.model_validate(
+            response_json, context={"exception_mapper": self.exception_mapper}
+        )
 
         if self.trace:
             self.collect_traces(output.result.receipts, temp_dir, debug_output_path)
@@ -398,7 +405,9 @@ class TransitionTool(EthereumCLI):
         if result.returncode != 0:
             raise Exception("failed to evaluate: " + result.stderr.decode())
 
-        output: TransitionToolOutput = TransitionToolOutput.model_validate_json(result.stdout)
+        output: TransitionToolOutput = TransitionToolOutput.model_validate_json(
+            result.stdout, context={"exception_mapper": self.exception_mapper}
+        )
 
         if debug_output_path:
             dump_files_to_directory(

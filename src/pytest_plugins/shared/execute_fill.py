@@ -1,7 +1,7 @@
 """Shared pytest fixtures and hooks for EEST generation modes (fill and execute)."""
 
 import warnings
-from typing import List, cast
+from typing import List
 
 import pytest
 
@@ -12,7 +12,7 @@ from ethereum_test_forks import (
     get_closest_fork_with_solc_support,
     get_forks_with_solc_support,
 )
-from ethereum_test_specs import SPEC_TYPES
+from ethereum_test_specs import BaseTest
 from ethereum_test_tools import Yul
 from pytest_plugins.spec_version_checker.spec_version_checker import EIPSpecTestItem
 
@@ -58,7 +58,7 @@ def pytest_configure(config: pytest.Config):
     else:
         raise Exception("Neither the filler nor the execute plugin is loaded.")
 
-    for spec_type in SPEC_TYPES:
+    for spec_type in BaseTest.spec_types.values():
         for marker, description in spec_type.supported_markers.items():
             config.addinivalue_line(
                 "markers",
@@ -80,6 +80,14 @@ def pytest_configure(config: pytest.Config):
     config.addinivalue_line(
         "markers",
         "execute: Markers to be added in execute mode only.",
+    )
+    config.addinivalue_line(
+        "markers",
+        "zkevm: Tests that are relevant to zkEVM.",
+    )
+    config.addinivalue_line(
+        "markers",
+        "exception_test: Negative tests that include an invalid block or transaction.",
     )
 
 
@@ -145,12 +153,12 @@ def test_case_description(request: pytest.FixtureRequest) -> str:
     description_unavailable = (
         "No description available - add a docstring to the python test class or function."
     )
-    test_class_doc = f"Test class documentation:\n{request.cls.__doc__}" if request.cls else ""
-    test_function_doc = (
-        f"Test function documentation:\n{request.function.__doc__}"
-        if request.function.__doc__
-        else ""
-    )
+    test_class_doc = ""
+    test_function_doc = ""
+    if hasattr(request.node, "cls"):
+        test_class_doc = f"Test class documentation:\n{request.cls.__doc__}" if request.cls else ""
+    if hasattr(request.node, "function"):
+        test_function_doc = f"{request.function.__doc__}" if request.function.__doc__ else ""
     if not test_class_doc and not test_function_doc:
         return description_unavailable
     combined_docstring = f"{test_class_doc}\n\n{test_function_doc}".strip()
@@ -165,7 +173,7 @@ def pytest_make_parametrize_id(config: pytest.Config, val: str, argname: str):
     return f"{argname}_{val}"
 
 
-SPEC_TYPES_PARAMETERS: List[str] = [s.pytest_parameter_name() for s in SPEC_TYPES]
+SPEC_TYPES_PARAMETERS: List[str] = list(BaseTest.spec_types.keys())
 
 
 def pytest_runtest_call(item: pytest.Item):
@@ -177,7 +185,8 @@ def pytest_runtest_call(item: pytest.Item):
         def __init__(self, message):
             super().__init__(message)
 
-    item = cast(pytest.Function, item)  # help mypy infer type
+    if not isinstance(item, pytest.Function):
+        return
 
     if "state_test" in item.fixturenames and "blockchain_test" in item.fixturenames:
         raise InvalidFillerError(

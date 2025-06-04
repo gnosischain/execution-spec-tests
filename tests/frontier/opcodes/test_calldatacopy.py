@@ -7,6 +7,12 @@ from ethereum_test_tools import Account, Alloc, Bytecode, StateTestFiller, Trans
 from ethereum_test_tools.vm.opcode import Opcodes as Op
 
 
+@pytest.mark.ported_from(
+    [
+        "https://github.com/ethereum/tests/blob/v13.3/src/GeneralStateTestsFiller/VMTests/vmTests/calldatacopyFiller.yml",
+    ],
+    pr=["https://github.com/ethereum/execution-spec-tests/pull/1056"],
+)
 @pytest.mark.parametrize(
     "code,tx_data,code_address_storage,to_address_storage",
     [
@@ -142,7 +148,7 @@ def test_calldatacopy(
     """
     Test `CALLDATACOPY` opcode.
 
-    Based on https://github.com/ethereum/tests/blob/ae4791077e8fcf716136e70fe8392f1a1f1495fb/src/GeneralStateTestsFiller/VMTests/vmTests/calldatacopyFiller.ym
+    Based on https://github.com/ethereum/tests/blob/ae4791077e8fcf716136e70fe8392f1a1f1495fb/src/GeneralStateTestsFiller/VMTests/vmTests/calldatacopyFiller.yml
     """
     code_address = pre.deploy_contract(code)
     to = pre.deploy_contract(

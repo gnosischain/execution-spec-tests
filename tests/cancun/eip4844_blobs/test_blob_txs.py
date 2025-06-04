@@ -424,6 +424,7 @@ def generate_invalid_tx_max_fee_per_blob_gas_tests(
             min_base_fee_per_blob_gas,  # tx max_blob_gas_cost is the minimum
             TransactionException.INSUFFICIENT_MAX_FEE_PER_BLOB_GAS,
             id="insufficient_max_fee_per_blob_gas",
+            marks=pytest.mark.exception_test,
         )
     )
     if (next_base_fee_per_blob_gas - min_base_fee_per_blob_gas) > 1:
@@ -436,6 +437,7 @@ def generate_invalid_tx_max_fee_per_blob_gas_tests(
                 - 1,  # tx max_blob_gas_cost is one less than the minimum
                 TransactionException.INSUFFICIENT_MAX_FEE_PER_BLOB_GAS,
                 id="insufficient_max_fee_per_blob_gas_one_less_than_next",
+                marks=pytest.mark.exception_test,
             )
         )
     if min_base_fee_per_blob_gas > 1:
@@ -446,6 +448,7 @@ def generate_invalid_tx_max_fee_per_blob_gas_tests(
                 min_base_fee_per_blob_gas - 1,  # tx max_blob_gas_cost is one less than the minimum
                 TransactionException.INSUFFICIENT_MAX_FEE_PER_BLOB_GAS,
                 id="insufficient_max_fee_per_blob_gas_one_less_than_min",
+                marks=pytest.mark.exception_test,
             )
         )
 
@@ -456,6 +459,7 @@ def generate_invalid_tx_max_fee_per_blob_gas_tests(
             0,  # tx max_blob_gas_cost is 0
             TransactionException.INSUFFICIENT_MAX_FEE_PER_BLOB_GAS,
             id="invalid_max_fee_per_blob_gas",
+            marks=pytest.mark.exception_test,
         )
     )
     return tests
@@ -533,6 +537,7 @@ def test_invalid_tx_max_fee_per_blob_gas_state(
     ],
     ids=["insufficient_max_fee_per_gas"],
 )
+@pytest.mark.exception_test
 @pytest.mark.valid_from("Cancun")
 def test_invalid_normal_gas(
     state_test: StateTestFiller,
@@ -563,8 +568,16 @@ def test_invalid_normal_gas(
     SpecHelpers.invalid_blob_combinations,
 )
 @pytest.mark.parametrize(
-    "tx_error", [TransactionException.TYPE_3_TX_MAX_BLOB_GAS_ALLOWANCE_EXCEEDED], ids=[""]
+    "tx_error",
+    [
+        [
+            TransactionException.TYPE_3_TX_MAX_BLOB_GAS_ALLOWANCE_EXCEEDED,
+            TransactionException.TYPE_3_TX_BLOB_COUNT_EXCEEDED,
+        ]
+    ],
+    ids=[""],
 )
+@pytest.mark.exception_test
 @pytest.mark.valid_from("Cancun")
 def test_invalid_block_blob_count(
     blockchain_test: BlockchainTestFiller,
@@ -604,6 +617,7 @@ def test_invalid_block_blob_count(
 @pytest.mark.parametrize("tx_max_fee_per_blob_gas_multiplier", [1, 100, 10000])
 @pytest.mark.parametrize("account_balance_modifier", [-1], ids=["exact_balance_minus_1"])
 @pytest.mark.parametrize("tx_error", [TransactionException.INSUFFICIENT_ACCOUNT_FUNDS], ids=[""])
+@pytest.mark.exception_test
 @pytest.mark.valid_from("Cancun")
 def test_insufficient_balance_blob_tx(
     state_test: StateTestFiller,
@@ -824,6 +838,7 @@ def test_blob_gas_subtraction_tx(
 )
 @pytest.mark.parametrize("account_balance_modifier", [-1], ids=["exact_balance_minus_1"])
 @pytest.mark.parametrize("tx_error", [TransactionException.INSUFFICIENT_ACCOUNT_FUNDS], ids=[""])
+@pytest.mark.exception_test
 @pytest.mark.valid_from("Cancun")
 def test_insufficient_balance_blob_tx_combinations(
     blockchain_test: BlockchainTestFiller,
@@ -857,7 +872,10 @@ def generate_invalid_tx_blob_count_tests(
         ),
         pytest.param(
             [fork.max_blobs_per_block() + 1],
-            TransactionException.TYPE_3_TX_BLOB_COUNT_EXCEEDED,
+            [
+                TransactionException.TYPE_3_TX_MAX_BLOB_GAS_ALLOWANCE_EXCEEDED,
+                TransactionException.TYPE_3_TX_BLOB_COUNT_EXCEEDED,
+            ],
             id="too_many_blobs",
         ),
     ]
@@ -867,6 +885,7 @@ def generate_invalid_tx_blob_count_tests(
     "blobs_per_tx,tx_error",
     generate_invalid_tx_blob_count_tests,
 )
+@pytest.mark.exception_test
 @pytest.mark.valid_from("Cancun")
 def test_invalid_tx_blob_count(
     state_test: StateTestFiller,
@@ -911,6 +930,7 @@ def test_invalid_tx_blob_count(
 @pytest.mark.parametrize(
     "tx_error", [TransactionException.TYPE_3_TX_INVALID_BLOB_VERSIONED_HASH], ids=[""]
 )
+@pytest.mark.exception_test
 @pytest.mark.valid_from("Cancun")
 def test_invalid_blob_hash_versioning_single_tx(
     state_test: StateTestFiller,
@@ -969,6 +989,7 @@ def test_invalid_blob_hash_versioning_single_tx(
 @pytest.mark.parametrize(
     "tx_error", [TransactionException.TYPE_3_TX_INVALID_BLOB_VERSIONED_HASH], ids=[""]
 )
+@pytest.mark.exception_test
 @pytest.mark.valid_from("Cancun")
 def test_invalid_blob_hash_versioning_multiple_txs(
     blockchain_test: BlockchainTestFiller,
@@ -995,6 +1016,7 @@ def test_invalid_blob_hash_versioning_multiple_txs(
 @pytest.mark.parametrize(
     "tx_gas", [500_000], ids=[""]
 )  # Increase gas to account for contract creation
+@pytest.mark.exception_test
 @pytest.mark.valid_from("Cancun")
 def test_invalid_blob_tx_contract_creation(
     blockchain_test: BlockchainTestFiller,
@@ -1008,7 +1030,7 @@ def test_invalid_blob_tx_contract_creation(
     assert txs[0].blob_versioned_hashes is not None and len(txs[0].blob_versioned_hashes) == 1
     # Replace the transaction with a contract creating one, only in the RLP version
     contract_creating_tx = txs[0].copy(to=None).with_signature_and_sender()
-    txs[0].rlp_override = contract_creating_tx.rlp
+    txs[0].rlp_override = contract_creating_tx.rlp()
     blockchain_test(
         pre=pre,
         post={},
@@ -1020,6 +1042,10 @@ def test_invalid_blob_tx_contract_creation(
                     TransactionException.TYPE_3_TX_CONTRACT_CREATION,
                 ],
                 header_verify=header_verify,
+                # Skipped due to the T8N not receiving the invalid transaction,
+                # instead we are passing a valid transaction to T8N and then the transaction
+                # is replaced directly in the block RLP.
+                skip_exception_verification=True,
             )
         ],
         genesis_environment=env,
@@ -1321,6 +1347,7 @@ def test_blob_tx_attribute_gasprice_opcode(
         "parent_excess_blobs",
         "tx_max_fee_per_blob_gas",
         "tx_error",
+        "block_error",
     ],
     [
         (
@@ -1328,16 +1355,25 @@ def test_blob_tx_attribute_gasprice_opcode(
             None,
             1,
             [TransactionException.TYPE_3_TX_PRE_FORK, TransactionException.TYPE_3_TX_ZERO_BLOBS],
+            [TransactionException.TYPE_3_TX_PRE_FORK, TransactionException.TYPE_3_TX_ZERO_BLOBS],
         ),
-        ([1], None, 1, TransactionException.TYPE_3_TX_PRE_FORK),
+        (
+            [1],
+            None,
+            1,
+            TransactionException.TYPE_3_TX_PRE_FORK,
+            [TransactionException.TYPE_3_TX_PRE_FORK, BlockException.INVALID_VERSIONED_HASHES],
+        ),
     ],
     ids=["no_blob_tx", "one_blob_tx"],
 )
+@pytest.mark.exception_test
 @pytest.mark.valid_at_transition_to("Cancun")
 def test_blob_type_tx_pre_fork(
     state_test: StateTestFiller,
     pre: Alloc,
     txs: List[Transaction],
+    block_error: Optional[TransactionException | BlockException],
 ):
     """
     Reject blocks with blob type transactions before Cancun fork.
@@ -1351,4 +1387,5 @@ def test_blob_type_tx_pre_fork(
         post={},
         tx=txs[0],
         env=Environment(),  # `env` fixture has blob fields
+        block_exception=block_error,
     )

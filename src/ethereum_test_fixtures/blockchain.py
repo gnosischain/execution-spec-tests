@@ -33,13 +33,12 @@ from ethereum_test_base_types import (
 )
 from ethereum_test_exceptions import EngineAPIError, ExceptionInstanceOrList
 from ethereum_test_forks import Fork, Paris
-from ethereum_test_types.types import (
+from ethereum_test_types import (
     Transaction,
-    TransactionFixtureConverter,
-    TransactionGeneric,
     Withdrawal,
-    WithdrawalGeneric,
 )
+from ethereum_test_types.block_types import WithdrawalGeneric
+from ethereum_test_types.transaction_types import TransactionFixtureConverter, TransactionGeneric
 
 from .base import BaseFixture
 from .common import FixtureAuthorizationTuple, FixtureBlobSchedule
@@ -214,7 +213,7 @@ class FixtureExecutionPayload(CamelModel):
         """
         return cls(
             **header.model_dump(exclude={"rlp"}, exclude_none=True),
-            transactions=[tx.rlp for tx in transactions],
+            transactions=[tx.rlp() for tx in transactions],
             withdrawals=withdrawals,
         )
 
@@ -321,6 +320,7 @@ class FixtureTransaction(TransactionFixtureConverter, TransactionGeneric[ZeroPad
     """Representation of an Ethereum transaction within a test Fixture."""
 
     authorization_list: List[FixtureAuthorizationTuple] | None = None
+    initcodes: List[Bytes] | None = None
 
     @classmethod
     def from_transaction(cls, tx: Transaction) -> "FixtureTransaction":
@@ -406,8 +406,17 @@ class BlockchainFixtureCommon(BaseFixture):
     genesis: FixtureHeader = Field(..., alias="genesisBlockHeader")
     pre: Alloc
     post_state: Alloc | None = Field(None)
+    post_state_hash: Hash | None = Field(None)
     last_block_hash: Hash = Field(..., alias="lastblockhash")  # FIXME: lastBlockHash
     config: FixtureConfig
+
+    def model_post_init(self, __context):
+        """Model post init method to check mutually exclusive fields."""
+        super().model_post_init(__context)
+        if self.post_state_hash is None and self.post_state is None:
+            raise ValueError("Either post_state_hash or post_state must be provided.")
+        if self.post_state_hash is not None and self.post_state is not None:
+            raise ValueError("Only one of post_state_hash or post_state must be provided.")
 
     @model_validator(mode="before")
     @classmethod

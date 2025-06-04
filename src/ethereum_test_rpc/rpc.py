@@ -15,6 +15,7 @@ from ethereum_test_types import Transaction
 from .types import (
     ForkchoiceState,
     ForkchoiceUpdateResponse,
+    GetBlobsResponse,
     GetPayloadResponse,
     JSONRPCError,
     PayloadAttributes,
@@ -50,14 +51,21 @@ class BaseRPC:
     """Represents a base RPC class for every RPC call used within EEST based hive simulators."""
 
     namespace: ClassVar[str]
+    response_validation_context: Any | None
 
-    def __init__(self, url: str, extra_headers: Dict | None = None):
+    def __init__(
+        self,
+        url: str,
+        extra_headers: Dict | None = None,
+        response_validation_context: Any | None = None,
+    ):
         """Initialize BaseRPC class with the given url."""
         if extra_headers is None:
             extra_headers = {}
         self.url = url
         self.request_id_counter = count(1)
         self.extra_headers = extra_headers
+        self.response_validation_context = response_validation_context
 
     def __init_subclass__(cls) -> None:
         """Set namespace of the RPC class to the lowercase of the class name."""
@@ -106,12 +114,19 @@ class EthRPC(BaseRPC):
     BlockNumberType = Union[int, Literal["latest", "earliest", "pending"]]
 
     def __init__(
-        self, url: str, extra_headers: Dict | None = None, *, transaction_wait_timeout: int = 60
+        self,
+        url: str,
+        extra_headers: Dict | None = None,
+        *,
+        transaction_wait_timeout: int = 60,
+        response_validation_context: Any | None = None,
     ):
         """Initialize EthRPC class with the given url and transaction wait timeout."""
         if extra_headers is None:
             extra_headers = {}
-        super().__init__(url, extra_headers)
+        super().__init__(
+            url, extra_headers, response_validation_context=response_validation_context
+        )
         self.transaction_wait_timeout = transaction_wait_timeout
 
     def get_block_by_number(self, block_number: BlockNumberType = "latest", full_txs: bool = True):
@@ -142,7 +157,9 @@ class EthRPC(BaseRPC):
             response = self.post_request("getTransactionByHash", f"{transaction_hash}")
             if response is None:
                 return None
-            return TransactionByHashResponse(**response)
+            return TransactionByHashResponse.model_validate(
+                response, context=self.response_validation_context
+            )
         except ValidationError as e:
             pprint(e.errors())
             raise e
@@ -170,7 +187,9 @@ class EthRPC(BaseRPC):
     def send_transaction(self, transaction: Transaction) -> Hash:
         """`eth_sendRawTransaction`: Send a transaction to the client."""
         try:
-            result_hash = Hash(self.post_request("sendRawTransaction", f"{transaction.rlp.hex()}"))
+            result_hash = Hash(
+                self.post_request("sendRawTransaction", f"{transaction.rlp().hex()}")
+            )
             assert result_hash == transaction.hash
             assert result_hash is not None
             return transaction.hash
@@ -287,8 +306,9 @@ class EngineRPC(BaseRPC):
 
     def new_payload(self, *params: Any, version: int) -> PayloadStatus:
         """`engine_newPayloadVX`: Attempts to execute the given payload on an execution client."""
-        return PayloadStatus(
-            **self.post_request(f"newPayloadV{version}", *[to_json(param) for param in params])
+        return PayloadStatus.model_validate(
+            self.post_request(f"newPayloadV{version}", *[to_json(param) for param in params]),
+            context=self.response_validation_context,
         )
 
     def forkchoice_updated(
@@ -299,12 +319,13 @@ class EngineRPC(BaseRPC):
         version: int,
     ) -> ForkchoiceUpdateResponse:
         """`engine_forkchoiceUpdatedVX`: Updates the forkchoice state of the execution client."""
-        return ForkchoiceUpdateResponse(
-            **self.post_request(
+        return ForkchoiceUpdateResponse.model_validate(
+            self.post_request(
                 f"forkchoiceUpdatedV{version}",
                 to_json(forkchoice_state),
                 to_json(payload_attributes) if payload_attributes is not None else None,
-            )
+            ),
+            context=self.response_validation_context,
         )
 
     def get_payload(
@@ -317,9 +338,25 @@ class EngineRPC(BaseRPC):
         `engine_getPayloadVX`: Retrieves a payload that was requested through
         `engine_forkchoiceUpdatedVX`.
         """
-        return GetPayloadResponse(
-            **self.post_request(
+        return GetPayloadResponse.model_validate(
+            self.post_request(
                 f"getPayloadV{version}",
                 f"{payload_id}",
-            )
+            ),
+            context=self.response_validation_context,
+        )
+
+    def get_blobs(
+        self,
+        versioned_hashes: List[Hash],
+        *,
+        version: int,
+    ) -> GetBlobsResponse:
+        """`engine_getBlobsVX`: Retrieves blobs from an execution layers tx pool."""
+        return GetBlobsResponse.model_validate(
+            self.post_request(
+                f"getBlobsV{version}",
+                [f"{h}" for h in versioned_hashes],
+            ),
+            context=self.response_validation_context,
         )

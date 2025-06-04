@@ -4,7 +4,9 @@ from typing import Tuple
 
 import pytest
 
-from ..types import AccessList, Hash, Transaction
+from ethereum_test_base_types import AccessList, Hash
+
+from ..transaction_types import Transaction
 
 
 @pytest.mark.parametrize(
@@ -261,4 +263,4 @@ def test_transaction_signing(
     assert signature == expected_signature
     assert tx.sender is not None
     assert tx.sender.hex() == expected_sender
-    assert (tx.rlp.hex()) == expected_serialized
+    assert (tx.rlp().hex()) == expected_serialized

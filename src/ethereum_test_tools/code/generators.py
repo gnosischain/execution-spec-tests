@@ -149,7 +149,7 @@ class CodeGasMeasure(Bytecode):
     To be considered when subtracting the value of the previous GAS operation,
     and to be popped at the end of the execution.
     """
-    sstore_key: int
+    sstore_key: int | Bytes
     """
     Storage key to save the gas used.
     """
@@ -160,7 +160,7 @@ class CodeGasMeasure(Bytecode):
         code: Bytecode,
         overhead_cost: int = 0,
         extra_stack_items: int = 0,
-        sstore_key: int = 0,
+        sstore_key: int | Bytes = 0,
         stop: bool = True,
     ):
         """Assemble the bytecode that measures gas usage."""
@@ -173,9 +173,7 @@ class CodeGasMeasure(Bytecode):
             + Op.SUB
             + Op.PUSH1(overhead_cost + 2)
             + Op.SWAP1
-            + Op.SUB
-            + Op.PUSH1(sstore_key)
-            + Op.SSTORE
+            + Op.SSTORE(sstore_key, Op.SUB)
         )
         if stop:
             res += Op.STOP
@@ -234,6 +232,36 @@ class Conditional(Bytecode):
             # Finally we append the condition, false and true branches
             bytecode = condition + if_false + if_true
 
+        return super().__new__(cls, bytecode)
+
+
+class While(Bytecode):
+    """Helper class used to generate while-loop bytecode."""
+
+    def __new__(
+        cls,
+        *,
+        body: Bytecode | Op,
+        condition: Bytecode | Op | None = None,
+        evm_code_type: EVMCodeType = EVMCodeType.LEGACY,
+    ):
+        """
+        Assemble the loop bytecode.
+
+        The condition nor the body can leave a stack item on the stack.
+        """
+        bytecode = Bytecode()
+        if evm_code_type == EVMCodeType.LEGACY:
+            bytecode += Op.JUMPDEST
+            bytecode += body
+            if condition is not None:
+                bytecode += Op.JUMPI(
+                    Op.SUB(Op.PC, Op.PUSH4[len(body) + len(condition) + 6]), condition
+                )
+            else:
+                bytecode += Op.JUMP(Op.SUB(Op.PC, Op.PUSH4[len(body) + 6]))
+        elif evm_code_type == EVMCodeType.EOF_V1:
+            raise NotImplementedError("EOF while loops are not implemented")
         return super().__new__(cls, bytecode)
 
 
