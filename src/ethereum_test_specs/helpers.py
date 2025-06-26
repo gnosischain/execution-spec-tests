@@ -6,13 +6,9 @@ from enum import Enum
 from typing import Any, Dict, List
 
 from ethereum_clis import Result
-from ethereum_test_exceptions import (
-    BlockException,
-    ExceptionBase,
-    ExceptionWithMessage,
-    TransactionException,
-    UndefinedException,
-)
+from ethereum_test_exceptions import (BlockException, ExceptionBase,
+                                      ExceptionWithMessage,
+                                      TransactionException, UndefinedException)
 from ethereum_test_types import Transaction, TransactionReceipt
 
 
@@ -145,26 +141,7 @@ class ExceptionInfo:
         if self.got_exception is None:
             self.got_message = None
         else:
-            expected_exception = info.tx.error
-
-        expected_error_msg = exception_mapper.exception_to_message(expected_exception)
-        t8n_error_exception = exception_mapper.message_to_exception(info.t8n_error_message)
-        exception_mapper_name = exception_mapper.__class__.__name__
-
-        if (
-            expected_error_msg is None
-            or (expected_error_msg not in info.t8n_error_message
-            and not re.compile(expected_error_msg).match(info.t8n_error_message))
-        ):
-            raise TransactionExceptionMismatchError(
-                index=info.transaction_index,
-                nonce=info.tx.nonce,
-                expected_exception=expected_exception,
-                expected_message=expected_error_msg,
-                got_exception=t8n_error_exception,
-                got_message=info.t8n_error_message,
-                mapper_name=exception_mapper_name,
-            )
+            self.got_message = str(self.got_exception)
         self.context = context
 
     def verify(self: "ExceptionInfo", *, strict_match: bool) -> None:
