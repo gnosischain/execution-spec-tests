@@ -24,24 +24,22 @@ from config import AppConfig
 from ethereum_clis import TransitionTool
 from ethereum_clis.clis.geth import FixtureConsumerTool
 from ethereum_test_base_types import Alloc, ReferenceSpec
-from ethereum_test_fixtures import BaseFixture, FixtureCollector, FixtureConsumer, TestInfo
-from ethereum_test_forks import Fork, get_transition_fork_predecessor, get_transition_forks
+from ethereum_test_fixtures import (BaseFixture, FixtureCollector,
+                                    FixtureConsumer, TestInfo)
+from ethereum_test_forks import (Fork, get_transition_fork_predecessor,
+                                 get_transition_forks)
 from ethereum_test_specs import BaseTest
 from ethereum_test_tools.utility.versioning import (
-    generate_github_url,
-    get_current_commit_hash_or_tag,
-)
+    generate_github_url, get_current_commit_hash_or_tag)
+from ethereum_test_types import EnvironmentDefaults, TransactionDefaults
+from pytest_plugins.spec_version_checker.spec_version_checker import \
+    EIPSpecTestItem
 
-from ethereum_test_types import TransactionDefaults, EnvironmentDefaults
-from pytest_plugins.spec_version_checker.spec_version_checker import EIPSpecTestItem
-
-
-from ..shared.helpers import (
-    get_spec_format_for_item,
-    is_help_or_collectonly_mode,
-    labeled_format_parameter_set,
-)
-from ..spec_version_checker.spec_version_checker import get_ref_spec_from_module
+from ..shared.helpers import (get_spec_format_for_item,
+                              is_help_or_collectonly_mode,
+                              labeled_format_parameter_set)
+from ..spec_version_checker.spec_version_checker import \
+    get_ref_spec_from_module
 from .fixture_output import FixtureOutput
 
 
@@ -209,15 +207,6 @@ def pytest_addoption(parser: pytest.Parser):
         default=False,
         help=("Skip dumping the the transition tool debug output."),
     )
-    debug_group.addoption(
-        "--gnosis",
-        "--gnosis",
-        action="store_true",
-        dest="gnosis",
-        default=False,
-        help=("generate gnosis tests."),
-    )
-
 
 @pytest.hookimpl(tryfirst=True)
 def pytest_configure(config):
@@ -442,10 +431,6 @@ def t8n(request: pytest.FixtureRequest, evm_bin: Path) -> Generator[TransitionTo
     t8n = TransitionTool.from_binary_path(
         binary_path=evm_bin, trace=request.config.getoption("evm_collect_traces")
     )
-    if request.config.getoption("gnosis"):
-        if not t8n.is_gnosis_supported:
-            raise Exception(f'gnosis is not supported for: {t8n.__class__.__name__}')
-        TransactionDefaults.chain_id = 100
     yield t8n
     t8n.shutdown()
 
