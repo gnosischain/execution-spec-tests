@@ -8,16 +8,38 @@ import ethereum_test_forks.helpers
 # Attempt to import the target for monkeypatching
 # This might require adjusting if the path is not directly importable here
 # or if it causes circular dependencies, though unlikely for a plugin.
-from ethereum_test_forks import Fork, London
+from ethereum_test_forks import Cancun, Fork
 from ethereum_test_forks.base_fork import BaseFork
 from ethereum_test_forks.helpers import get_forks
 
+# Default Gnosis chain parameters
+DEFAULT_GNOSIS_BLOB_BASE_FEE_UPDATE_FRACTION = 2504285  # Custom value for Gnosis (between Cancun 3.3M and Prague 5M)
+DEFAULT_GNOSIS_TARGET_BLOBS_PER_BLOCK = 1  # Custom value for Gnosis (between Cancun 3 and Prague 6)
+DEFAULT_GNOSIS_MAX_BLOBS_PER_BLOCK = 2     # Custom value for Gnosis (between Cancun 6 and Prague 9)
 
-class Gnosis(London, blockchain_test_network_name="gnosis"):
+# Global variables to store customized values (set by plugin)
+_gnosis_blob_base_fee_update_fraction = DEFAULT_GNOSIS_BLOB_BASE_FEE_UPDATE_FRACTION
+_gnosis_target_blobs_per_block = DEFAULT_GNOSIS_TARGET_BLOBS_PER_BLOCK
+_gnosis_max_blobs_per_block = DEFAULT_GNOSIS_MAX_BLOBS_PER_BLOCK
+
+
+def set_gnosis_fork_parameters(
+    blob_base_fee_update_fraction: int = DEFAULT_GNOSIS_BLOB_BASE_FEE_UPDATE_FRACTION,
+    target_blobs_per_block: int = DEFAULT_GNOSIS_TARGET_BLOBS_PER_BLOCK,
+    max_blobs_per_block: int = DEFAULT_GNOSIS_MAX_BLOBS_PER_BLOCK,
+):
+    """Set global Gnosis fork parameters."""
+    global _gnosis_blob_base_fee_update_fraction, _gnosis_target_blobs_per_block, _gnosis_max_blobs_per_block
+    _gnosis_blob_base_fee_update_fraction = blob_base_fee_update_fraction
+    _gnosis_target_blobs_per_block = target_blobs_per_block
+    _gnosis_max_blobs_per_block = max_blobs_per_block
+
+
+class Gnosis(Cancun, blockchain_test_network_name="gnosis"):
     """Gnosis chain fork class.
     
-    Currently based on London fork, but can be adjusted as needed
-    for specific Gnosis chain parameters.
+    Currently based on Cancun fork with Gnosis-specific parameters.
+    Supports blobs with custom configuration.
     """
     
     @classmethod
@@ -38,18 +60,36 @@ class Gnosis(London, blockchain_test_network_name="gnosis"):
         return True
     
     @classmethod
+    def blob_base_fee_update_fraction(cls, block_number: int = 0, timestamp: int = 0) -> int:
+        """Return the blob base fee update fraction for Gnosis."""
+        return _gnosis_blob_base_fee_update_fraction
+    
+    @classmethod
+    def target_blobs_per_block(cls, block_number: int = 0, timestamp: int = 0) -> int:
+        """Return the target blobs per block for Gnosis."""
+        return _gnosis_target_blobs_per_block
+    
+    @classmethod
+    def max_blobs_per_block(cls, block_number: int = 0, timestamp: int = 0) -> int:
+        """Return the max blobs per block for Gnosis."""
+        return _gnosis_max_blobs_per_block
+    
+    @classmethod
     def pre_allocation_blockchain(cls) -> Mapping:
         """Return the pre-allocation mapping for the Gnosis chain."""
         # Gnosis chain pre-allocations would go here
-        # For now, using a minimal set for testing
-        return {
+        # For now, using a minimal set for testing plus parent allocations
+        gnosis_allocation = {
             "0x0000000000000000000000000000000000000000": {
-                "balance": "0x0",
+                "balance": "0x3",
                 "nonce": "0x0",
                 "code": "0x",
                 "storage": {}
             }
         }
+        # Include parent allocations from Cancun
+        parent_allocation = dict(super(Gnosis, cls).pre_allocation_blockchain())
+        return gnosis_allocation | parent_allocation
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -93,25 +133,3 @@ def gnosis_fork_registrar(monkeypatch):
         # Optionally, re-raise to make the session fail if this check is critical
         raise # Re-raising to make sure a failure here stops the test session
 
-    # Remove the previous monkeypatch for filler_module.pytest_collection_modifyitems
-    # as it's no longer needed with this approach.
-
-    # original_filler_collection_modifyitems = getattr(filler_module, "pytest_collection_modifyitems", None)
-    # if original_filler_collection_modifyitems:
-    #     def patched_filler_collection_modifyitems(config: pytest.Config, items: List[pytest.Item]):
-    #         gnosis_registration_test_node_id = "tests/test_gnosis_plugin_registration.py::test_gnosis_fork_is_registered_via_pytest_plugin"
-    #         our_test_items = []
-    #         other_items = []
-    #         for item in items:
-    #             if item.nodeid == gnosis_registration_test_node_id:
-    #                 our_test_items.append(item)
-    #             else:
-    #                 other_items.append(item)
-    #         processed_other_items = list(other_items)
-    #         original_filler_collection_modifyitems(config, processed_other_items)
-    #         items.clear()
-    #         items.extend(our_test_items)
-    #         items.extend(processed_other_items)
-    #     monkeypatch.setattr(filler_module, "pytest_collection_modifyitems", patched_filler_collection_modifyitems)
-    # else:
-    #     print("\nWARNING: Could not find original pytest_collection_modifyitems in filler_module to patch.\n") 
