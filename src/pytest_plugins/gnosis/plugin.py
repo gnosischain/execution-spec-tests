@@ -175,29 +175,23 @@ def pytest_configure(config: Config):
         set_gnosis_fork_parameters(**fork_params)
         
         # Also set custom parameters for ALL forks (new approach)
+        # Include pre_allocation patching when --gnosis is used
         set_custom_fork_parameters(
             blob_base_fee_update_fraction=final_blob_base_fee_update_fraction,
             target_blobs_per_block=final_target_blobs_per_block,
-            max_blobs_per_block=final_max_blobs_per_block
+            max_blobs_per_block=final_max_blobs_per_block,
+            patch_pre_allocation=use_gnosis,  # Patch pre-allocation when --gnosis is used
         )
         
-        # Apply the patches to all fork classes
+        # Apply the patches
         patch_fork_parameters()
         
+        print(f"Blob Base Fee Update Fraction: {final_blob_base_fee_update_fraction}")
+        print(f"Target Blobs Per Block: {final_target_blobs_per_block}")
+        print(f"Max Blobs Per Block: {final_max_blobs_per_block}")
         if use_gnosis:
-            print("✓ Gnosis defaults applied to ALL forks")
-        else:
-            print("✓ Custom fork parameters configured for ALL forks")
-        
-        # Display configured fork parameters
-        if final_blob_base_fee_update_fraction is not None:
-            print(f"  - Blob base fee update fraction: {final_blob_base_fee_update_fraction}")
-        if final_target_blobs_per_block is not None:
-            print(f"  - Target blobs per block: {final_target_blobs_per_block}")
-        if final_max_blobs_per_block is not None:
-            print(f"  - Max blobs per block: {final_max_blobs_per_block}")
-        
-        print("=== End Gnosis Fork Configuration ===\n")
+            print("Pre-allocation: Patched with Gnosis accounts")
+        print("=== End Gnosis Configuration ===\n")
 
 
 @pytest.hookimpl(tryfirst=True)

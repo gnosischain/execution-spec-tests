@@ -5,8 +5,9 @@ from typing import Any, Optional
 
 # Gnosis chain specific defaults
 GNOSIS_DEFAULT_BASE_FEE = 7
-GNOSIS_CURRENT_BLOCK_GAS_LIMIT = 17_000_000  # Gnosis chain has lower gas limit than mainnet
+GNOSIS_CURRENT_BLOCK_GAS_LIMIT = 262144  # Gnosis chain has lower gas limit than mainnet
 GNOSIS_DEFAULT_BLOCK_GAS_LIMIT = GNOSIS_CURRENT_BLOCK_GAS_LIMIT
+
 
 
 @dataclass

@@ -22,6 +22,43 @@ _gnosis_blob_base_fee_update_fraction = DEFAULT_GNOSIS_BLOB_BASE_FEE_UPDATE_FRAC
 _gnosis_target_blobs_per_block = DEFAULT_GNOSIS_TARGET_BLOBS_PER_BLOCK
 _gnosis_max_blobs_per_block = DEFAULT_GNOSIS_MAX_BLOBS_PER_BLOCK
 
+# Gnosis chain system contracts and pre-allocated accounts
+GNOSIS_SYSTEM_CONTRACTS = {
+    # BLS12-381 precompile test contract
+    "0x0000000000000000000000000000000000001000": {
+        "nonce": "0x01",
+        "balance": "0x00",
+        "code": "0x366000600037600060003660006000600b610177f16000553d6001553d600060003e3d600020600255",
+        "storage": {}
+    },
+}
+
+GNOSIS_PRE_ALLOCATED_ACCOUNTS = {
+    # Standard test account with funding
+    "0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b": {
+        "nonce": "0x00",
+        "balance": "0x0de0b6b3a7640000",  # 1 ETH
+        "code": "0x",
+        "storage": {}
+    },
+}
+
+# Additional Gnosis-specific accounts
+GNOSIS_CHAIN_ACCOUNTS = {
+    "0x0000000000000000000000000000000000000000": {
+        "balance": "0x3",
+        "nonce": "0x2",
+        "code": "0x",
+        "storage": {}
+    },
+    "0x1234567890123456789012345678901234567890": {
+        "balance": "0x56bc75e2d630eb20",  # 6.25 ETH
+        "nonce": "0x0",
+        "code": "0x",
+        "storage": {}
+    }
+}
+
 
 def set_gnosis_fork_parameters(
     blob_base_fee_update_fraction: int = DEFAULT_GNOSIS_BLOB_BASE_FEE_UPDATE_FRACTION,
@@ -33,6 +70,29 @@ def set_gnosis_fork_parameters(
     _gnosis_blob_base_fee_update_fraction = blob_base_fee_update_fraction
     _gnosis_target_blobs_per_block = target_blobs_per_block
     _gnosis_max_blobs_per_block = max_blobs_per_block
+
+
+def add_gnosis_system_contract(address: str, contract_data: Dict):
+    """Add a system contract to Gnosis chain allocations."""
+    GNOSIS_SYSTEM_CONTRACTS[address] = contract_data
+
+
+def add_gnosis_account(address: str, account_data: Dict):
+    """Add a pre-allocated account to Gnosis chain."""
+    GNOSIS_PRE_ALLOCATED_ACCOUNTS[address] = account_data
+
+
+def update_gnosis_account(address: str, updates: Dict):
+    """Update an existing Gnosis account allocation."""
+    if address in GNOSIS_PRE_ALLOCATED_ACCOUNTS:
+        GNOSIS_PRE_ALLOCATED_ACCOUNTS[address].update(updates)
+    elif address in GNOSIS_SYSTEM_CONTRACTS:
+        GNOSIS_SYSTEM_CONTRACTS[address].update(updates)
+    elif address in GNOSIS_CHAIN_ACCOUNTS:
+        GNOSIS_CHAIN_ACCOUNTS[address].update(updates)
+    else:
+        # Create new account if it doesn't exist
+        GNOSIS_PRE_ALLOCATED_ACCOUNTS[address] = updates
 
 
 class Gnosis(Cancun, blockchain_test_network_name="gnosis"):
@@ -77,16 +137,12 @@ class Gnosis(Cancun, blockchain_test_network_name="gnosis"):
     @classmethod
     def pre_allocation_blockchain(cls) -> Mapping:
         """Return the pre-allocation mapping for the Gnosis chain."""
-        # Gnosis chain pre-allocations would go here
-        # For now, using a minimal set for testing plus parent allocations
-        gnosis_allocation = {
-            "0x0000000000000000000000000000000000000000": {
-                "balance": "0x3",
-                "nonce": "0x0",
-                "code": "0x",
-                "storage": {}
-            }
-        }
+        # Combine all Gnosis-specific allocations
+        gnosis_allocation = {}
+        gnosis_allocation.update(GNOSIS_CHAIN_ACCOUNTS)
+        gnosis_allocation.update(GNOSIS_SYSTEM_CONTRACTS)
+        gnosis_allocation.update(GNOSIS_PRE_ALLOCATED_ACCOUNTS)
+        
         # Include parent allocations from Cancun
         parent_allocation = dict(super(Gnosis, cls).pre_allocation_blockchain())
         return gnosis_allocation | parent_allocation
