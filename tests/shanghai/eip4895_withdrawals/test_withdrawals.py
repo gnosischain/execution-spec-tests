@@ -730,18 +730,7 @@ def test_store_withdrawal_values_in_contract(
 ):
     """Test that system transaction calldata is correctly formed."""
     contract_address = pre.deploy_contract(
-        code=yul(
-            """
-            {
-                let size := calldatasize()
-                let words := div(add(size, 31), 32)
-                for { let i := 0 } lt(i, words) { i := add(i, 1) } {
-                    sstore(i, calldataload(mul(i, 32)))
-                }
-                stop()
-            }
-            """
-        )
+        code=Op.SSTORE(0, Op.CALLDATASIZE) + sum(Op.SSTORE(i + 1, Op.CALLDATALOAD(i * 32)) for i in range(10))
     )
 
     withdrawal_1 = Withdrawal(
@@ -807,13 +796,7 @@ def test_withdrawal_system_call_reverts(
 ):
     """Test the system contract call reverting."""
     contract_address = pre.deploy_contract(
-        code=yul(
-            """
-            {
-                revert(0, 0)
-            }
-            """
-        )
+        code=Op.REVERT(0, 0)
     )
 
     withdrawal = Withdrawal(
@@ -839,13 +822,7 @@ def test_withdrawal_system_call_runs_out_of_gas(
 ):
     """Test the system contract call reverting."""
     contract_address = pre.deploy_contract(
-        code=yul(
-            """
-            {
-                for { } 1 { } { }
-            }
-            """
-        )
+        code=Op.INVALID
     )
 
     withdrawal = Withdrawal(
@@ -872,13 +849,7 @@ def test_empty_withdrawals_list(
 ):
     """Test that the system contract call is done even if the withdrawal list is empty."""
     contract_address = pre.deploy_contract(
-        code=yul(
-            """
-            {
-                sstore(0, 1)
-            }
-            """
-        )
+        code=Op.SSTORE(0, 1)
     )
 
     blocks = [
