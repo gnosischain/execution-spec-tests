@@ -20,20 +20,29 @@ class GnosisPlugin:
         self.use_gnosis = config.getoption("--gnosis")
         
         if self.use_gnosis:
-            # Collect all gnosis environment options
+            # Import the correct Gnosis defaults
+            from .gnosis_block_types import (GNOSIS_DEFAULT_BASE_FEE,
+                                             GNOSIS_DEFAULT_BLOCK_GAS_LIMIT)
+
+            # Collect all gnosis environment options with proper defaults
             gnosis_options = {
-                'gas_limit': config.getoption("--gnosis-gas-limit"),
-                'number': config.getoption("--gnosis-number"),
-                'timestamp': config.getoption("--gnosis-timestamp"),
-                'base_fee_per_gas': config.getoption("--gnosis-base-fee"),
-                'difficulty': config.getoption("--gnosis-difficulty"),
-                'excess_blob_gas': config.getoption("--gnosis-excess-blob-gas"),
+                'gas_limit': config.getoption("--gnosis-gas-limit") or GNOSIS_DEFAULT_BLOCK_GAS_LIMIT,
+                'number': config.getoption("--gnosis-number") or 0,
+                'timestamp': config.getoption("--gnosis-timestamp") or 0,
+                'base_fee_per_gas': config.getoption("--gnosis-base-fee") or GNOSIS_DEFAULT_BASE_FEE,
+                'difficulty': config.getoption("--gnosis-difficulty") or 0x20000,
+                'excess_blob_gas': config.getoption("--gnosis-excess-blob-gas") or 0,
             }
             
-            # Remove None values
-            gnosis_options = {k: v for k, v in gnosis_options.items() if v is not None}
+            print(f"🔧 Gnosis Environment Defaults:")
+            print(f"  - gas_limit: {gnosis_options['gas_limit']:,} ({hex(gnosis_options['gas_limit'])})")
+            print(f"  - base_fee_per_gas: {gnosis_options['base_fee_per_gas']:,} ({hex(gnosis_options['base_fee_per_gas'])})")
+            print(f"  - number: {gnosis_options['number']}")
+            print(f"  - timestamp: {gnosis_options['timestamp']}")
+            print(f"  - difficulty: {hex(gnosis_options['difficulty'])}")
+            print(f"  - excess_blob_gas: {gnosis_options['excess_blob_gas']}")
             
-            # Apply environment defaults patching if gnosis is enabled
+            # Apply environment defaults patching with Gnosis values
             patch_environment_defaults_and_class(**gnosis_options)
         
         # Gnosis fork is now auto-registered by a session fixture in gnosis.py
@@ -63,7 +72,7 @@ def pytest_addoption(parser):
         dest="gnosis_gas_limit",
         type=int,
         default=None,
-        help="Custom gas limit for Gnosis chain tests (default: 17,000,000)",
+        help="Custom gas limit for Gnosis chain tests (default: 10,000,000 / 0x989680)",
     )
     gnosis_group.addoption(
         "--gnosis-number",
@@ -71,7 +80,7 @@ def pytest_addoption(parser):
         dest="gnosis_number",
         type=int,
         default=None,
-        help="Default block number for Environment (default: 1)",
+        help="Default block number for Environment (default: 0)",
     )
     gnosis_group.addoption(
         "--gnosis-timestamp",
@@ -79,7 +88,7 @@ def pytest_addoption(parser):
         dest="gnosis_timestamp",
         type=int,
         default=None,
-        help="Default timestamp for Environment (default: 1000)",
+        help="Default timestamp for Environment (default: 0)",
     )
     gnosis_group.addoption(
         "--gnosis-base-fee",
@@ -87,7 +96,7 @@ def pytest_addoption(parser):
         dest="gnosis_base_fee",
         type=int,
         default=None,
-        help="Default base fee per gas for Environment (default: 7)",
+        help="Default base fee per gas for Environment (default: 1,000,000,000 wei / 0x3b9aca00 / 1 Gwei)",
     )
     gnosis_group.addoption(
         "--gnosis-difficulty",

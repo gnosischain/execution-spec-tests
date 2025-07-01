@@ -3,9 +3,12 @@
 from dataclasses import dataclass
 from typing import Any, Optional
 
-# Gnosis chain specific defaults
-GNOSIS_DEFAULT_BASE_FEE = 7
-GNOSIS_CURRENT_BLOCK_GAS_LIMIT = 262144  # Gnosis chain has lower gas limit than mainnet
+# Gnosis chain specific defaults - MUST match what the jq mapper produces
+# From hive/mapper_new.jq:
+# - "gasLimit": "0x989680" (line 241)  
+# - "baseFeePerGas": "0x3b9aca00" (line 243)
+GNOSIS_DEFAULT_BASE_FEE = 0x3b9aca00  # 1 Gwei (1,000,000,000 wei)
+GNOSIS_CURRENT_BLOCK_GAS_LIMIT = 0x989680  # 10,000,000
 GNOSIS_DEFAULT_BLOCK_GAS_LIMIT = GNOSIS_CURRENT_BLOCK_GAS_LIMIT
 
 
@@ -33,7 +36,7 @@ class GnosisEnvironmentDefaults:
     blob_gas_used: int = 0
     
     # Other defaults
-    fee_recipient: str = "0x2adc25665018aa1fe0e6bc666dac8fc2697ff9ba"
+    fee_recipient: str = "0x0000000000000000000000000000000000000000"
 
 
 # Store original classes globally
@@ -58,6 +61,8 @@ def patch_environment_defaults_and_class(
         base_fee_per_gas: Custom base fee default
         **kwargs: Other environment defaults
     """
+    from pydantic import Field
+
     from ethereum_test_types import block_types
     
     global _original_defaults, _original_environment_class
