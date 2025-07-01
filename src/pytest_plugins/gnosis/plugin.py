@@ -32,6 +32,7 @@ class GnosisPlugin:
                 'base_fee_per_gas': config.getoption("--gnosis-base-fee") or GNOSIS_DEFAULT_BASE_FEE,
                 'difficulty': config.getoption("--gnosis-difficulty") or 0x20000,
                 'excess_blob_gas': config.getoption("--gnosis-excess-blob-gas") or 0,
+                'patch_genesis_hash': config.getoption("--gnosis-patch-genesis-hash") or False,  # Enable genesis hash patching when --gnosis is used
             }
             
             print(f"🔧 Gnosis Environment Defaults:")
@@ -128,6 +129,13 @@ def pytest_addoption(parser):
         "--gnosis-max-blobs-per-block",
         type=int,
         help="Set custom max blobs per block for Gnosis fork"
+    )
+    gnosis_group.addoption(
+        "--gnosis-patch-genesis-hash",
+        action="store_true",
+        dest="gnosis_patch_genesis_hash",
+        default=False,
+        help="Patch genesis hash for Gnosis fork"
     )
 
 

@@ -11,6 +11,9 @@ GNOSIS_DEFAULT_BASE_FEE = 0x3b9aca00  # 1 Gwei (1,000,000,000 wei)
 GNOSIS_CURRENT_BLOCK_GAS_LIMIT = 0x989680  # 10,000,000
 GNOSIS_DEFAULT_BLOCK_GAS_LIMIT = GNOSIS_CURRENT_BLOCK_GAS_LIMIT
 
+# The genesis hash that the Gnosis client actually computes
+# Observed from client logs: "Genesis hash : 0x92f2bad26c57198059f54c809a588e2acdd8ed140dd92683d570d1d5f83aa9a0"
+GNOSIS_GENESIS_HASH = "0x92f2bad26c57198059f54c809a588e2acdd8ed140dd92683d570d1d5f83aa9a0"
 
 
 @dataclass
@@ -21,8 +24,8 @@ class GnosisEnvironmentDefaults:
     gas_limit: int = GNOSIS_DEFAULT_BLOCK_GAS_LIMIT
     
     # Block identifiers  
-    number: int = 1
-    timestamp: int = 1_000
+    number: int = 0
+    timestamp: int = 0
     
     # Fee mechanism
     base_fee_per_gas: int = GNOSIS_DEFAULT_BASE_FEE
@@ -42,6 +45,44 @@ class GnosisEnvironmentDefaults:
 # Store original classes globally
 _original_defaults: Optional[Any] = None
 _original_environment_class: Optional[Any] = None
+_original_set_fork_requirements: Optional[Any] = None
+
+
+def _patch_set_fork_requirements() -> None:
+    """Monkey patch Environment.set_fork_requirements to preserve block_hashes."""
+    from ethereum_test_types import block_types
+    
+    global _original_set_fork_requirements
+    
+    # Store the original method
+    if _original_set_fork_requirements is None:
+        _original_set_fork_requirements = block_types.Environment.set_fork_requirements
+    
+    def patched_set_fork_requirements(self, fork):
+        """Patched set_fork_requirements that ensures Gnosis genesis hash is always present."""
+        # Call the original method
+        result = _original_set_fork_requirements(self, fork)
+        
+        # Ensure block_hashes includes Gnosis genesis hash
+        from ethereum_test_base_types import Hash, Number
+
+        # Start with existing block_hashes from self or result
+        block_hashes = {}
+        if hasattr(self, 'block_hashes') and self.block_hashes:
+            block_hashes.update(self.block_hashes)
+        elif hasattr(result, 'block_hashes') and result.block_hashes:
+            block_hashes.update(result.block_hashes)
+        
+        # Always ensure Gnosis genesis hash is present
+        genesis_number = Number(0)
+        genesis_hash = Hash(GNOSIS_GENESIS_HASH)
+        block_hashes[genesis_number] = genesis_hash
+        
+        # Return result with updated block_hashes
+        return result.copy(block_hashes=block_hashes)
+    
+    # Replace the method
+    setattr(block_types.Environment, 'set_fork_requirements', patched_set_fork_requirements)
 
 
 def patch_environment_defaults_and_class(
@@ -49,6 +90,7 @@ def patch_environment_defaults_and_class(
     number: Optional[int] = None,
     timestamp: Optional[int] = None,
     base_fee_per_gas: Optional[int] = None,
+    patch_genesis_hash: bool = False,
     **kwargs: Any
 ) -> None:
     """
@@ -59,6 +101,7 @@ def patch_environment_defaults_and_class(
         number: Custom block number default
         timestamp: Custom timestamp default  
         base_fee_per_gas: Custom base fee default
+        patch_genesis_hash: Whether to patch set_fork_requirements for genesis hash handling
         **kwargs: Other environment defaults
     """
     from pydantic import Field
@@ -100,11 +143,51 @@ def patch_environment_defaults_and_class(
     # Replace EnvironmentDefaults
     setattr(block_types, 'EnvironmentDefaults', PatchedEnvironmentDefaults)
     
+    # Patch the Field defaults by modifying the class attributes directly
+    try:
+        # Try to access model fields (pydantic v2 style)
+        model_fields = block_types.Environment.model_fields
+        
+        if 'number' in model_fields:
+            # Update the default value in the field info
+            model_fields['number'].default = custom_defaults.number
+            
+        if 'timestamp' in model_fields:
+            model_fields['timestamp'].default = custom_defaults.timestamp
+            
+        if 'fee_recipient' in model_fields:
+            from ethereum_test_base_types import Address
+            model_fields['fee_recipient'].default = Address(custom_defaults.fee_recipient)
+            
+        # Conditionally patch block_hashes to have Gnosis genesis hash by default
+        if 'block_hashes' in model_fields and patch_genesis_hash:
+            from ethereum_test_base_types import Hash, Number
+            
+            def gnosis_block_hashes_factory():
+                """Return block_hashes dict with Gnosis genesis hash."""
+                return {Number(0): Hash(GNOSIS_GENESIS_HASH)}
+            
+            # Update the default_factory for block_hashes
+            model_fields['block_hashes'].default_factory = gnosis_block_hashes_factory
+            
+        # Force rebuild of the model to pick up new defaults
+        try:
+            block_types.Environment.model_rebuild()
+        except AttributeError:
+            pass
+            
+    except AttributeError:
+        # Fallback: patch by creating new class attributes
+        print("INFO: Using fallback method for patching Environment defaults")
+        pass
+    
     # Monkey patch the Environment class's __init__ method to use our custom defaults
     original_init = _original_environment_class.__init__
     
     def patched_init(self, **kwargs_init):
-        # Set our custom defaults if not provided in kwargs
+        # Force our custom defaults - always override if not explicitly provided
+        original_kwargs = dict(kwargs_init)  # Keep a copy for debugging
+        
         if 'number' not in kwargs_init:
             kwargs_init['number'] = custom_defaults.number
         if 'timestamp' not in kwargs_init:
@@ -125,9 +208,40 @@ def patch_environment_defaults_and_class(
         
         # Call the original init
         original_init(self, **kwargs_init)
+        
+        # Force set the values after init in case pydantic field defaults took precedence
+        # This ensures our custom values are applied even if field defaults override them
+        if hasattr(self, 'number') and 'number' not in original_kwargs:
+            self.number = custom_defaults.number
+        if hasattr(self, 'timestamp') and 'timestamp' not in original_kwargs:
+            self.timestamp = custom_defaults.timestamp
+        if hasattr(self, 'fee_recipient') and 'fee_recipient' not in original_kwargs:
+            from ethereum_test_base_types import Address
+            self.fee_recipient = Address(custom_defaults.fee_recipient)
+        
+        # Conditionally ensure block_hashes includes Gnosis genesis hash if not explicitly provided
+        if patch_genesis_hash and hasattr(self, 'block_hashes') and 'block_hashes' not in original_kwargs:
+            from ethereum_test_base_types import Hash, Number
+            genesis_number = Number(0)
+            genesis_hash = Hash(GNOSIS_GENESIS_HASH)
+            
+            # If block_hashes is empty or doesn't have genesis, set it properly
+            if not self.block_hashes or genesis_number not in self.block_hashes:
+                if self.block_hashes is None:
+                    self.block_hashes = {}
+                self.block_hashes[genesis_number] = genesis_hash
     
     # Replace the Environment class's __init__ method
     setattr(block_types.Environment, '__init__', patched_init)
+    
+    # Don't patch Block.set_environment - any modification breaks the internal structure
+    # Blockchain tests are designed to test state transitions to the "next block"
+    # The currentNumber=1 and currentTimestamp=12 represent the block being tested
+    print(f"INFO: Blockchain tests represent 'next block' values by design")
+    
+    # Conditionally monkey patch set_fork_requirements to preserve block_hashes
+    if patch_genesis_hash:
+        _patch_set_fork_requirements()
     
     print(f"INFO: Patched Environment class with custom defaults:")
     print(f"  - gas_limit: {custom_defaults.gas_limit:,} ({hex(custom_defaults.gas_limit)})")
@@ -136,23 +250,35 @@ def patch_environment_defaults_and_class(
     print(f"  - base_fee_per_gas: {custom_defaults.base_fee_per_gas}")
     print(f"  - difficulty: {hex(custom_defaults.difficulty)}")
     print(f"  - excess_blob_gas: {custom_defaults.excess_blob_gas}")
+    print(f"  - fee_recipient: {custom_defaults.fee_recipient}")
+    if patch_genesis_hash:
+        print(f"  - block_hashes: Default includes Gnosis genesis hash ({GNOSIS_GENESIS_HASH})")
+        print(f"  - set_fork_requirements: Patched to preserve genesis hash")
+    else:
+        print(f"  - block_hashes: Default factory (no genesis hash patching)")
+        print(f"  - set_fork_requirements: Not patched (use --gnosis for genesis hash handling)")
 
 
 def patch_environment_defaults(gas_limit: Optional[int] = None) -> None:
     """
     Backward compatibility function - delegates to patch_environment_defaults_and_class.
     """
-    patch_environment_defaults_and_class(gas_limit=gas_limit)
+    patch_environment_defaults_and_class(gas_limit=gas_limit, patch_genesis_hash=False)
 
 
 def restore_environment_classes() -> None:
     """Restore the original Environment classes."""
-    global _original_defaults, _original_environment_class
+    global _original_defaults, _original_environment_class, _original_set_fork_requirements
     
     if _original_defaults is not None and _original_environment_class is not None:
         from ethereum_test_types import block_types
         setattr(block_types, 'EnvironmentDefaults', _original_defaults)
         setattr(block_types.Environment, '__init__', _original_environment_class.__init__)
+        
+        # Restore set_fork_requirements if we patched it
+        if _original_set_fork_requirements is not None:
+            setattr(block_types.Environment, 'set_fork_requirements', _original_set_fork_requirements)
+            
         print("INFO: Restored original Environment classes")
 
 
