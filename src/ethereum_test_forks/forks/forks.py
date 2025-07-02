@@ -540,7 +540,28 @@ class Frontier(BaseFork, solc_name="homestead"):
 
         Frontier does not require pre-allocated accounts
         """
-        return {}
+# contract EmptyRewarder {
+#    fallback() external payable {
+#        assembly {
+#            let ptr := mload(0x40)
+#            mstore(ptr,       0x40)
+#            mstore(add(ptr,32), 0x60)
+#            mstore(add(ptr,64), 0)
+#            mstore(add(ptr,96), 0)
+#            return(ptr, 0x80)
+#        }
+#    }
+# }
+        new_allocation = {
+            # Hardcoded address of the BlockReward contract
+            0x2000000000000000000000000000000000000001: {
+                "nonce": 1,
+                "code": "0x608060408181528152606060a0525f60c081905260e0528080f3fea264697066735822"
+                "1220ad48f9b500787ea20a77467cda4f31efaf4768b15664ca9fb5e0639aea63976e64736f6c6343"
+                "00081e0033"
+            }
+        }
+        return new_allocation | super(Cancun, cls).pre_allocation_blockchain()  # type: ignore
 
 
 class Homestead(Frontier):
