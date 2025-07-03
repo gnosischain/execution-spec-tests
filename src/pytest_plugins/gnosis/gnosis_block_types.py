@@ -13,6 +13,7 @@ GNOSIS_DEFAULT_BLOCK_GAS_LIMIT = GNOSIS_CURRENT_BLOCK_GAS_LIMIT
 
 # The genesis hash that the Gnosis client actually computes
 # Observed from client logs: "Genesis hash : 0x92f2bad26c57198059f54c809a588e2acdd8ed140dd92683d570d1d5f83aa9a0"
+# TODO: find a way to override it for genesis block
 GNOSIS_GENESIS_HASH = "0x92f2bad26c57198059f54c809a588e2acdd8ed140dd92683d570d1d5f83aa9a0"
 
 
@@ -27,7 +28,7 @@ class GnosisEnvironmentDefaults:
     number: int = 0
     timestamp: int = 0
     
-    # Fee mechanism
+    # Value here is not important, it's just a placeholder
     base_fee_per_gas: int = GNOSIS_DEFAULT_BASE_FEE
     
     # Consensus
@@ -90,6 +91,7 @@ def patch_environment_defaults_and_class(
     number: Optional[int] = None,
     timestamp: Optional[int] = None,
     base_fee_per_gas: Optional[int] = None,
+    fee_recipient: Optional[str] = None,
     patch_genesis_hash: bool = False,
     **kwargs: Any
 ) -> None:
@@ -126,8 +128,12 @@ def patch_environment_defaults_and_class(
         custom_defaults.number = number
     if timestamp is not None:
         custom_defaults.timestamp = timestamp
+    # Important
     if base_fee_per_gas is not None:
         custom_defaults.base_fee_per_gas = base_fee_per_gas
+    if fee_recipient is not None:
+        from ethereum_test_base_types import Address
+        custom_defaults.fee_recipient = Address(fee_recipient)
     
     # Apply any additional kwargs
     for key, value in kwargs.items():
@@ -184,14 +190,16 @@ def patch_environment_defaults_and_class(
     # Monkey patch the Environment class's __init__ method to use our custom defaults
     original_init = _original_environment_class.__init__
     
+    # This uses for environment tests and do not patch
     def patched_init(self, **kwargs_init):
         # Force our custom defaults - always override if not explicitly provided
         original_kwargs = dict(kwargs_init)  # Keep a copy for debugging
-        
+        print(f"INFO: kwargs_init: {kwargs_init}")
         if 'number' not in kwargs_init:
             kwargs_init['number'] = custom_defaults.number
         if 'timestamp' not in kwargs_init:
             kwargs_init['timestamp'] = custom_defaults.timestamp
+        # Important?
         if 'base_fee_per_gas' not in kwargs_init:
             kwargs_init['base_fee_per_gas'] = custom_defaults.base_fee_per_gas
         if 'difficulty' not in kwargs_init:
@@ -204,6 +212,7 @@ def patch_environment_defaults_and_class(
             kwargs_init['blob_gas_used'] = custom_defaults.blob_gas_used
         if 'fee_recipient' not in kwargs_init:
             from ethereum_test_base_types import Address
+            print(f"INFO: Setting fee_recipient to {custom_defaults.fee_recipient}")
             kwargs_init['fee_recipient'] = Address(custom_defaults.fee_recipient)
         
         # Call the original init
@@ -237,7 +246,6 @@ def patch_environment_defaults_and_class(
     # Don't patch Block.set_environment - any modification breaks the internal structure
     # Blockchain tests are designed to test state transitions to the "next block"
     # The currentNumber=1 and currentTimestamp=12 represent the block being tested
-    print(f"INFO: Blockchain tests represent 'next block' values by design")
     
     # Conditionally monkey patch set_fork_requirements to preserve block_hashes
     if patch_genesis_hash:
@@ -258,30 +266,3 @@ def patch_environment_defaults_and_class(
         print(f"  - block_hashes: Default factory (no genesis hash patching)")
         print(f"  - set_fork_requirements: Not patched (use --gnosis for genesis hash handling)")
 
-
-def patch_environment_defaults(gas_limit: Optional[int] = None) -> None:
-    """
-    Backward compatibility function - delegates to patch_environment_defaults_and_class.
-    """
-    patch_environment_defaults_and_class(gas_limit=gas_limit, patch_genesis_hash=False)
-
-
-def restore_environment_classes() -> None:
-    """Restore the original Environment classes."""
-    global _original_defaults, _original_environment_class, _original_set_fork_requirements
-    
-    if _original_defaults is not None and _original_environment_class is not None:
-        from ethereum_test_types import block_types
-        setattr(block_types, 'EnvironmentDefaults', _original_defaults)
-        setattr(block_types.Environment, '__init__', _original_environment_class.__init__)
-        
-        # Restore set_fork_requirements if we patched it
-        if _original_set_fork_requirements is not None:
-            setattr(block_types.Environment, 'set_fork_requirements', _original_set_fork_requirements)
-            
-        print("INFO: Restored original Environment classes")
-
-
-def restore_environment_defaults() -> None:
-    """Backward compatibility function - delegates to restore_environment_classes."""
-    restore_environment_classes() 

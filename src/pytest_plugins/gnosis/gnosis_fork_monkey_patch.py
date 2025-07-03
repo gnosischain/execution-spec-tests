@@ -148,13 +148,3 @@ def patch_fork_parameters() -> None:
         
         print(f"  ✓ Patched {fork_class.__name__}")
 
-
-def restore_fork_parameters() -> None:
-    """Restore original fork methods."""
-    for fork_class, methods in _original_fork_methods.items():
-        for method_name, original_method in methods.items():
-            setattr(fork_class, method_name, original_method)
-    
-    _original_fork_methods.clear()
-    _custom_fork_params.clear()
-    print("🔄 Restored original fork parameters") 

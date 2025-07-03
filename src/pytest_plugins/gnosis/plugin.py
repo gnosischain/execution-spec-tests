@@ -4,10 +4,8 @@ import pytest
 from _pytest.config import Config
 
 from .gnosis import Gnosis, set_gnosis_fork_parameters
-from .gnosis_block_types import (patch_environment_defaults_and_class,
-                                 restore_environment_classes)
+from .gnosis_block_types import patch_environment_defaults_and_class
 from .gnosis_fork_monkey_patch import (patch_fork_parameters,
-                                       restore_fork_parameters,
                                        set_custom_fork_parameters)
 
 
@@ -32,7 +30,9 @@ class GnosisPlugin:
                 'base_fee_per_gas': config.getoption("--gnosis-base-fee") or GNOSIS_DEFAULT_BASE_FEE,
                 'difficulty': config.getoption("--gnosis-difficulty") or 0x20000,
                 'excess_blob_gas': config.getoption("--gnosis-excess-blob-gas") or 0,
-                'patch_genesis_hash': config.getoption("--gnosis-patch-genesis-hash") or False,  # Enable genesis hash patching when --gnosis is used
+                'patch_genesis_hash': config.getoption("--gnosis-patch-genesis-hash"),  # Only patch when explicitly requested
+                'fee_recipient': '0x0000000000000000000000000000000000000000' # updates in env.json but not in genesisBlockHeader
+                # TODO: add more gnosis properties here 
             }
             
             print(f"🔧 Gnosis Environment Defaults:")
@@ -42,6 +42,7 @@ class GnosisPlugin:
             print(f"  - timestamp: {gnosis_options['timestamp']}")
             print(f"  - difficulty: {hex(gnosis_options['difficulty'])}")
             print(f"  - excess_blob_gas: {gnosis_options['excess_blob_gas']}")
+            print(f"  - fee_recipient: {gnosis_options['fee_recipient']}")
             
             # Apply environment defaults patching with Gnosis values
             patch_environment_defaults_and_class(**gnosis_options)
@@ -191,8 +192,9 @@ def pytest_configure(config: Config):
         
         set_gnosis_fork_parameters(**fork_params)
         
-        # Also set custom parameters for ALL forks (new approach)
+        # Also set custom parameters for ALL forks
         # Include pre_allocation patching when --gnosis is used
+        # TODO: change this when create a brand new gnosis fork
         set_custom_fork_parameters(
             blob_base_fee_update_fraction=final_blob_base_fee_update_fraction,
             target_blobs_per_block=final_target_blobs_per_block,
@@ -214,12 +216,7 @@ def pytest_configure(config: Config):
 @pytest.hookimpl(tryfirst=True)
 def pytest_unconfigure(config: Config):
     """Clean up when pytest shuts down."""
-    # Restore original environment defaults if they were patched
-    if config.getoption("--gnosis"):
-        restore_environment_classes()
-    
-    # Restore original fork parameters
-    restore_fork_parameters()
+    # Restore original environment defaults if they were patched?
 
 
 @pytest.fixture

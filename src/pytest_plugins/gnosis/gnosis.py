@@ -1,15 +1,7 @@
 """Gnosis chain fork configuration."""
 
-import json
-import os
 from typing import Dict, List, Mapping, Type
 
-import pytest
-
-import ethereum_test_forks.helpers
-# Attempt to import the target for monkeypatching
-# This might require adjusting if the path is not directly importable here
-# or if it causes circular dependencies, though unlikely for a plugin.
 from ethereum_test_forks import Cancun, Fork
 from ethereum_test_forks.base_fork import BaseFork
 from ethereum_test_forks.helpers import get_forks
@@ -62,10 +54,6 @@ GNOSIS_CHAIN_ACCOUNTS = {
     }
 }
 
-# Gnosis-specific genesis parameters that the client uses
-GNOSIS_CLIENT_GAS_LIMIT = 0x989680  # 10,000,000 - what the client uses instead of 0x040000
-GNOSIS_CLIENT_BASE_FEE = 0x3b9aca00  # 1 Gwei - what the client uses instead of 0x07
-
 
 def set_gnosis_fork_parameters(
     blob_base_fee_update_fraction: int = DEFAULT_GNOSIS_BLOB_BASE_FEE_UPDATE_FRACTION,
@@ -77,44 +65,6 @@ def set_gnosis_fork_parameters(
     _gnosis_blob_base_fee_update_fraction = blob_base_fee_update_fraction
     _gnosis_target_blobs_per_block = target_blobs_per_block
     _gnosis_max_blobs_per_block = max_blobs_per_block
-
-
-def add_gnosis_system_contract(address: str, contract_data: Dict):
-    """Add a system contract to Gnosis chain allocations."""
-    GNOSIS_SYSTEM_CONTRACTS[address] = contract_data
-
-
-def add_gnosis_account(address: str, account_data: Dict):
-    """Add a pre-allocated account to Gnosis chain."""
-    GNOSIS_PRE_ALLOCATED_ACCOUNTS[address] = account_data
-
-
-def update_gnosis_account(address: str, updates: Dict):
-    """Update an existing Gnosis account allocation."""
-    if address in GNOSIS_PRE_ALLOCATED_ACCOUNTS:
-        GNOSIS_PRE_ALLOCATED_ACCOUNTS[address].update(updates)
-    elif address in GNOSIS_SYSTEM_CONTRACTS:
-        GNOSIS_SYSTEM_CONTRACTS[address].update(updates)
-    elif address in GNOSIS_CHAIN_ACCOUNTS:
-        GNOSIS_CHAIN_ACCOUNTS[address].update(updates)
-    else:
-        # Create new account if it doesn't exist
-        GNOSIS_PRE_ALLOCATED_ACCOUNTS[address] = updates
-
-
-def calculate_gnosis_genesis_hash(original_hash: str, state_root: str) -> str:
-    """Calculate the genesis hash that the Gnosis client will compute.
-    
-    The Gnosis client transforms the genesis configuration internally:
-    - Changes gas_limit from 0x040000 to 0x989680
-    - Changes base_fee from 0x07 to 0x3b9aca00
-    - Uses Authority Round consensus instead of PoS
-    
-    This function provides the hash that the client will actually compute.
-    """
-    # Return the hash that the Gnosis client actually computes after jq transformation
-    # This was observed from the client logs: "Genesis hash : 0x92f2bad26c57198059f54c809a588e2acdd8ed140dd92683d570d1d5f83aa9a0"
-    return GNOSIS_GENESIS_HASH
 
 
 class Gnosis(Cancun, blockchain_test_network_name="gnosis"):
@@ -168,61 +118,4 @@ class Gnosis(Cancun, blockchain_test_network_name="gnosis"):
         # Include parent allocations from Cancun
         parent_allocation = dict(super(Gnosis, cls).pre_allocation_blockchain())
         return gnosis_allocation | parent_allocation
-
-
-@pytest.fixture(scope="session", autouse=True)
-def gnosis_fork_registrar(monkeypatch):
-    """
-    Ensures the Gnosis fork is registered for the test session.
-    """
-    original_get_forks = ethereum_test_forks.helpers.get_forks
-
-    def patched_get_forks() -> List[Type[BaseFork]]:
-        forks = original_get_forks()
-        # Check if Gnosis fork class itself is in the list, not just by name
-        if not any(fork is Gnosis for fork in forks):
-            forks.append(Gnosis)
-        return forks
-
-    monkeypatch.setattr(ethereum_test_forks.helpers, "get_forks", patched_get_forks)
-
-    # Define the check logic locally to avoid circular import
-    def _perform_gnosis_fork_registration_check():
-        """
-        Checks if the Gnosis fork is present in the list of available forks.
-        This logic was moved from tests.test_gnosis_plugin_registration.
-        """
-        available_forks = get_forks() # This will call the patched_get_forks
-        
-        print("\nAvailable forks during Gnosis plugin fixture setup:")
-        for fork_item in available_forks:
-            print(f"- Fork Name: {fork_item.__name__}, Module: {fork_item.__module__}")
-            
-        assert Gnosis in available_forks, \
-            "The Gnosis fork was not found in the list of available forks. " \
-            "The monkeypatch in gnosis_fork_registrar might not be working correctly."
-
-    # Call our local check function directly to verify the monkeypatch
-    try:
-        _perform_gnosis_fork_registration_check()
-        print("\nINFO: Gnosis fork registration check PASSED (called from gnosis_fork_registrar fixture).\n")
-    except AssertionError as e:
-        print(f"\nERROR: Gnosis fork registration check FAILED (called from gnosis_fork_registrar fixture): {e}\n")
-        # Optionally, re-raise to make the session fail if this check is critical
-        raise # Re-raising to make sure a failure here stops the test session
-
-
-def process_gnosis_fixtures(fixture_path: str) -> None:
-    """DEPRECATED: Post-process generated fixtures to make them compatible with Gnosis client.
-    
-    This function previously modified the genesis hash in fixtures after t8n generation,
-    but this caused issues with t8n not being able to generate proper result.json files.
-    
-    Genesis hash handling is now done at the source by patching the Environment class's
-    block_hashes field default_factory to include the Gnosis genesis hash automatically.
-    
-    This function is kept for backward compatibility but does nothing.
-    """
-    print("ℹ️  process_gnosis_fixtures is deprecated - genesis hash now set at Environment level")
-    print("ℹ️  No post-processing needed - fixtures are generated with correct Gnosis genesis hash")
 
