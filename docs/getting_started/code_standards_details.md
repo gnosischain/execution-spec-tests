@@ -47,7 +47,7 @@ uvx --with=tox-uv tox -e lint,typecheck,spellcheck,pytest
 #### For Documentation Changes (`./docs/`)
 
 ```console
-uvx --with=tox-uv tox -e spellcheck,markdownlint,mkdocs
+uvx --with=tox-uv tox -e spellcheck,markdownlint,mkdocs,changelog
 ```
 
 !!! note "Tox Virtual Environment"
@@ -59,15 +59,22 @@ Some checks require external (non-Python) packages:
 
 #### For `spellcheck`
 
+The spellcheck environment uses **codespell**, which is automatically installed via Python dependencies and checks for common spelling mistakes in code and documentation.
+
+To fix spelling errors found by codespell:
+
 ```console
-sudo apt-get install aspell aspell-en
+uv run codespell *.md *.ini .github/ src/ tests/ docs/ --write-changes
 ```
+
+!!! note "VS Code Integration"
+    The `whitelist.txt` file is still maintained for the VS Code cSpell extension, which provides real-time spell checking in the editor.
 
 #### For `markdownlint`
 
 ```console
 sudo apt install nodejs
-sudo npm install markdownlint-cli2 --global
+sudo npm install -g markdownlint-cli2@0.17.2  # the version used in ci
 ```
 
 Or use a specific node version using `nvm`.

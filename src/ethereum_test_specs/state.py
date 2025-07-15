@@ -163,7 +163,6 @@ class StateTest(BaseTest):
         self,
         t8n: TransitionTool,
         fork: Fork,
-        eips: Optional[List[int]] = None,
     ) -> StateFixture:
         """Create a fixture from the state test definition."""
         # We can't generate a state test fixture that names a transition fork,
@@ -185,16 +184,17 @@ class StateTest(BaseTest):
             raise Exception(f"Empty accounts in pre state: {empty_accounts}")
 
         transition_tool_output = t8n.evaluate(
-            alloc=pre_alloc,
-            txs=[tx],
-            env=env,
-            fork=fork,
-            chain_id=self.chain_id,
-            reward=0,  # Reward on state tests is always zero
-            blob_schedule=fork.blob_schedule(),
-            eips=eips,
+            transition_tool_data=TransitionTool.TransitionToolData(
+                alloc=pre_alloc,
+                txs=[tx],
+                env=env,
+                fork=fork,
+                chain_id=self.chain_id,
+                reward=0,  # Reward on state tests is always zero
+                blob_schedule=fork.blob_schedule(),
+                state_test=True,
+            ),
             debug_output_path=self.get_next_transition_tool_output_path(),
-            state_test=True,
             slow_request=self.is_tx_gas_heavy_test(),
         )
 
@@ -220,7 +220,7 @@ class StateTest(BaseTest):
             env=FixtureEnvironment(**env.model_dump(exclude_none=True)),
             pre=pre_alloc,
             post={
-                fork.blockchain_test_network_name(): [
+                fork: [
                     FixtureForkPost(
                         state_root=transition_tool_output.result.state_root,
                         logs_hash=transition_tool_output.result.logs_hash,
@@ -237,21 +237,24 @@ class StateTest(BaseTest):
             ),
         )
 
+    def get_genesis_environment(self, fork: Fork) -> Environment:
+        """Get the genesis environment for pre-allocation groups."""
+        return self._generate_blockchain_genesis_environment(fork=fork)
+
     def generate(
         self,
         t8n: TransitionTool,
         fork: Fork,
         fixture_format: FixtureFormat,
-        eips: Optional[List[int]] = None,
     ) -> BaseFixture:
         """Generate the BlockchainTest fixture."""
         self.check_exception_test(exception=self.tx.error is not None)
         if fixture_format in BlockchainTest.supported_fixture_formats:
             return self.generate_blockchain_test(fork=fork).generate(
-                t8n=t8n, fork=fork, fixture_format=fixture_format, eips=eips
+                t8n=t8n, fork=fork, fixture_format=fixture_format
             )
         elif fixture_format == StateFixture:
-            return self.make_state_test_fixture(t8n, fork, eips)
+            return self.make_state_test_fixture(t8n, fork)
 
         raise Exception(f"Unknown fixture format: {fixture_format}")
 
@@ -260,7 +263,6 @@ class StateTest(BaseTest):
         *,
         fork: Fork,
         execute_format: ExecuteFormat,
-        eips: Optional[List[int]] = None,
     ) -> BaseExecute:
         """Generate the list of test fixtures."""
         if execute_format == TransactionPost:

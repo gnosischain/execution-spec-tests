@@ -10,6 +10,7 @@ import configparser
 import datetime
 import os
 import warnings
+from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, Generator, List, Type
 
@@ -17,32 +18,77 @@ import pytest
 import xdist
 from _pytest.compat import NotSetType
 from _pytest.terminal import TerminalReporter
-from pytest_metadata.plugin import metadata_key  # type: ignore
-
 from cli.gen_index import generate_fixtures_index
-from config import AppConfig
 from ethereum_clis import TransitionTool
 from ethereum_clis.clis.geth import FixtureConsumerTool
-from ethereum_test_base_types import Alloc, ReferenceSpec
-from ethereum_test_fixtures import BaseFixture, FixtureCollector, FixtureConsumer, TestInfo
-from ethereum_test_forks import Fork, get_transition_fork_predecessor, get_transition_forks
+from ethereum_test_base_types import Account, Address, Alloc, ReferenceSpec
+from ethereum_test_fixtures import (BaseFixture, BlockchainEngineXFixture,
+                                    FixtureCollector, FixtureConsumer,
+                                    LabeledFixtureFormat, PreAllocGroup,
+                                    PreAllocGroups, TestInfo)
+from ethereum_test_forks import (Fork, get_transition_fork_predecessor,
+                                 get_transition_forks)
 from ethereum_test_specs import BaseTest
 from ethereum_test_tools.utility.versioning import (
-    generate_github_url,
-    get_current_commit_hash_or_tag,
-)
+    generate_github_url, get_current_commit_hash_or_tag)
+from ethereum_test_types import EnvironmentDefaults, TransactionDefaults
+from pytest_metadata.plugin import metadata_key  # type: ignore
+from pytest_plugins.spec_version_checker.spec_version_checker import \
+    EIPSpecTestItem
 
-from ethereum_test_types import TransactionDefaults, EnvironmentDefaults
-from pytest_plugins.spec_version_checker.spec_version_checker import EIPSpecTestItem
-
-
-from ..shared.helpers import (
-    get_spec_format_for_item,
-    is_help_or_collectonly_mode,
-    labeled_format_parameter_set,
-)
-from ..spec_version_checker.spec_version_checker import get_ref_spec_from_module
+from ..shared.helpers import (get_spec_format_for_item,
+                              is_help_or_collectonly_mode,
+                              labeled_format_parameter_set)
+from ..spec_version_checker.spec_version_checker import \
+    get_ref_spec_from_module
 from .fixture_output import FixtureOutput
+
+
+def calculate_post_state_diff(post_state: Alloc, genesis_state: Alloc) -> Alloc:
+    """
+    Calculate the state difference between post_state and genesis_state.
+
+    This function enables significant space savings in Engine X fixtures by storing
+    only the accounts that changed during test execution, rather than the full
+    post-state which may contain thousands of unchanged accounts.
+
+    Returns an Alloc containing only the accounts that:
+    - Changed between genesis and post state (balance, nonce, storage, code)
+    - Were created during test execution (new accounts)
+    - Were deleted during test execution (represented as None)
+
+    Args:
+        post_state: Final state after test execution
+        genesis_state: Genesis pre-allocation state
+
+    Returns:
+        Alloc containing only the state differences for efficient storage
+
+    """
+    diff: Dict[Address, Account | None] = {}
+
+    # Find all addresses that exist in either state
+    all_addresses = set(post_state.root.keys()) | set(genesis_state.root.keys())
+
+    for address in all_addresses:
+        genesis_account = genesis_state.root.get(address)
+        post_account = post_state.root.get(address)
+
+        # Account was deleted (exists in genesis but not in post)
+        if genesis_account is not None and post_account is None:
+            diff[address] = None
+
+        # Account was created (doesn't exist in genesis but exists in post)
+        elif genesis_account is None and post_account is not None:
+            diff[address] = post_account
+
+        # Account was modified (exists in both but different)
+        elif genesis_account != post_account:
+            diff[address] = post_account
+
+        # Account unchanged - don't include in diff
+
+    return Alloc(diff)
 
 
 def default_output_directory() -> str:
@@ -69,10 +115,21 @@ def pytest_addoption(parser: pytest.Parser):
         action="store",
         dest="evm_bin",
         type=Path,
-        default="ethereum-spec-evm-resolver",
+        default=None,
         help=(
             "Path to an evm executable (or name of an executable in the PATH) that provides `t8n`."
             " Default: `ethereum-spec-evm-resolver`."
+        ),
+    )
+    evm_group.addoption(
+        "--t8n-server-url",
+        action="store",
+        dest="t8n_server_url",
+        type=str,
+        default=None,
+        help=(
+            "[INTERNAL USE ONLY] URL of the t8n server to use. Used by framework tests/ci; not "
+            "intended for regular CLI use."
         ),
     )
     evm_group.addoption(
@@ -125,7 +182,8 @@ def pytest_addoption(parser: pytest.Parser):
             "Directory path to store the generated test fixtures. Must be empty if it exists. "
             "If the specified path ends in '.tar.gz', then the specified tarball is additionally "
             "created (the fixtures are still written to the specified path without the '.tar.gz' "
-            f"suffix). Can be deleted. Default: '{default_output_directory()}'."
+            f"suffix). Tarball output automatically enables --generate-all-formats. "
+            f"Can be deleted. Default: '{default_output_directory()}'."
         ),
     )
     test_group.addoption(
@@ -188,6 +246,31 @@ def pytest_addoption(parser: pytest.Parser):
             f"consume an entire block's gas. (Default: {EnvironmentDefaults.gas_limit})"
         ),
     )
+    test_group.addoption(
+        "--generate-pre-alloc-groups",
+        action="store_true",
+        dest="generate_pre_alloc_groups",
+        default=False,
+        help="Generate pre-allocation groups (phase 1 only).",
+    )
+    test_group.addoption(
+        "--use-pre-alloc-groups",
+        action="store_true",
+        dest="use_pre_alloc_groups",
+        default=False,
+        help="Fill tests using existing pre-allocation groups (phase 2 only).",
+    )
+    test_group.addoption(
+        "--generate-all-formats",
+        action="store_true",
+        dest="generate_all_formats",
+        default=False,
+        help=(
+            "Generate all fixture formats including BlockchainEngineXFixture. "
+            "This enables two-phase execution: Phase 1 generates pre-allocation groups, "
+            "phase 2 generates all supported fixture formats."
+        ),
+    )
 
     debug_group = parser.getgroup("debug", "Arguments defining debug behavior")
     debug_group.addoption(
@@ -195,12 +278,13 @@ def pytest_addoption(parser: pytest.Parser):
         "--t8n-dump-dir",
         action="store",
         dest="base_dump_dir",
-        default=AppConfig().DEFAULT_EVM_LOGS_DIR,
+        default=None,
         help=(
             "Path to dump the transition tool debug output. "
-            f"(Default: {AppConfig().DEFAULT_EVM_LOGS_DIR})"
+            "Only creates debug output when explicitly specified."
         ),
     )
+
     debug_group.addoption(
         "--skip-evm-dump",
         "--skip-t8n-dump",
@@ -209,15 +293,31 @@ def pytest_addoption(parser: pytest.Parser):
         default=False,
         help=("Skip dumping the the transition tool debug output."),
     )
-    debug_group.addoption(
-        "--gnosis",
-        "--gnosis",
-        action="store_true",
-        dest="gnosis",
-        default=False,
-        help=("generate gnosis tests."),
-    )
 
+def pytest_sessionstart(session: pytest.Session):
+    """
+    Initialize session-level state.
+
+    Either initialize an empty pre-allocation groups container for phase 1 or
+    load the pre-allocation groups for phase 2 execution.
+    """
+    # Initialize empty pre-allocation groups container for phase 1
+    if session.config.getoption("generate_pre_alloc_groups"):
+        session.config.pre_alloc_groups = PreAllocGroups(root={})  # type: ignore[attr-defined]
+
+    # Load the pre-allocation groups for phase 2
+    if session.config.getoption("use_pre_alloc_groups"):
+        pre_alloc_groups_folder = session.config.fixture_output.pre_alloc_groups_folder_path  # type: ignore[attr-defined]
+        if pre_alloc_groups_folder.exists():
+            session.config.pre_alloc_groups = PreAllocGroups.from_folder(  # type: ignore[attr-defined]
+                pre_alloc_groups_folder
+            )
+        else:
+            pytest.exit(
+                f"Pre-allocation groups folder not found: {pre_alloc_groups_folder}. "
+                "Run phase 1 with --generate-pre-alloc-groups first.",
+                returncode=pytest.ExitCode.USAGE_ERROR,
+            )
 
 @pytest.hookimpl(tryfirst=True)
 def pytest_configure(config):
@@ -251,24 +351,32 @@ def pytest_configure(config):
     except ValueError as e:
         pytest.exit(str(e), returncode=pytest.ExitCode.USAGE_ERROR)
 
-    if not config.getoption("disable_html") and config.getoption("htmlpath") is None:
-        # generate an html report by default, unless explicitly disabled
+    if (
+        not config.getoption("disable_html")
+        and config.getoption("htmlpath") is None
+        and not config.getoption("generate_pre_alloc_groups")
+    ):
         config.option.htmlpath = config.fixture_output.directory / default_html_report_file_path()
 
     # Instantiate the transition tool here to check that the binary path/trace option is valid.
     # This ensures we only raise an error once, if appropriate, instead of for every test.
-    t8n = TransitionTool.from_binary_path(
-        binary_path=config.getoption("evm_bin"), trace=config.getoption("evm_collect_traces")
-    )
-    if (
-        isinstance(config.getoption("numprocesses"), int)
-        and config.getoption("numprocesses") > 0
-        and "Besu" in str(t8n.detect_binary_pattern)
-    ):
-        pytest.exit(
-            "The Besu t8n tool does not work well with the xdist plugin; use -n=0.",
-            returncode=pytest.ExitCode.USAGE_ERROR,
+    evm_bin = config.getoption("evm_bin")
+    if evm_bin is None:
+        assert TransitionTool.default_tool is not None, "No default transition tool found"
+        t8n = TransitionTool.default_tool(trace=config.getoption("evm_collect_traces"))
+    else:
+        t8n = TransitionTool.from_binary_path(
+            binary_path=evm_bin, trace=config.getoption("evm_collect_traces")
         )
+        if (
+            isinstance(config.getoption("numprocesses"), int)
+            and config.getoption("numprocesses") > 0
+            and "Besu" in str(t8n.detect_binary_pattern)
+        ):
+            pytest.exit(
+                "The Besu t8n tool does not work well with the xdist plugin; use -n=0.",
+                returncode=pytest.ExitCode.USAGE_ERROR,
+            )
 
     if "Tools" not in config.stash[metadata_key]:
         config.stash[metadata_key]["Tools"] = {
@@ -323,21 +431,49 @@ def pytest_terminal_summary(
     actually run the tests.
     """
     yield
-    if config.fixture_output.is_stdout:  # type: ignore[attr-defined]
+    if config.fixture_output.is_stdout or hasattr(config, "workerinput"):  # type: ignore[attr-defined]
         return
     stats = terminalreporter.stats
     if "passed" in stats and stats["passed"]:
-        # append / to indicate this is a directory
-        output_dir = str(config.fixture_output.directory) + "/"  # type: ignore[attr-defined]
-        terminalreporter.write_sep(
-            "=",
-            (
-                f' No tests executed - the test fixtures in "{output_dir}" may now be executed '
-                "against a client "
-            ),
-            bold=True,
-            yellow=True,
-        )
+        # Custom message for Phase 1 (pre-allocation group generation)
+        if config.getoption("generate_pre_alloc_groups"):
+            # Generate summary stats
+            pre_alloc_groups: PreAllocGroups
+            if config.pluginmanager.hasplugin("xdist"):
+                # Load pre-allocation groups from disk
+                pre_alloc_groups = PreAllocGroups.from_folder(
+                    config.fixture_output.pre_alloc_groups_folder_path  # type: ignore[attr-defined]
+                )
+            else:
+                assert hasattr(config, "pre_alloc_groups")
+                pre_alloc_groups = config.pre_alloc_groups  # type: ignore[attr-defined]
+
+            total_groups = len(pre_alloc_groups.root)
+            total_accounts = sum(
+                group.pre_account_count for group in pre_alloc_groups.root.values()
+            )
+
+            terminalreporter.write_sep(
+                "=",
+                f" Phase 1 Complete: Generated {total_groups} pre-allocation groups "
+                f"({total_accounts} total accounts) ",
+                bold=True,
+                green=True,
+            )
+
+        else:
+            # Normal message for fixture generation
+            # append / to indicate this is a directory
+            output_dir = str(config.fixture_output.directory) + "/"  # type: ignore[attr-defined]
+            terminalreporter.write_sep(
+                "=",
+                (
+                    f' No tests executed - the test fixtures in "{output_dir}" may now be '
+                    "executed against a client "
+                ),
+                bold=True,
+                yellow=True,
+            )
 
 
 def pytest_metadata(metadata):
@@ -422,7 +558,7 @@ def pytest_html_report_title(report):
 
 
 @pytest.fixture(autouse=True, scope="session")
-def evm_bin(request: pytest.FixtureRequest) -> Path:
+def evm_bin(request: pytest.FixtureRequest) -> Path | None:
     """Return configured evm tool binary path used to run t8n."""
     return request.config.getoption("evm_bin")
 
@@ -437,15 +573,35 @@ def verify_fixtures_bin(request: pytest.FixtureRequest) -> Path | None:
 
 
 @pytest.fixture(autouse=True, scope="session")
-def t8n(request: pytest.FixtureRequest, evm_bin: Path) -> Generator[TransitionTool, None, None]:
+def t8n_server_url(request: pytest.FixtureRequest) -> str | None:
+    """Return configured t8n server url."""
+    return request.config.getoption("t8n_server_url")
+
+
+@pytest.fixture(autouse=True, scope="session")
+def t8n(
+    request: pytest.FixtureRequest, evm_bin: Path | None, t8n_server_url: str | None
+) -> Generator[TransitionTool, None, None]:
     """Return configured transition tool."""
-    t8n = TransitionTool.from_binary_path(
-        binary_path=evm_bin, trace=request.config.getoption("evm_collect_traces")
-    )
-    if request.config.getoption("gnosis"):
-        if not t8n.is_gnosis_supported:
-            raise Exception(f'gnosis is not supported for: {t8n.__class__.__name__}')
-        TransactionDefaults.chain_id = 100
+
+    kwargs = {
+        "trace": request.config.getoption("evm_collect_traces"),
+    }
+    if t8n_server_url is not None:
+        kwargs["server_url"] = t8n_server_url
+    if evm_bin is None:
+        assert TransitionTool.default_tool is not None, "No default transition tool found"
+        t8n = TransitionTool.default_tool(**kwargs)
+    else:
+        t8n = TransitionTool.from_binary_path(binary_path=evm_bin, **kwargs)
+    if not t8n.exception_mapper.reliable:
+        warnings.warn(
+            f"The t8n tool that is currently being used to fill tests ({t8n.__class__.__name__}) "
+            "does not provide reliable exception messages. This may lead to false positives when "
+            "writing tests and extra care should be taken when writing tests that produce "
+            "exceptions.",
+            stacklevel=2,
+        )
     yield t8n
     t8n.shutdown()
 
@@ -470,7 +626,7 @@ def do_fixture_verification(
 def evm_fixture_verification(
     request: pytest.FixtureRequest,
     do_fixture_verification: bool,
-    evm_bin: Path,
+    evm_bin: Path | None,
     verify_fixtures_bin: Path | None,
 ) -> Generator[FixtureConsumer | None, None, None]:
     """
@@ -512,8 +668,6 @@ def evm_fixture_verification(
 @pytest.fixture(scope="session")
 def base_dump_dir(request: pytest.FixtureRequest) -> Path | None:
     """Path to base directory to dump the evm debug output."""
-    if request.config.getoption("skip_dump_dir"):
-        return None
     base_dump_dir_str = request.config.getoption("base_dump_dir")
     if base_dump_dir_str:
         return Path(base_dump_dir_str)
@@ -644,6 +798,11 @@ def fixture_collector(
     Return configured fixture collector instance used for all tests
     in one test module.
     """
+    # Dynamically load the 'static_filler' and 'solc' plugins if needed
+    if request.config.getoption("fill_static_tests_enabled"):
+        request.config.pluginmanager.import_plugin("pytest_plugins.filler.static_filler")
+        request.config.pluginmanager.import_plugin("pytest_plugins.solc.solc")
+
     fixture_collector = FixtureCollector(
         output_dir=fixture_output.directory,
         flat_output=fixture_output.flat_output,
@@ -725,7 +884,6 @@ def base_test_parametrizer(cls: Type[BaseTest]):
         t8n: TransitionTool,
         fork: Fork,
         reference_spec: ReferenceSpec,
-        eips: List[int],
         pre: Alloc,
         output_dir: Path,
         dump_dir_parameter_level: Path | None,
@@ -759,12 +917,58 @@ def base_test_parametrizer(cls: Type[BaseTest]):
                     kwargs["pre"] = pre
                 super(BaseTestWrapper, self).__init__(*args, **kwargs)
                 self._request = request
+
+                # Phase 1: Generate pre-allocation groups
+                if fixture_format is BlockchainEngineXFixture and request.config.getoption(
+                    "generate_pre_alloc_groups"
+                ):
+                    self.update_pre_alloc_groups(
+                        request.config.pre_alloc_groups, fork, request.node.nodeid
+                    )
+                    return  # Skip fixture generation in phase 1
+
+                # Phase 2: Use pre-allocation groups (only for BlockchainEngineXFixture)
+                pre_alloc_hash = None
+                if fixture_format is BlockchainEngineXFixture and request.config.getoption(
+                    "use_pre_alloc_groups"
+                ):
+                    pre_alloc_hash = self.compute_pre_alloc_group_hash(fork=fork)
+                    if pre_alloc_hash not in request.config.pre_alloc_groups:
+                        pre_alloc_path = (
+                            request.config.fixture_output.pre_alloc_groups_folder_path
+                            / pre_alloc_hash
+                        )
+                        raise ValueError(
+                            f"Pre-allocation hash {pre_alloc_hash} not found in "
+                            f"pre-allocation groups. "
+                            f"Please check the pre-allocation groups file at: {pre_alloc_path}. "
+                            "Make sure phase 1 (--generate-pre-alloc-groups) was run "
+                            "before phase 2."
+                        )
+                    group: PreAllocGroup = request.config.pre_alloc_groups[pre_alloc_hash]  # type: ignore[annotation-unchecked]
+                    self.pre = group.pre
+
                 fixture = self.generate(
                     t8n=t8n,
                     fork=fork,
                     fixture_format=fixture_format,
-                    eips=eips,
                 )
+
+                # Post-process for Engine X format (add pre_hash and state diff)
+                if (
+                    fixture_format is BlockchainEngineXFixture
+                    and request.config.getoption("use_pre_alloc_groups")
+                    and pre_alloc_hash is not None
+                ):
+                    fixture.pre_hash = pre_alloc_hash
+
+                    # Calculate state diff for efficiency
+                    if hasattr(fixture, "post_state") and fixture.post_state is not None:
+                        group = request.config.pre_alloc_groups[pre_alloc_hash]
+                        fixture.post_state_diff = calculate_post_state_diff(
+                            fixture.post_state, group.pre
+                        )
+
                 fixture.fill_info(
                     t8n.version(),
                     test_case_description,
@@ -796,6 +1000,65 @@ for cls in BaseTest.spec_types.values():
     globals()[cls.pytest_parameter_name()] = base_test_parametrizer(cls)
 
 
+class ExecutionPhase(Enum):
+    """Execution phase for fixture generation."""
+
+    NORMAL = "normal"
+    PHASE_1_PREALLOC = "phase_1_prealloc"
+    PHASE_2_ENGINE_X_ONLY = "phase_2_engine_x_only"
+    PHASE_2_ALL_FORMATS = "phase_2_all_formats"
+
+
+def _determine_execution_phase(
+    generate_pre_alloc_groups: bool,
+    use_pre_alloc_groups: bool,
+    generate_all_formats: bool,
+) -> ExecutionPhase:
+    """Determine which execution phase we're in based on the flags."""
+    if generate_all_formats and use_pre_alloc_groups:
+        return ExecutionPhase.PHASE_2_ALL_FORMATS
+    elif use_pre_alloc_groups:
+        return ExecutionPhase.PHASE_2_ENGINE_X_ONLY
+    elif generate_pre_alloc_groups or generate_all_formats:
+        return ExecutionPhase.PHASE_1_PREALLOC
+    else:
+        return ExecutionPhase.NORMAL
+
+
+def _is_blockchain_engine_x_fixture(format_item) -> bool:
+    """Check if a fixture format is BlockchainEngineXFixture."""
+    return format_item is BlockchainEngineXFixture or (
+        isinstance(format_item, LabeledFixtureFormat)
+        and format_item.format is BlockchainEngineXFixture
+    )
+
+
+def _determine_fixture_formats(test_type, execution_phase: ExecutionPhase) -> List:
+    """Determine which fixture formats to generate based on execution phase."""
+    all_formats = test_type.supported_fixture_formats
+
+    if execution_phase == ExecutionPhase.PHASE_2_ALL_FORMATS:
+        # Phase 2 with --generate-all-formats: Generate ALL fixture formats
+        return all_formats
+    elif execution_phase in (
+        ExecutionPhase.PHASE_1_PREALLOC,
+        ExecutionPhase.PHASE_2_ENGINE_X_ONLY,
+    ):
+        # Phase 1 or Phase 2 without --generate-all-formats: only BlockchainEngineXFixture
+        return [
+            format_item
+            for format_item in all_formats
+            if _is_blockchain_engine_x_fixture(format_item)
+        ]
+    else:
+        # Normal execution: Filter out BlockchainEngineXFixture
+        return [
+            format_item
+            for format_item in all_formats
+            if not _is_blockchain_engine_x_fixture(format_item)
+        ]
+
+
 def pytest_generate_tests(metafunc: pytest.Metafunc):
     """
     Pytest hook used to dynamically generate test cases for each fixture format a given
@@ -803,12 +1066,26 @@ def pytest_generate_tests(metafunc: pytest.Metafunc):
     """
     for test_type in BaseTest.spec_types.values():
         if test_type.pytest_parameter_name() in metafunc.fixturenames:
+            generate_pre_alloc_groups = metafunc.config.getoption(
+                "generate_pre_alloc_groups", False
+            )
+            use_pre_alloc_groups = metafunc.config.getoption("use_pre_alloc_groups", False)
+            generate_all_formats = metafunc.config.getoption("generate_all_formats", False)
+
+            execution_phase = _determine_execution_phase(
+                generate_pre_alloc_groups, use_pre_alloc_groups, generate_all_formats
+            )
+            supported_formats = _determine_fixture_formats(test_type, execution_phase)
+
+            parameters = []
+            for i, format_with_or_without_label in enumerate(supported_formats):
+                parameter = labeled_format_parameter_set(format_with_or_without_label)
+                if i > 0:
+                    parameter.marks.append(pytest.mark.derived_test)  # type: ignore
+                parameters.append(parameter)
             metafunc.parametrize(
                 [test_type.pytest_parameter_name()],
-                [
-                    labeled_format_parameter_set(format_with_or_without_label)
-                    for format_with_or_without_label in test_type.supported_fixture_formats
-                ],
+                parameters,
                 scope="function",
                 indirect=True,
             )
@@ -873,14 +1150,24 @@ def pytest_sessionfinish(session: pytest.Session, exitstatus: int):
     """
     Perform session finish tasks.
 
+    - Save pre-allocation groups (phase 1)
     - Remove any lock files that may have been created.
     - Generate index file for all produced fixtures.
     - Create tarball of the output directory if the output is a tarball.
     """
+    # Save pre-allocation groups after phase 1
+    fixture_output = session.config.fixture_output  # type: ignore[attr-defined]
+    if session.config.getoption("generate_pre_alloc_groups") and hasattr(
+        session.config, "pre_alloc_groups"
+    ):
+        pre_alloc_groups_folder = fixture_output.pre_alloc_groups_folder_path
+        pre_alloc_groups_folder.mkdir(parents=True, exist_ok=True)
+        session.config.pre_alloc_groups.to_folder(pre_alloc_groups_folder)
+        return
+
     if xdist.is_xdist_worker(session):
         return
 
-    fixture_output = session.config.fixture_output  # type: ignore[attr-defined]
     if fixture_output.is_stdout or is_help_or_collectonly_mode(session.config):
         return
 
@@ -889,7 +1176,9 @@ def pytest_sessionfinish(session: pytest.Session, exitstatus: int):
         file.unlink()
 
     # Generate index file for all produced fixtures.
-    if session.config.getoption("generate_index"):
+    if session.config.getoption("generate_index") and not session.config.getoption(
+        "generate_pre_alloc_groups"
+    ):
         generate_fixtures_index(
             fixture_output.directory, quiet_mode=True, force_flag=False, disable_infer_format=False
         )
