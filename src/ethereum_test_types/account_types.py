@@ -1,14 +1,13 @@
 """Account-related types for Ethereum tests."""
 
-from dataclasses import dataclass
-from typing import List, Literal
+from dataclasses import dataclass, field
+from typing import Dict, List, Literal, Optional, Tuple
 
 from coincurve.keys import PrivateKey
-from ethereum.frontier.fork_types import Account as FrontierAccount
-from ethereum.frontier.fork_types import Address as FrontierAddress
-from ethereum.frontier.state import State, set_account, set_storage, state_root
+from ethereum_types.bytes import Bytes20
 from ethereum_types.numeric import U256, Bytes32, Uint
 from pydantic import PrivateAttr
+from typing_extensions import Self
 
 from ethereum_test_base_types import (
     Account,
@@ -26,7 +25,69 @@ from ethereum_test_base_types.conversions import (
 )
 from ethereum_test_vm import EVMCodeType
 
+from .trie import EMPTY_TRIE_ROOT, FrontierAccount, Trie, root, trie_get, trie_set
 from .utils import keccak256
+
+FrontierAddress = Bytes20
+
+
+@dataclass
+class State:
+    """Contains all information that is preserved between transactions."""
+
+    _main_trie: Trie[Bytes20, Optional[FrontierAccount]] = field(
+        default_factory=lambda: Trie(secured=True, default=None)
+    )
+    _storage_tries: Dict[Bytes20, Trie[Bytes32, U256]] = field(default_factory=dict)
+    _snapshots: List[
+        Tuple[
+            Trie[Bytes20, Optional[FrontierAccount]],
+            Dict[Bytes20, Trie[Bytes32, U256]],
+        ]
+    ] = field(default_factory=list)
+
+
+def set_account(state: State, address: Bytes20, account: Optional[FrontierAccount]) -> None:
+    """
+    Set the `Account` object at an address. Setting to `None` deletes
+    the account (but not its storage, see `destroy_account()`).
+    """
+    trie_set(state._main_trie, address, account)
+
+
+def set_storage(state: State, address: Bytes20, key: Bytes32, value: U256) -> None:
+    """
+    Set a value at a storage key on an account. Setting to `U256(0)` deletes
+    the key.
+    """
+    assert trie_get(state._main_trie, address) is not None
+
+    trie = state._storage_tries.get(address)
+    if trie is None:
+        trie = Trie(secured=True, default=U256(0))
+        state._storage_tries[address] = trie
+    trie_set(trie, key, value)
+    if trie._data == {}:
+        del state._storage_tries[address]
+
+
+def storage_root(state: State, address: Bytes20) -> Bytes32:
+    """Calculate the storage root of an account."""
+    assert not state._snapshots
+    if address in state._storage_tries:
+        return root(state._storage_tries[address])
+    else:
+        return EMPTY_TRIE_ROOT
+
+
+def state_root(state: State) -> Bytes32:
+    """Calculate the state root."""
+    assert not state._snapshots
+
+    def get_storage_root(address: Bytes20) -> Bytes32:
+        return storage_root(state, address)
+
+    return root(state._main_trie, get_storage_root=get_storage_root)
 
 
 class EOA(Address):
@@ -66,9 +127,9 @@ class EOA(Address):
         self.nonce = Number(nonce + 1)
         return nonce
 
-    def copy(self) -> "EOA":
+    def copy(self) -> Self:
         """Return copy of the EOA."""
-        return EOA(Address(self), key=self.key, nonce=self.nonce)
+        return self.__class__(Address(self), key=self.key, nonce=self.nonce)
 
 
 class Alloc(BaseAlloc):
@@ -109,8 +170,15 @@ class Alloc(BaseAlloc):
             return f"Account missing from allocation {self.address}"
 
     @classmethod
-    def merge(cls, alloc_1: "Alloc", alloc_2: "Alloc") -> "Alloc":
+    def merge(
+        cls, alloc_1: "Alloc", alloc_2: "Alloc", allow_key_collision: bool = True
+    ) -> "Alloc":
         """Return merged allocation of two sources."""
+        overlapping_keys = alloc_1.root.keys() & alloc_2.root.keys()
+        if overlapping_keys and not allow_key_collision:
+            raise Exception(
+                f"Overlapping keys detected: {[key.hex() for key in overlapping_keys]}"
+            )
         merged = alloc_1.model_dump()
 
         for address, other_account in alloc_2.root.items():
@@ -164,7 +232,7 @@ class Alloc(BaseAlloc):
         """Return list of addresses of empty accounts."""
         return [address for address, account in self.root.items() if not account]
 
-    def state_root(self) -> bytes:
+    def state_root(self) -> Hash:
         """Return state root of the allocation."""
         state = State()
         for address, account in self.root.items():
@@ -187,7 +255,7 @@ class Alloc(BaseAlloc):
                         key=Bytes32(Hash(key)),
                         value=U256(value),
                     )
-        return state_root(state)
+        return Hash(state_root(state))
 
     def verify_post_alloc(self, got_alloc: "Alloc"):
         """

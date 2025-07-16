@@ -7,6 +7,8 @@ from pathlib import Path
 import pytest
 from pydantic import BaseModel, Field
 
+from ethereum_test_fixtures.blockchain import BlockchainEngineXFixture
+
 
 class FixtureOutput(BaseModel):
     """Represents the output destination for generated test fixtures."""
@@ -26,6 +28,18 @@ class FixtureOutput(BaseModel):
     clean: bool = Field(
         default=False,
         description="Clean (remove) the output directory before filling fixtures.",
+    )
+    generate_pre_alloc_groups: bool = Field(
+        default=False,
+        description="Generate pre-allocation groups (phase 1).",
+    )
+    use_pre_alloc_groups: bool = Field(
+        default=False,
+        description="Use existing pre-allocation groups (phase 2).",
+    )
+    should_generate_all_formats: bool = Field(
+        default=False,
+        description="Generate all fixture formats including BlockchainEngineXFixture.",
     )
 
     @property
@@ -51,6 +65,17 @@ class FixtureOutput(BaseModel):
         """Return True if the fixture output is configured to be stdout."""
         return self.directory.name == "stdout"
 
+    @property
+    def pre_alloc_groups_folder_path(self) -> Path:
+        """Return the path for pre-allocation groups folder."""
+        engine_x_dir = BlockchainEngineXFixture.output_base_dir_name()
+        return self.directory / engine_x_dir / "pre_alloc"
+
+    @property
+    def should_auto_enable_all_formats(self) -> bool:
+        """Check if all formats should be auto-enabled due to tarball output."""
+        return self.is_tarball
+
     @staticmethod
     def strip_tarball_suffix(path: Path) -> Path:
         """Strip the '.tar.gz' suffix from the output path."""
@@ -64,6 +89,26 @@ class FixtureOutput(BaseModel):
             return True
 
         return not any(self.directory.iterdir())
+
+    def is_directory_usable_for_phase(self) -> bool:
+        """Check if the output directory is usable for the current phase."""
+        if not self.directory.exists():
+            return True
+
+        if self.generate_pre_alloc_groups:
+            # Phase 1: Directory must be completely empty
+            return self.is_directory_empty()
+        elif self.use_pre_alloc_groups:
+            # Phase 2: Only pre-allocation groups must exist, no other files allowed
+            if not self.pre_alloc_groups_folder_path.exists():
+                return False
+            # Check that only the pre-allocation group files exist
+            existing_files = {f for f in self.directory.rglob("*") if f.is_file()}
+            allowed_files = set(self.pre_alloc_groups_folder_path.rglob("*.json"))
+            return existing_files == allowed_files
+        else:
+            # Normal filling: Directory must be empty
+            return self.is_directory_empty()
 
     def get_directory_summary(self) -> str:
         """Return a summary of directory contents for error reporting."""
@@ -121,17 +166,36 @@ class FixtureOutput(BaseModel):
         if self.directory.exists() and self.clean:
             shutil.rmtree(self.directory)
 
-        if self.directory.exists() and not self.is_directory_empty():
+        if self.directory.exists() and not self.is_directory_usable_for_phase():
             summary = self.get_directory_summary()
-            raise ValueError(
-                f"Output directory '{self.directory}' is not empty. "
-                f"Contains: {summary}. Use --clean to remove all existing files "
-                "or specify a different output directory."
-            )
+
+            if self.generate_pre_alloc_groups:
+                raise ValueError(
+                    f"Output directory '{self.directory}' must be completely empty for "
+                    f"pre-allocation group generation (phase 1). Contains: {summary}. "
+                    "Use --clean to remove all existing files."
+                )
+            elif self.use_pre_alloc_groups:
+                if not self.pre_alloc_groups_folder_path.exists():
+                    raise ValueError(
+                        "Pre-allocation groups folder not found at "
+                        f"'{self.pre_alloc_groups_folder_path}'. "
+                        "Run phase 1 with --generate-pre-alloc-groups first."
+                    )
+            else:
+                raise ValueError(
+                    f"Output directory '{self.directory}' is not empty. "
+                    f"Contains: {summary}. Use --clean to remove all existing files "
+                    "or specify a different output directory."
+                )
 
         # Create directories
         self.directory.mkdir(parents=True, exist_ok=True)
         self.metadata_dir.mkdir(parents=True, exist_ok=True)
+
+        # Create pre-allocation groups directory for phase 1
+        if self.generate_pre_alloc_groups:
+            self.pre_alloc_groups_folder_path.parent.mkdir(parents=True, exist_ok=True)
 
     def create_tarball(self) -> None:
         """Create tarball of the output directory if configured to do so."""
@@ -147,9 +211,20 @@ class FixtureOutput(BaseModel):
     @classmethod
     def from_config(cls, config: pytest.Config) -> "FixtureOutput":
         """Create a FixtureOutput instance from pytest configuration."""
+        output_path = Path(config.getoption("output"))
+        should_generate_all_formats = config.getoption("generate_all_formats")
+
+        # Auto-enable --generate-all-formats for tarball output
+        # Use same logic as is_tarball property
+        if output_path.suffix == ".gz" and output_path.with_suffix("").suffix == ".tar":
+            should_generate_all_formats = True
+
         return cls(
-            output_path=config.getoption("output"),
+            output_path=output_path,
             flat_output=config.getoption("flat_output"),
             single_fixture_per_file=config.getoption("single_fixture_per_file"),
             clean=config.getoption("clean"),
+            generate_pre_alloc_groups=config.getoption("generate_pre_alloc_groups"),
+            use_pre_alloc_groups=config.getoption("use_pre_alloc_groups"),
+            should_generate_all_formats=should_generate_all_formats,
         )

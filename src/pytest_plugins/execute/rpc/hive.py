@@ -10,7 +10,6 @@ from random import randint
 from typing import Any, Dict, Generator, List, Mapping, Tuple, cast
 
 import pytest
-from ethereum.crypto.hash import keccak256
 from filelock import FileLock
 from hive.client import Client, ClientType
 from hive.simulation import Simulation
@@ -39,7 +38,8 @@ from ethereum_test_tools import (
     Withdrawal,
 )
 from ethereum_test_types import Requests
-from pytest_plugins.consume.hive_simulators.ruleset import ruleset
+from ethereum_test_types.trie import keccak256
+from pytest_plugins.consume.simulators.helpers.ruleset import ruleset
 
 
 class HashList(RootModel[List[Hash]]):
@@ -299,12 +299,12 @@ def environment(base_fork: Fork) -> dict:
     Define the environment that hive will start the client with using the fork
     rules specific for the simulator.
     """
-    assert base_fork.name() in ruleset, f"fork '{base_fork.name()}' missing in hive ruleset"
+    assert base_fork in ruleset, f"fork '{base_fork}' missing in hive ruleset"
     return {
         "HIVE_CHAIN_ID": "1",
         "HIVE_FORK_DAO_VOTE": "1",
         "HIVE_NODETYPE": "full",
-        **{k: f"{v:d}" for k, v in ruleset[base_fork.name()].items()},
+        **{k: f"{v:d}" for k, v in ruleset[base_fork].items()},
     }
 
 

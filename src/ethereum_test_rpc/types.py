@@ -1,8 +1,10 @@
 """Types used in the RPC module for `eth` and `engine` namespaces' requests."""
 
+import json
+from binascii import crc32
 from enum import Enum
 from hashlib import sha256
-from typing import Annotated, Any, List, Union
+from typing import Annotated, Any, Dict, List, Self
 
 from pydantic import AliasChoices, Field, model_validator
 
@@ -11,6 +13,8 @@ from ethereum_test_base_types import (
     Bytes,
     CamelModel,
     EthereumTestRootModel,
+    ForkBlobSchedule,
+    ForkHash,
     Hash,
     HexNumber,
 )
@@ -22,7 +26,7 @@ from ethereum_test_exceptions import (
     UndefinedException,
 )
 from ethereum_test_fixtures.blockchain import FixtureExecutionPayload
-from ethereum_test_types import Transaction, Withdrawal
+from ethereum_test_types import EOA, Transaction, Withdrawal
 
 
 class JSONRPCError(Exception):
@@ -49,8 +53,10 @@ class TransactionByHashResponse(Transaction):
 
     gas_limit: HexNumber = Field(HexNumber(21_000), alias="gas")
     transaction_hash: Hash = Field(..., alias="hash")
-    from_address: Address = Field(..., alias="from")
-    to_address: Address | None = Field(..., alias="to")
+    sender: EOA | None = Field(None, alias="from")
+
+    # The to field can have different names in different clients, so we use AliasChoices.
+    to: Address | None = Field(..., validation_alias=AliasChoices("to_address", "to", "toAddress"))
 
     v: HexNumber = Field(0, validation_alias=AliasChoices("v", "yParity"))  # type: ignore
 
@@ -95,7 +101,7 @@ class PayloadStatusEnum(str, Enum):
 
 
 class BlockTransactionExceptionWithMessage(
-    ExceptionWithMessage[Union[BlockException, TransactionException]]  # type: ignore
+    ExceptionWithMessage[BlockException | TransactionException]  # type: ignore
 ):
     """Exception returned from the execution client with a message."""
 
@@ -150,14 +156,14 @@ class BlobsBundle(CamelModel):
 
 
 class BlobAndProofV1(CamelModel):
-    """Represents a blob and single-proof structure."""
+    """Represents a blob and single-proof structure (< Osaka)."""
 
     blob: Bytes
     proof: Bytes
 
 
 class BlobAndProofV2(CamelModel):
-    """Represents a blob and proof structure."""
+    """Represents a blob and cell proof structure (>= Osaka)."""
 
     blob: Bytes
     proofs: List[Bytes]
@@ -183,3 +189,49 @@ class GetBlobsResponse(EthereumTestRootModel):
     def __getitem__(self, index: int) -> BlobAndProofV1 | BlobAndProofV2 | None:
         """Return the blob at the given index."""
         return self.root[index]
+
+
+class ForkConfigBlobSchedule(CamelModel):
+    """Representation of the blob schedule of a given fork."""
+
+    target_blobs_per_block: int = Field(..., alias="target")
+    max_blobs_per_block: int = Field(..., alias="max")
+    base_fee_update_fraction: int
+
+    @classmethod
+    def from_fork_blob_schedule(cls, fork_blob_schedule: ForkBlobSchedule) -> Self:
+        """Create a ForkConfigBlobSchedule from a ForkBlobSchedule."""
+        return cls(
+            target_blobs_per_block=fork_blob_schedule.target_blobs_per_block,
+            max_blobs_per_block=fork_blob_schedule.max_blobs_per_block,
+            base_fee_update_fraction=fork_blob_schedule.base_fee_update_fraction,
+        )
+
+
+class ForkConfig(CamelModel):
+    """Current or next fork config information."""
+
+    activation_time: int
+    blob_schedule: ForkConfigBlobSchedule | None = None
+    chain_id: HexNumber
+    precompiles: Dict[Address, str]
+    system_contracts: Dict[str, Address]
+
+    def get_hash(self) -> ForkHash:
+        """Return the hash of the fork config."""
+        obj = self.model_dump(mode="json", by_alias=True, exclude_none=True)
+        return ForkHash(crc32(json.dumps(obj, sort_keys=True, separators=(",", ":")).encode()))
+
+
+class EthConfigResponse(CamelModel):
+    """Response of the `eth_config` RPC endpoint."""
+
+    current: ForkConfig
+    current_hash: ForkHash
+    current_fork_id: ForkHash
+    next: ForkConfig | None = None
+    next_hash: ForkHash | None = None
+    next_fork_id: ForkHash | None = None
+    last: ForkConfig | None = None
+    last_hash: ForkHash | None = None
+    last_fork_id: ForkHash | None = None
