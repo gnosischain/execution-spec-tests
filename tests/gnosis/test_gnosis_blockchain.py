@@ -26,32 +26,17 @@ def test_gnosis_simple(blockchain_test: BlockchainTestFiller):
     This test creates a minimal blockchain test with just a basic transaction
     to verify that the basic blockchain mechanism works.
     """
-    
+
     # Minimal environment (will use Gnosis defaults from plugin)
     env = Environment()
-    
+
     # Minimal pre-state - just the test account
     pre = Alloc({
         TestAddress: Account(balance=1_000_000_000_000_000_000),  # 1 ETH
     })
-    
-    # # Simple transaction that transfers some ETH to null address
-    # tx = Transaction(
-    #     to=0x0000000000000000000000000000000000000000,
-    #     value=1000,
-    #     gas_limit=21000,
-    #     sender=TestAddress,
-    #     secret_key=TestPrivateKey,
-    # )
-    
-    # Expected post-state
-    # post = {
-    #     0x00000000219ab540356cbb839cbe05303d7705fa: Account(
-    #         balance=0x00,  # Received the transfer
-    #     ),
-    # }
+
     post: dict = {}
-    
+
     # Create the blockchain test with one transaction
     blockchain_test(
         env=env,
@@ -61,9 +46,54 @@ def test_gnosis_simple(blockchain_test: BlockchainTestFiller):
     )
 
 
+def test_gnosis_with_transaction(blockchain_test: BlockchainTestFiller):
+    """Simple test to verify basic Gnosis blockchain functionality.
+
+    This test creates a minimal blockchain test with just a basic transaction
+    to verify that the basic blockchain mechanism works.
+    """
+
+    # Minimal environment (will use Gnosis defaults from plugin)
+    env = Environment()
+
+    # Minimal pre-state - just the test account
+    pre = Alloc(
+        {
+            TestAddress: Account(balance=1_000_000_000_000_000_000),  # 1 ETH
+            0x00000000219AB540356CBB839CBE05303D7705FA: Account(balance=0),
+        }
+    )
+
+    # Simple transaction that transfers some ETH to null address
+    tx = Transaction(
+        to=0x00000000219AB540356CBB839CBE05303D7705FA,
+        value=1000,
+        gas_limit=21000,
+        nonce=0,  # TestAddress now starts with nonce 0 in both mainnet and gnosis
+        sender=TestAddress,
+        secret_key=TestPrivateKey,
+    )
+
+    # Expected post-state
+    post = {
+        0x00000000219AB540356CBB839CBE05303D7705FA: Account(
+            balance=1000,  # Received the transfer
+        ),
+    }
+    post: dict = {}
+
+    # Create the blockchain test with one transaction
+    blockchain_test(
+        env=env,
+        pre=pre,
+        post=post,
+        blocks=[Block(txs=[tx])],
+    )
+
+
 if __name__ == "__main__":
     """
     To run this test:
     uv run fill ./test_gnosis_blockchain.py --fork Prague --gnosis -c pytest-gnosis.ini --clean
     """
-    pass 
+    pass
