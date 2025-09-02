@@ -25,9 +25,9 @@ class TransactionPost(BaseExecute):
 
     def execute(self, fork: Fork, eth_rpc: EthRPC, engine_rpc: EngineRPC | None):
         """Execute the format."""
-        assert not any(tx.ty == 3 for block in self.blocks for tx in block), (
-            "Transaction type 3 is not supported in execute mode."
-        )
+        if any(tx.ty == 3 for block in self.blocks for tx in block):
+            pytest.skip("Transaction type 3 is not supported in execute mode.")
+
         for block in self.blocks:
             if any(tx.error is not None for tx in block):
                 for transaction in block:
