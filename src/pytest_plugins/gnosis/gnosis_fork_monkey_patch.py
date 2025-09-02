@@ -5,11 +5,14 @@ from typing import Any, Dict, Mapping, Optional, Type
 from ethereum_test_forks.base_fork import BaseFork
 
 # Import Gnosis defaults to keep values in sync
-from .gnosis import (DEFAULT_GNOSIS_BLOB_BASE_FEE_UPDATE_FRACTION,
-                     DEFAULT_GNOSIS_MAX_BLOBS_PER_BLOCK,
-                     DEFAULT_GNOSIS_TARGET_BLOBS_PER_BLOCK,
-                     GNOSIS_CHAIN_ACCOUNTS, GNOSIS_PRE_ALLOCATED_ACCOUNTS,
-                     GNOSIS_SYSTEM_CONTRACTS)
+from .gnosis import (
+    DEFAULT_GNOSIS_BLOB_BASE_FEE_UPDATE_FRACTION,
+    DEFAULT_GNOSIS_MAX_BLOBS_PER_BLOCK,
+    DEFAULT_GNOSIS_TARGET_BLOBS_PER_BLOCK,
+    GNOSIS_CHAIN_ACCOUNTS,
+    GNOSIS_PRE_ALLOCATED_ACCOUNTS,
+    GNOSIS_SYSTEM_CONTRACTS,
+)
 
 # Store original fork methods for restoration
 _original_fork_methods: Dict[Type[BaseFork], Dict[str, Any]] = {}

@@ -5,8 +5,7 @@ from _pytest.config import Config
 
 from .gnosis import Gnosis, set_gnosis_fork_parameters
 from .gnosis_block_types import patch_environment_defaults_and_class
-from .gnosis_fork_monkey_patch import (patch_fork_parameters,
-                                       set_custom_fork_parameters)
+from .gnosis_fork_monkey_patch import patch_fork_parameters, set_custom_fork_parameters
 
 
 def patch_transaction_defaults_for_gnosis():
@@ -56,9 +55,7 @@ class GnosisPlugin:
                 or GNOSIS_DEFAULT_BASE_FEE,
                 "difficulty": config.getoption("--gnosis-difficulty") or 0x20000,
                 "excess_blob_gas": config.getoption("--gnosis-excess-blob-gas") or 0,
-                "patch_genesis_hash": config.getoption(
-                    "--gnosis-patch-genesis-hash"
-                ),  # Only patch when explicitly requested
+                "patch_genesis_hash": True,
                 "fee_recipient": "0x2adc25665018aa1fe0e6bc666dac8fc2697ff9ba",
                 # updates in env.json but not in genesisBlockHeader
                 # TODO: add more gnosis properties here
