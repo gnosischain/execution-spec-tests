@@ -1,6 +1,6 @@
 """Ethereum test fork definitions."""
 
-from .base_fork import Fork, ForkAttribute
+from .base_fork import ForkAttribute
 from .forks.forks import (
     ArrowGlacier,
     Berlin,
@@ -8,6 +8,7 @@ from .forks.forks import (
     Cancun,
     Constantinople,
     ConstantinopleFix,
+    EOFv1,
     Frontier,
     GrayGlacier,
     Homestead,
@@ -21,23 +22,31 @@ from .forks.forks import (
 )
 from .forks.transition import (
     BerlinToLondonAt5,
+    CancunToPragueAtTime15k,
     ParisToShanghaiAtTime15k,
+    PragueToOsakaAtTime15k,
     ShanghaiToCancunAtTime15k,
 )
+from .gas_costs import GasCosts
 from .helpers import (
+    Fork,
+    ForkRangeDescriptor,
     InvalidForkError,
+    TransitionFork,
     forks_from,
     forks_from_until,
-    get_closest_fork_with_solc_support,
+    get_closest_fork,
     get_deployed_forks,
     get_development_forks,
+    get_fork_by_name,
     get_forks,
     get_forks_with_no_descendants,
     get_forks_with_no_parents,
-    get_forks_with_solc_support,
-    get_forks_without_solc_support,
     get_from_until_fork_set,
     get_last_descendants,
+    get_relative_fork_markers,
+    get_transition_fork_predecessor,
+    get_transition_fork_successor,
     get_transition_forks,
     transition_fork_from_to,
     transition_fork_to,
@@ -45,6 +54,7 @@ from .helpers import (
 
 __all__ = [
     "Fork",
+    "TransitionFork",
     "ForkAttribute",
     "ArrowGlacier",
     "Berlin",
@@ -52,6 +62,8 @@ __all__ = [
     "Byzantium",
     "Constantinople",
     "ConstantinopleFix",
+    "EOFv1",
+    "ForkRangeDescriptor",
     "Frontier",
     "GrayGlacier",
     "Homestead",
@@ -64,21 +76,26 @@ __all__ = [
     "Shanghai",
     "ShanghaiToCancunAtTime15k",
     "Cancun",
+    "CancunToPragueAtTime15k",
     "Prague",
+    "PragueToOsakaAtTime15k",
     "Osaka",
     "get_transition_forks",
     "forks_from",
     "forks_from_until",
-    "get_closest_fork_with_solc_support",
+    "get_closest_fork",
     "get_deployed_forks",
     "get_development_forks",
+    "get_transition_fork_predecessor",
+    "get_transition_fork_successor",
+    "get_fork_by_name",
     "get_forks_with_no_descendants",
     "get_forks_with_no_parents",
-    "get_forks_with_solc_support",
-    "get_forks_without_solc_support",
+    "get_relative_fork_markers",
     "get_forks",
     "get_from_until_fork_set",
     "get_last_descendants",
     "transition_fork_from_to",
     "transition_fork_to",
+    "GasCosts",
 ]

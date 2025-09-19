@@ -6,6 +6,7 @@ from pydantic import Field
 
 from ethereum_test_base_types import Bytes, CamelModel, Number
 from ethereum_test_exceptions.exceptions import EOFExceptionInstanceOrList
+from ethereum_test_forks import Fork
 from ethereum_test_types.eof.v1 import ContainerKind
 
 from .base import BaseFixture
@@ -34,17 +35,17 @@ class Vector(CamelModel):
 
     code: Bytes
     container_kind: ContainerKind = ContainerKind.RUNTIME
-    results: Mapping[str, Result]
+    results: Mapping[Fork, Result]
 
 
-class Fixture(BaseFixture):
+class EOFFixture(BaseFixture):
     """Fixture for a single EOFTest."""
 
-    fixture_format_name: ClassVar[str] = "eof_test"
+    format_name: ClassVar[str] = "eof_test"
     description: ClassVar[str] = "Tests that generate an EOF test fixture."
 
     vectors: Mapping[Number, Vector]
 
-    def get_fork(self) -> str | None:
+    def get_fork(self) -> Fork | None:
         """Return fork of the fixture as a string."""
         return None

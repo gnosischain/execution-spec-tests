@@ -1,11 +1,22 @@
 """Abstract base class for Ethereum forks."""
 
 from abc import ABC, ABCMeta, abstractmethod
-from typing import Any, ClassVar, List, Mapping, Optional, Protocol, Sized, Tuple, Type
+from typing import (
+    Any,
+    ClassVar,
+    Dict,
+    List,
+    Literal,
+    Mapping,
+    Optional,
+    Protocol,
+    Sized,
+    Tuple,
+    Type,
+    Union,
+)
 
-from semver import Version
-
-from ethereum_test_base_types import AccessList, Address
+from ethereum_test_base_types import AccessList, Address, BlobSchedule
 from ethereum_test_base_types.conversions import BytesConvertible
 from ethereum_test_vm import EVMCodeType, Opcodes
 
@@ -96,6 +107,7 @@ class ExcessBlobGasCalculator(Protocol):
         parent_excess_blobs: int | None = None,
         parent_blob_gas_used: int | None = None,
         parent_blob_count: int | None = None,
+        parent_base_fee_per_gas: int,
     ) -> int:
         """Return the excess blob gas given the parent's excess blob gas and blob gas used."""
         pass
@@ -104,29 +116,43 @@ class ExcessBlobGasCalculator(Protocol):
 class BaseForkMeta(ABCMeta):
     """Metaclass for BaseFork."""
 
+    @abstractmethod
     def name(cls) -> str:
-        """To be implemented by the fork base class."""
-        return ""
+        """Return the name of the fork (e.g., Berlin), must be implemented by subclasses."""
+        pass
 
     def __repr__(cls) -> str:
         """Print the name of the fork, instead of the class."""
         return cls.name()
 
+    @staticmethod
+    def _maybe_transitioned(fork_cls: "BaseForkMeta") -> "BaseForkMeta":
+        """Return the transitioned fork, if a transition fork, otherwise return `fork_cls`."""
+        return fork_cls.transitions_to() if hasattr(fork_cls, "transitions_to") else fork_cls
+
+    @staticmethod
+    def _is_subclass_of(a: "BaseForkMeta", b: "BaseForkMeta") -> bool:
+        """Check if `a` is a subclass of `b`, taking fork transitions into account."""
+        a = BaseForkMeta._maybe_transitioned(a)
+        b = BaseForkMeta._maybe_transitioned(b)
+        return issubclass(a, b)
+
     def __gt__(cls, other: "BaseForkMeta") -> bool:
-        """Compare if a fork is newer than some other fork."""
-        return cls != other and other.__subclasscheck__(cls)
+        """Compare if a fork is newer than some other fork (cls > other)."""
+        return cls is not other and BaseForkMeta._is_subclass_of(cls, other)
 
     def __ge__(cls, other: "BaseForkMeta") -> bool:
-        """Compare if a fork is newer than or equal to some other fork."""
-        return other.__subclasscheck__(cls)
+        """Compare if a fork is newer than or equal to some other fork (cls >= other)."""
+        return cls is other or BaseForkMeta._is_subclass_of(cls, other)
 
     def __lt__(cls, other: "BaseForkMeta") -> bool:
-        """Compare if a fork is older than some other fork."""
-        return cls != other and cls.__subclasscheck__(other)
+        """Compare if a fork is older than some other fork (cls < other)."""
+        # "Older" means other is a subclass of cls, but not the same.
+        return cls is not other and BaseForkMeta._is_subclass_of(other, cls)
 
     def __le__(cls, other: "BaseForkMeta") -> bool:
-        """Compare if a fork is older than or equal to some other fork."""
-        return cls.__subclasscheck__(other)
+        """Compare if a fork is older than or equal to some other fork (cls <= other)."""
+        return cls is other or BaseForkMeta._is_subclass_of(other, cls)
 
 
 class BaseFork(ABC, metaclass=BaseForkMeta):
@@ -137,21 +163,26 @@ class BaseFork(ABC, metaclass=BaseForkMeta):
     """
 
     _transition_tool_name: ClassVar[Optional[str]] = None
-    _blockchain_test_network_name: ClassVar[Optional[str]] = None
     _solc_name: ClassVar[Optional[str]] = None
     _ignore: ClassVar[bool] = False
+
+    # make mypy happy
+    BLOB_CONSTANTS: ClassVar[Dict[str, Union[int, Literal["big"]]]] = {}
+
+    @classmethod
+    def get_blob_constant(cls, name: str) -> int | Literal["big"]:
+        """Return value of requested blob constant."""
+        raise NotImplementedError
 
     def __init_subclass__(
         cls,
         *,
         transition_tool_name: Optional[str] = None,
-        blockchain_test_network_name: Optional[str] = None,
         solc_name: Optional[str] = None,
         ignore: bool = False,
     ) -> None:
         """Initialize new fork with values that don't carry over to subclass forks."""
         cls._transition_tool_name = transition_tool_name
-        cls._blockchain_test_network_name = blockchain_test_network_name
         cls._solc_name = solc_name
         cls._ignore = ignore
 
@@ -202,14 +233,6 @@ class BaseFork(ABC, metaclass=BaseForkMeta):
     @abstractmethod
     def header_requests_required(cls, block_number: int = 0, timestamp: int = 0) -> bool:
         """Return true if the header must contain beacon chain requests."""
-        pass
-
-    @classmethod
-    @abstractmethod
-    def header_target_blobs_per_block_required(
-        cls, block_number: int = 0, timestamp: int = 0
-    ) -> bool:
-        """Return true if the header must contain target blobs per block."""
         pass
 
     # Gas related abstract methods
@@ -291,6 +314,12 @@ class BaseFork(ABC, metaclass=BaseForkMeta):
 
     @classmethod
     @abstractmethod
+    def supports_blobs(cls, block_number: int = 0, timestamp: int = 0) -> bool:
+        """Return whether the given fork supports blobs or not."""
+        pass
+
+    @classmethod
+    @abstractmethod
     def target_blobs_per_block(cls, block_number: int = 0, timestamp: int = 0) -> int:
         """Return the target blobs per block at a given fork."""
         pass
@@ -299,6 +328,19 @@ class BaseFork(ABC, metaclass=BaseForkMeta):
     @abstractmethod
     def max_blobs_per_block(cls, block_number: int = 0, timestamp: int = 0) -> int:
         """Return the max blobs per block at a given fork."""
+        pass
+
+    @classmethod
+    @abstractmethod
+    def full_blob_tx_wrapper_version(cls, block_number: int = 0, timestamp: int = 0) -> int | None:
+        """Return the version of the full blob transaction wrapper at a given fork."""
+        pass
+
+    @classmethod
+    @prefer_transition_to_method
+    @abstractmethod
+    def blob_schedule(cls, block_number: int = 0, timestamp: int = 0) -> BlobSchedule | None:
+        """Return the blob schedule up until the given fork."""
         pass
 
     @classmethod
@@ -319,6 +361,18 @@ class BaseFork(ABC, metaclass=BaseForkMeta):
     @abstractmethod
     def contract_creating_tx_types(cls, block_number: int = 0, timestamp: int = 0) -> List[int]:
         """Return list of the transaction types supported by the fork that can create contracts."""
+        pass
+
+    @classmethod
+    @abstractmethod
+    def transaction_gas_limit_cap(cls, block_number: int = 0, timestamp: int = 0) -> int | None:
+        """Return the transaction gas limit cap, or None if no limit is imposed."""
+        pass
+
+    @classmethod
+    @abstractmethod
+    def block_rlp_size_limit(cls, block_number: int = 0, timestamp: int = 0) -> int | None:
+        """Return the maximum RLP size of a block in bytes, or None if no limit is imposed."""
         pass
 
     @classmethod
@@ -433,7 +487,16 @@ class BaseFork(ABC, metaclass=BaseForkMeta):
     def engine_get_payload_version(
         cls, block_number: int = 0, timestamp: int = 0
     ) -> Optional[int]:
-        """Return `None` if the forks canonical chain cannot be set using the forkchoice method."""
+        """
+        Return `None` if the forks canonical chain cannot build a payload using the engine
+        API.
+        """
+        pass
+
+    @classmethod
+    @abstractmethod
+    def engine_get_blobs_version(cls, block_number: int = 0, timestamp: int = 0) -> Optional[int]:
+        """Return `None` if the fork does not support the engine get blobs version."""
         pass
 
     # EVM information abstract methods
@@ -441,6 +504,24 @@ class BaseFork(ABC, metaclass=BaseForkMeta):
     @abstractmethod
     def evm_code_types(cls, block_number: int = 0, timestamp: int = 0) -> List[EVMCodeType]:
         """Return list of EVM code types supported by the fork."""
+        pass
+
+    @classmethod
+    @abstractmethod
+    def max_code_size(cls) -> int:
+        """Return the maximum code size allowed to be deployed in a contract creation."""
+        pass
+
+    @classmethod
+    @abstractmethod
+    def max_stack_height(cls) -> int:
+        """Return the maximum stack height allowed in the EVM stack."""
+        pass
+
+    @classmethod
+    @abstractmethod
+    def max_initcode_size(cls) -> int:
+        """Return the maximum initcode size allowed to be used in a contract creation."""
         pass
 
     @classmethod
@@ -500,19 +581,6 @@ class BaseFork(ABC, metaclass=BaseForkMeta):
         pass
 
     @classmethod
-    @abstractmethod
-    def solc_min_version(cls) -> Version:
-        """Return minimum version of solc that supports this fork."""
-        pass
-
-    @classmethod
-    def blockchain_test_network_name(cls) -> str:
-        """Return network configuration name to be used in BlockchainTests for this fork."""
-        if cls._blockchain_test_network_name is not None:
-            return cls._blockchain_test_network_name
-        return cls.name()
-
-    @classmethod
     def is_deployed(cls) -> bool:
         """
         Return whether the fork has been deployed to mainnet, or not.
@@ -527,6 +595,11 @@ class BaseFork(ABC, metaclass=BaseForkMeta):
         """Return whether the fork should be ignored during test generation."""
         return cls._ignore
 
-
-# Fork Type
-Fork = Type[BaseFork]
+    @classmethod
+    def parent(cls) -> Type["BaseFork"] | None:
+        """Return the parent fork."""
+        base_class = cls.__bases__[0]
+        assert issubclass(base_class, BaseFork)
+        if base_class == BaseFork:
+            return None
+        return base_class

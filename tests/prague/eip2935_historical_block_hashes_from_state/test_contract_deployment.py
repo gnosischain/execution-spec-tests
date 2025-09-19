@@ -7,6 +7,8 @@ from os.path import realpath
 from pathlib import Path
 from typing import Dict
 
+import pytest
+
 from ethereum_test_forks import Prague
 from ethereum_test_tools import (
     Account,
@@ -25,10 +27,14 @@ REFERENCE_SPEC_GIT_PATH = ref_spec_2935.git_path
 REFERENCE_SPEC_VERSION = ref_spec_2935.version
 
 
+@pytest.mark.pre_alloc_group(
+    "separate", reason="Deploys history storage system contract at hardcoded predeploy address"
+)
 @generate_system_contract_deploy_test(
     fork=Prague,
     tx_json_path=Path(realpath(__file__)).parent / "contract_deploy_tx.json",
     expected_deploy_address=Address(Spec.HISTORY_STORAGE_ADDRESS),
+    fail_on_empty_code=False,
 )
 def test_system_contract_deployment(
     *,
@@ -50,11 +56,11 @@ def test_system_contract_deployment(
                     address=Spec.HISTORY_STORAGE_ADDRESS,
                     args_offset=0,
                     args_size=32,
-                    ret_offset=0,
+                    ret_offset=32,
                     ret_size=32,
                 ),
             )
-            + Op.SSTORE(block_number, Op.ISZERO(Op.ISZERO(Op.MLOAD(0))))
+            + Op.SSTORE(block_number, Op.ISZERO(Op.ISZERO(Op.MLOAD(32))))
             for block_number in range(1, 4)
         )
         + Op.STOP
@@ -76,6 +82,13 @@ def test_system_contract_deployment(
         storage = {
             1: 1,  # Block prior to the fork, it's the first hash saved.
             2: 1,  # Fork block, hash should be there.
+            3: 1,  # Empty block added at the start of this function, hash should be there.
+        }
+    elif test_type == DeploymentTestType.DEPLOY_ON_FORK_BLOCK:
+        # The contract should have the block hashes after contract deployment.
+        storage = {
+            1: 1,  # Fork and deployment block, the first hash that gets added.
+            2: 1,  # Deployment block, hash should be there.
             3: 1,  # Empty block added at the start of this function, hash should be there.
         }
     elif test_type == DeploymentTestType.DEPLOY_AFTER_FORK:

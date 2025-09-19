@@ -10,7 +10,6 @@ from random import randint
 from typing import Any, Dict, Generator, List, Mapping, Tuple, cast
 
 import pytest
-from ethereum.crypto.hash import keccak256
 from filelock import FileLock
 from hive.client import Client, ClientType
 from hive.simulation import Simulation
@@ -39,7 +38,8 @@ from ethereum_test_tools import (
     Withdrawal,
 )
 from ethereum_test_types import Requests
-from pytest_plugins.consume.hive_simulators.ruleset import ruleset
+from ethereum_test_types.trie import keccak256
+from pytest_plugins.consume.simulators.helpers.ruleset import ruleset
 
 
 class HashList(RootModel[List[Hash]]):
@@ -156,8 +156,10 @@ def pytest_addoption(parser):
     )
 
 
+@pytest.hookimpl(trylast=True)
 def pytest_configure(config):  # noqa: D103
     config.test_suite_scope = "session"
+    config.engine_rpc_supported = True
 
 
 @pytest.fixture(scope="session")
@@ -203,12 +205,12 @@ def base_pre_genesis(
 ) -> Tuple[Alloc, FixtureHeader]:
     """Create a genesis block from the blockchain test definition."""
     env = Environment().set_fork_requirements(base_fork)
-    assert (
-        env.withdrawals is None or len(env.withdrawals) == 0
-    ), "withdrawals must be empty at genesis"
-    assert env.parent_beacon_block_root is None or env.parent_beacon_block_root == Hash(
-        0
-    ), "parent_beacon_block_root must be empty at genesis"
+    assert env.withdrawals is None or len(env.withdrawals) == 0, (
+        "withdrawals must be empty at genesis"
+    )
+    assert env.parent_beacon_block_root is None or env.parent_beacon_block_root == Hash(0), (
+        "parent_beacon_block_root must be empty at genesis"
+    )
 
     pre_alloc = Alloc.merge(
         Alloc.model_validate(base_fork.pre_allocation_blockchain()),
@@ -245,13 +247,6 @@ def base_pre_genesis(
         requests_hash=Requests()
         if base_fork.header_requests_required(block_number=block_number, timestamp=timestamp)
         else None,
-        target_blobs_per_block=(
-            base_fork.target_blobs_per_block(block_number=block_number, timestamp=timestamp)
-            if base_fork.header_target_blobs_per_block_required(
-                block_number=block_number, timestamp=timestamp
-            )
-            else None
-        ),
     )
 
     return (pre_alloc, genesis)
@@ -304,12 +299,12 @@ def environment(base_fork: Fork) -> dict:
     Define the environment that hive will start the client with using the fork
     rules specific for the simulator.
     """
-    assert base_fork.name() in ruleset, f"fork '{base_fork.name()}' missing in hive ruleset"
+    assert base_fork in ruleset, f"fork '{base_fork}' missing in hive ruleset"
     return {
         "HIVE_CHAIN_ID": "1",
         "HIVE_FORK_DAO_VOTE": "1",
         "HIVE_NODETYPE": "full",
-        **{k: f"{v:d}" for k, v in ruleset[base_fork.name()].items()},
+        **{k: f"{v:d}" for k, v in ruleset[base_fork].items()},
     }
 
 
@@ -364,7 +359,7 @@ def base_hive_test(
 
     test_pass = True
     test_details = "All tests have completed"
-    if request.session.testsfailed > 0:  # noqa: SC200
+    if request.session.testsfailed > 0:
         test_pass = False
         test_details = "One or more tests have failed"
 
@@ -547,6 +542,7 @@ class EthRPC(BaseEthRPC):
         *,
         client: Client,
         fork: Fork,
+        engine_rpc: EngineRPC,
         base_genesis_header: FixtureHeader,
         transactions_per_block: int,
         session_temp_folder: Path,
@@ -560,7 +556,7 @@ class EthRPC(BaseEthRPC):
             transaction_wait_timeout=transaction_wait_timeout,
         )
         self.fork = fork
-        self.engine_rpc = EngineRPC(f"http://{client.ip}:8551")
+        self.engine_rpc = engine_rpc
         self.transactions_per_block = transactions_per_block
         self.pending_tx_hashes = PendingTxHashes(session_temp_folder)
         self.get_payload_wait_time = get_payload_wait_time
@@ -581,9 +577,9 @@ class EthRPC(BaseEthRPC):
                     head_block_hash=base_genesis_header.block_hash,
                 )
                 forkchoice_version = self.fork.engine_forkchoice_updated_version()
-                assert (
-                    forkchoice_version is not None
-                ), "Fork does not support engine forkchoice_updated"
+                assert forkchoice_version is not None, (
+                    "Fork does not support engine forkchoice_updated"
+                )
                 for _ in range(initial_forkchoice_update_retries):
                     response = self.engine_rpc.forkchoice_updated(
                         forkchoice_state,
@@ -625,9 +621,9 @@ class EthRPC(BaseEthRPC):
             ),
         )
         forkchoice_updated_version = self.fork.engine_forkchoice_updated_version()
-        assert (
-            forkchoice_updated_version is not None
-        ), "Fork does not support engine forkchoice_updated"
+        assert forkchoice_updated_version is not None, (
+            "Fork does not support engine forkchoice_updated"
+        )
         response = self.engine_rpc.forkchoice_updated(
             forkchoice_state,
             payload_attributes,
@@ -728,6 +724,7 @@ class EthRPC(BaseEthRPC):
             while tx_id < len(tx_hashes):
                 tx_hash = tx_hashes[tx_id]
                 tx = self.get_transaction_by_hash(tx_hash)
+                assert tx is not None, f"Transaction {tx_hash} not found"
                 if tx.block_number is not None:
                     responses.append(tx)
                     tx_hashes.pop(tx_id)
@@ -818,15 +815,21 @@ def transactions_per_block(request) -> int:  # noqa: D103
 
 
 @pytest.fixture(scope="session")
-def chain_id() -> int:
+def chain_id(request: pytest.FixtureRequest) -> int:
     """Return chain id where the tests will be executed."""
-    return 1
+    return 100 if request.config.getoption("chain_id") else 1
+
+@pytest.fixture(scope="session")
+def engine_rpc(client: Client) -> EngineRPC | None:
+    """Return the engine RPC client."""
+    return EngineRPC(f"http://{client.ip}:8551")
 
 
 @pytest.fixture(autouse=True, scope="session")
 def eth_rpc(
     request: pytest.FixtureRequest,
     client: Client,
+    engine_rpc: EngineRPC,
     base_genesis_header: FixtureHeader,
     base_fork: Fork,
     transactions_per_block: int,
@@ -838,6 +841,7 @@ def eth_rpc(
     return EthRPC(
         client=client,
         fork=base_fork,
+        engine_rpc=engine_rpc,
         base_genesis_header=base_genesis_header,
         transactions_per_block=transactions_per_block,
         session_temp_folder=session_temp_folder,

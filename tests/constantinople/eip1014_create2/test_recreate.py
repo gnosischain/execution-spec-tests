@@ -8,10 +8,8 @@ from ethereum_test_tools import (
     Alloc,
     Block,
     BlockchainTestFiller,
-    Environment,
     Initcode,
     Transaction,
-    Yul,
     compute_create2_address,
 )
 from ethereum_test_tools import Opcodes as Op
@@ -35,33 +33,27 @@ def test_recreate(
     Test that the storage is cleared when a contract is first destructed then re-created using
     CREATE2.
     """
-    env = Environment()
-
     creator_contract_code = Op.CALLDATACOPY(0, 0, Op.CALLDATASIZE) + Op.CREATE2(
         0, 0, Op.CALLDATASIZE, 0
     )
     creator_address = pre.deploy_contract(creator_contract_code)
     sender = pre.fund_eoa()
 
-    deploy_code = Yul(
-        """
-        {
-            switch callvalue()
-            case 0 {
-                selfdestruct(0)
-            }
-            default {
-                sstore(0, callvalue())
-            }
-        }
-        """,
-        fork=fork,
+    deploy_code = (
+        Op.EQ(0, Op.CALLVALUE)
+        + Op.PUSH1(0xC)
+        + Op.JUMPI
+        + Op.SSTORE(0, Op.CALLVALUE)
+        + Op.STOP
+        + Op.JUMPDEST
+        + Op.PUSH1(0x0)
+        + Op.SELFDESTRUCT
     )
 
     initcode = Initcode(deploy_code=deploy_code)
 
     create_tx = Transaction(
-        gas_limit=100000000,
+        gas_limit=100_000,
         to=creator_address,
         data=initcode,
         sender=sender,
@@ -72,7 +64,7 @@ def test_recreate(
     )
 
     set_storage_tx = Transaction(
-        gas_limit=100000000,
+        gas_limit=100_000,
         to=created_contract_address,
         value=1,
         sender=sender,
@@ -81,7 +73,7 @@ def test_recreate(
     blocks = [Block(txs=[create_tx, set_storage_tx])]
 
     destruct_tx = Transaction(
-        gas_limit=100000000,
+        gas_limit=100_000,
         to=created_contract_address,
         value=0,
         sender=sender,
@@ -89,14 +81,14 @@ def test_recreate(
 
     balance = 1
     send_funds_tx = Transaction(
-        gas_limit=100000000,
+        gas_limit=100_000,
         to=created_contract_address,
         value=balance,
         sender=sender,
     )
 
     re_create_tx = Transaction(
-        gas_limit=100000000,
+        gas_limit=100_000,
         to=creator_address,
         data=initcode,
         sender=sender,
@@ -117,4 +109,4 @@ def test_recreate(
         ),
     }
 
-    blockchain_test(genesis_environment=env, pre=pre, post=post, blocks=blocks)
+    blockchain_test(pre=pre, post=post, blocks=blocks)

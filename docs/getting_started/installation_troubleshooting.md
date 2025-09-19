@@ -36,11 +36,13 @@ This page provides guidance on how to troubleshoot common issues that may arise 
 
 ## Problem: `solc` Installation issues
 
-!!! danger "Problem: `Failed to install solc ... CERTIFICATE_VERIFY_FAILED`"
-    When running either `uv run solc-select use 0.8.24 --always-install` or `fill` you encounter the following error:
+### Problem: `CERTIFICATE_VERIFY_FAILED`
+
+!!! danger "Problem: `Failed to ... CERTIFICATE_VERIFY_FAILED`"
+    When running `fill` you might encounter the following error:
 
     ```bash
-    Exit: Failed to install solc version 0.8.24: <urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:992)>
+    Exit: Failed to ...: <urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:992)>
     ```
 
 === "Ubuntu"
@@ -61,6 +63,25 @@ This page provides guidance on how to troubleshoot common issues that may arise 
         ```bash
         /Applications/Python\ 3.11/Install\ Certificates.command
         ```
+
+### Problem: `Exception: failed to compile yul source`
+
+!!! danger "Problem: `Running fill on static_tests fails with tests that contain yul source code` on ARM platforms"
+    To resolve the issue you must acquire the `solc` binary e.g. by building solidity from source. The guide below installs v0.8.28 but you might prefer to choose a different version.
+
+!!! success "Solution: Build solc from source"
+    The following steps have been tested on Ubuntu 24.04.2 LTS ARM64:
+    ```bash
+    git clone --branch v0.8.28 --depth 1 https://github.com/ethereum/solidity.git
+    cd solidity && mkdir build && cd build
+    sudo apt install build-essential libboost-all-dev z3
+    cmake ..
+    make
+    mv $HOME/Documents/execution-spec-tests/.venv/bin/solc $HOME/Documents/execution-spec-tests/.venv/bin/solc-x86-64
+    cp ./solc/solc $HOME/Documents/execution-spec-tests/.venv/bin/
+    chmod +x $HOME/Documents/execution-spec-tests/.venv/bin/solc
+    ```
+    Running `uv run solc --version` should now return the expected version.
 
 ## Problem: `ValueError: unsupported hash type ripemd160`
 
@@ -106,3 +127,4 @@ Please include the following details in your report:
 
 1. The command that triggered the issue.
 2. Any relevant error messages or screenshots.
+3. Relevant version information from the output of `uv run eest info` (if running consume from within `eest`).

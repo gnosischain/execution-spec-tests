@@ -7,12 +7,47 @@ develop:
   evm-type: develop
   fill-params: --until=Prague
   solc: 0.8.21
+static:
+  evm-type: static
+  fill-params: --until=Prague --fill-static-tests ./tests/static
+  solc: 0.8.21
+benchmark_1M:
+  evm-type: benchmark
+  fill-params: --from=Cancun --until=Prague --block-gas-limit 1000000 -m benchmark ./tests
+  solc: 0.8.21
+  feature_only: true
+benchmark_10M:
+  evm-type: benchmark
+  fill-params: --from=Cancun --until=Prague --block-gas-limit 10000000 -m benchmark ./tests
+  solc: 0.8.21
+  feature_only: true
+benchmark_30M:
+  evm-type: benchmark
+  fill-params: --from=Cancun --until=Prague --block-gas-limit 30000000 -m benchmark ./tests
+  solc: 0.8.21
+  feature_only: true
+benchmark_60M:
+  evm-type: benchmark
+  fill-params: --from=Cancun --until=Prague --block-gas-limit 60000000 -m benchmark ./tests
+  solc: 0.8.21
+  feature_only: true
+benchmark_90M:
+  evm-type: benchmark
+  fill-params: --from=Cancun --until=Prague --block-gas-limit 90000000 -m benchmark ./tests
+  solc: 0.8.21
+  feature_only: true
+benchmark_120M:
+  evm-type: benchmark
+  fill-params: --from=Cancun --until=Prague --block-gas-limit 120000000 -m benchmark ./tests
+  solc: 0.8.21
+  feature_only: true
 eip7692:
   evm-type: eip7692
-  fill-params: --fork=Osaka ./tests/osaka
+  fill-params: --fork=EOFv1 ./tests/unscheduled
   solc: 0.8.21
   eofwrap: true
-pectra-devnet-5:
-  evm-type: pectra-devnet-5
-  fill-params: --until=Prague -m "not eip_version_check"
-  solc: 0.8.21
+  feature_only: true
+fusaka-devnet-2:
+  evm-type: develop
+  fill-params: --from=Prague --until=Osaka ./tests/osaka ./tests/shanghai/eip3860_initcode ./tests/prague/eip7702_set_code_tx/test_set_code_txs.py::test_set_code_to_precompile ./tests/byzantium/eip198_modexp_precompile ./tests/frontier/precompiles/test_precompiles.py ./tests/cancun/eip4844_blobs/test_blob_txs.py::test_sufficient_balance_blob_tx ./tests/cancun/eip4844_blobs/test_blob_txs.py::test_valid_blob_tx_combinations
+  feature_only: true

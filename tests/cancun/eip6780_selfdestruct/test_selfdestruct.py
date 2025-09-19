@@ -30,7 +30,7 @@ from ethereum_test_tools.code.generators import Conditional
 from ethereum_test_tools.vm.opcode import Opcodes as Op
 
 REFERENCE_SPEC_GIT_PATH = "EIPS/eip-6780.md"
-REFERENCE_SPEC_VERSION = "2f8299df31bb8173618901a03a8366a3183479b0"
+REFERENCE_SPEC_VERSION = "1b6a0e94cc47e859b9866e570391cf37dc55059a"
 
 SELFDESTRUCT_DISABLE_FORK = Cancun
 
@@ -693,14 +693,14 @@ def test_selfdestruct_pre_existing(
         - Different send-all recipient addresses: single, multiple, including self
         - Different initial balances for the self-destructing contract
     """
-    selfdestruct_contract_address = pre.deploy_contract(selfdestruct_code)
+    selfdestruct_contract_address = pre.deploy_contract(
+        selfdestruct_code, balance=selfdestruct_contract_initial_balance
+    )
     entry_code_storage = Storage()
 
     for i in range(len(sendall_recipient_addresses)):
         if sendall_recipient_addresses[i] == SELF_ADDRESS:
             sendall_recipient_addresses[i] = selfdestruct_contract_address
-    if selfdestruct_contract_initial_balance > 0:
-        pre.fund_address(selfdestruct_contract_address, selfdestruct_contract_initial_balance)
 
     # Create a dict to record the expected final balances
     sendall_final_balances = dict(

@@ -7,6 +7,7 @@ from .base_types import (
     BLSSignature,
     Bytes,
     FixedSizeBytes,
+    ForkHash,
     Hash,
     HashInt,
     HeaderNonce,
@@ -16,7 +17,15 @@ from .base_types import (
     Wei,
     ZeroPaddedHexNumber,
 )
-from .composite_types import AccessList, Account, Alloc, Storage, StorageRootType
+from .composite_types import (
+    AccessList,
+    Account,
+    Alloc,
+    BlobSchedule,
+    ForkBlobSchedule,
+    Storage,
+    StorageRootType,
+)
 from .constants import (
     AddrAA,
     AddrBB,
@@ -31,6 +40,7 @@ from .conversions import to_bytes, to_hex
 from .json import to_json
 from .pydantic import CamelModel, EthereumTestBaseModel, EthereumTestRootModel
 from .reference_spec import ReferenceSpec
+from .serialization import RLPSerializable, SignableRLPSerializable
 
 __all__ = (
     "AccessList",
@@ -39,6 +49,7 @@ __all__ = (
     "AddrBB",
     "Address",
     "Alloc",
+    "BlobSchedule",
     "Bloom",
     "BLSPublicKey",
     "BLSSignature",
@@ -46,9 +57,11 @@ __all__ = (
     "CamelModel",
     "EmptyOmmersRoot",
     "EmptyTrieRoot",
-    "FixedSizeBytes",
     "EthereumTestBaseModel",
     "EthereumTestRootModel",
+    "FixedSizeBytes",
+    "ForkBlobSchedule",
+    "ForkHash",
     "Hash",
     "HashInt",
     "HeaderNonce",
@@ -56,6 +69,8 @@ __all__ = (
     "Number",
     "NumberBoundTypeVar",
     "ReferenceSpec",
+    "RLPSerializable",
+    "SignableRLPSerializable",
     "Storage",
     "StorageRootType",
     "TestAddress",

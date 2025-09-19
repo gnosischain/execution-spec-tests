@@ -19,6 +19,7 @@ from typing import Any, Dict, Optional
 from pydantic import BaseModel
 
 from ethereum_test_base_types import Account, Hash
+from ethereum_test_rpc.types import TransactionByHashResponse
 from ethereum_test_tools import Environment, Transaction
 
 from .request_manager import RPCRequest
@@ -38,8 +39,8 @@ class StateTestProvider(Provider):
     """Provides context required to generate a `state_test` using pytest."""
 
     transaction_hash: Hash
-    block: Optional[RPCRequest.RemoteBlock] = None
-    transaction: Optional[RPCRequest.RemoteTransaction] = None
+    block: Optional[Environment] = None
+    transaction_response: Optional[TransactionByHashResponse] = None
     state: Optional[Dict[str, Dict]] = None
 
     def _make_rpc_calls(self):
@@ -48,38 +49,39 @@ class StateTestProvider(Provider):
             f"Perform tx request: eth_get_transaction_by_hash({self.transaction_hash})",
             file=stderr,
         )
-        self.transaction = request.eth_get_transaction_by_hash(self.transaction_hash)
+        self.transaction_response = request.eth_get_transaction_by_hash(self.transaction_hash)
 
         print("Perform debug_trace_call", file=stderr)
-        self.state = request.debug_trace_call(self.transaction)
+        self.state = request.debug_trace_call(self.transaction_response)
 
         print("Perform eth_get_block_by_number", file=stderr)
-        self.block = request.eth_get_block_by_number(self.transaction.block_number)
+        self.block = request.eth_get_block_by_number(self.transaction_response.block_number)
 
         print("Generate py test", file=stderr)
 
     def _get_environment(self) -> Environment:
         assert self.block is not None
-        return Environment(**self.block.model_dump())
+        return self.block
 
     def _get_pre_state(self) -> Dict[str, Account]:
         assert self.state is not None
-        assert self.transaction is not None
+        assert self.transaction_response is not None
 
         pre_state: Dict[str, Account] = {}
         for address, account_data in self.state.items():
             # TODO: Check if this is required. Ideally,
             # the pre-state tracer should have the correct
             # values without requiring any additional modifications.
-            if address == self.transaction.sender:
-                account_data["nonce"] = self.transaction.nonce
+            if address == self.transaction_response.sender:
+                account_data["nonce"] = self.transaction_response.nonce
 
             pre_state[address] = Account(**account_data)
         return pre_state
 
     def _get_transaction(self) -> Transaction:
-        assert self.transaction is not None
-        return Transaction(**self.transaction.model_dump())
+        assert self.transaction_response is not None
+        # Validate the RPC TransactionHashResponse and convert it to a Transaction instance.
+        return Transaction.model_validate(self.transaction_response.model_dump())
 
     def get_context(self) -> Dict[str, Any]:
         """

@@ -3,6 +3,7 @@
 import inspect
 from enum import IntEnum
 from functools import cache
+from hashlib import sha256
 from itertools import count
 from typing import Iterator, Literal
 
@@ -88,9 +89,9 @@ DELEGATION_DESIGNATION = b"\xef\x01\x00"
 class Alloc(BaseAlloc):
     """Allocation of accounts in the state, pre and post test execution."""
 
-    _alloc_mode: AllocMode = PrivateAttr(...)
-    _contract_address_iterator: Iterator[Address] = PrivateAttr(...)
-    _eoa_iterator: Iterator[EOA] = PrivateAttr(...)
+    _alloc_mode: AllocMode = PrivateAttr()
+    _contract_address_iterator: Iterator[Address] = PrivateAttr()
+    _eoa_iterator: Iterator[EOA] = PrivateAttr()
     _evm_code_type: EVMCodeType | None = PrivateAttr(None)
 
     def __init__(
@@ -250,6 +251,27 @@ class Alloc(BaseAlloc):
                 return
         super().__setitem__(address, Account(balance=amount))
 
+    def empty_account(self) -> Address:
+        """
+        Add a previously unused account guaranteed to be empty to the pre-alloc.
+
+        This ensures the account has:
+        - Zero balance
+        - Zero nonce
+        - No code
+        - No storage
+
+        This is different from precompiles or system contracts. The function does not
+        send any transactions, ensuring that the account remains "empty."
+
+        Returns:
+            Address: The address of the created empty account.
+
+        """
+        eoa = next(self._eoa_iterator)
+
+        return Address(eoa)
+
 
 @pytest.fixture(scope="session")
 def alloc_mode(request: pytest.FixtureRequest) -> AllocMode:
@@ -271,14 +293,26 @@ def contract_address_increments(request: pytest.FixtureRequest) -> int:
     return int(request.config.getoption("test_contract_address_increments"), 0)
 
 
+def sha256_from_string(s: str) -> int:
+    """Return SHA-256 hash of a string."""
+    return int.from_bytes(sha256(s.encode("utf-8")).digest(), "big")
+
+
 @pytest.fixture(scope="function")
 def contract_address_iterator(
+    request: pytest.FixtureRequest,
     contract_start_address: int,
     contract_address_increments: int,
 ) -> Iterator[Address]:
-    """Return iterator over contract addresses."""
+    """Return iterator over contract addresses with dynamic scoping."""
+    if request.config.getoption(
+        "generate_pre_alloc_groups", default=False
+    ) or request.config.getoption("use_pre_alloc_groups", default=False):
+        # Use a starting address that is derived from the test node
+        contract_start_address = sha256_from_string(request.node.nodeid)
     return iter(
-        Address(contract_start_address + (i * contract_address_increments)) for i in count()
+        Address((contract_start_address + (i * contract_address_increments)) % 2**160)
+        for i in count()
     )
 
 
@@ -289,8 +323,21 @@ def eoa_by_index(i: int) -> EOA:
 
 
 @pytest.fixture(scope="function")
-def eoa_iterator() -> Iterator[EOA]:
-    """Return iterator over EOAs copies."""
+def eoa_iterator(request: pytest.FixtureRequest) -> Iterator[EOA]:
+    """Return iterator over EOAs copies with dynamic scoping."""
+    if request.config.getoption(
+        "generate_pre_alloc_groups", default=False
+    ) or request.config.getoption("use_pre_alloc_groups", default=False):
+        # Use a starting address that is derived from the test node
+        eoa_start_pk = sha256_from_string(request.node.nodeid)
+        return iter(
+            EOA(
+                key=(eoa_start_pk + i)
+                % 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141,
+                nonce=0,
+            )
+            for i in count()
+        )
     return iter(eoa_by_index(i).copy() for i in count())
 
 

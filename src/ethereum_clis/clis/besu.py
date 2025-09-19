@@ -7,28 +7,27 @@ import subprocess
 import tempfile
 import textwrap
 from pathlib import Path
-from typing import List, Optional
+from typing import ClassVar, Dict, Optional
 
-import requests
+import requests  # type: ignore
 
 from ethereum_test_exceptions import (
-    EOFException,
+    BlockException,
+    ExceptionBase,
     ExceptionMapper,
-    ExceptionMessage,
     TransactionException,
 )
 from ethereum_test_forks import Fork
-from ethereum_test_types import Alloc, Environment, Transaction
 
 from ..transition_tool import TransitionTool, dump_files_to_directory, model_dump_config
-from ..types import TransitionToolInput, TransitionToolOutput
+from ..types import TransitionToolOutput
 
 
 class BesuTransitionTool(TransitionTool):
     """Besu EvmTool Transition tool frontend wrapper class."""
 
     default_binary = Path("evm")
-    detect_binary_pattern = re.compile(r"^Hyperledger Besu evm .*$")
+    detect_binary_pattern = re.compile(r"^Besu evm .*$")
     binary: Path
     cached_version: Optional[str] = None
     trace: bool
@@ -49,7 +48,7 @@ class BesuTransitionTool(TransitionTool):
             result = subprocess.run(args, capture_output=True, text=True)
         except subprocess.CalledProcessError as e:
             raise Exception(
-                "evm process unexpectedly returned a non-zero status code: " f"{e}."
+                f"evm process unexpectedly returned a non-zero status code: {e}."
             ) from e
         except Exception as e:
             raise Exception(f"Unexpected exception calling evm tool: {e}.") from e
@@ -59,7 +58,7 @@ class BesuTransitionTool(TransitionTool):
     def start_server(self):
         """
         Start the t8n-server process, extract the port, and leave it running
-        for future re-use.
+        for future reuse.
         """
         args = [
             str(self.binary),
@@ -97,38 +96,20 @@ class BesuTransitionTool(TransitionTool):
     def evaluate(
         self,
         *,
-        alloc: Alloc,
-        txs: List[Transaction],
-        env: Environment,
-        fork: Fork,
-        chain_id: int = 1,
-        reward: int = 0,
-        eips: Optional[List[int]] = None,
+        transition_tool_data: TransitionTool.TransitionToolData,
         debug_output_path: str = "",
-        state_test: bool = False,
         slow_request: bool = False,
     ) -> TransitionToolOutput:
         """Execute `evm t8n` with the specified arguments."""
         if not self.process:
             self.start_server()
 
-        fork_name = fork.transition_tool_name(
-            block_number=env.number,
-            timestamp=env.timestamp,
-        )
-        if eips is not None:
-            fork_name = "+".join([fork_name] + [str(eip) for eip in eips])
-
-        input_json = TransitionToolInput(
-            alloc=alloc,
-            txs=txs,
-            env=env,
-        ).model_dump(mode="json", **model_dump_config)
+        input_json = transition_tool_data.to_input().model_dump(mode="json", **model_dump_config)
 
         state_json = {
-            "fork": fork_name,
-            "chainid": chain_id,
-            "reward": reward,
+            "fork": transition_tool_data.fork_name,
+            "chainid": transition_tool_data.chain_id,
+            "reward": transition_tool_data.reward,
         }
 
         post_data = {"state": state_json, "input": input_json}
@@ -161,7 +142,9 @@ class BesuTransitionTool(TransitionTool):
 
         response = requests.post(self.server_url, json=post_data, timeout=5)
         response.raise_for_status()  # exception visible in pytest failure output
-        output: TransitionToolOutput = TransitionToolOutput.model_validate(response.json())
+        output: TransitionToolOutput = TransitionToolOutput.model_validate(
+            response.json(), context={"exception_mapper": self.exception_mapper}
+        )
 
         if debug_output_path:
             dump_files_to_directory(
@@ -207,133 +190,103 @@ class BesuTransitionTool(TransitionTool):
 class BesuExceptionMapper(ExceptionMapper):
     """Translate between EEST exceptions and error strings returned by Besu."""
 
-    @property
-    def _mapping_data(self):
-        return [
-            ExceptionMessage(
-                TransactionException.TYPE_4_TX_CONTRACT_CREATION,
-                "set code transaction must not be a create transaction",
-            ),
-            ExceptionMessage(
-                TransactionException.INSUFFICIENT_ACCOUNT_FUNDS,
-                "exceeds transaction sender account balance",
-            ),
-            ExceptionMessage(
-                TransactionException.TYPE_3_TX_MAX_BLOB_GAS_ALLOWANCE_EXCEEDED,
-                "would exceed block maximum",
-            ),
-            ExceptionMessage(
-                TransactionException.INSUFFICIENT_MAX_FEE_PER_BLOB_GAS,
-                "max fee per blob gas less than block blob gas fee",
-            ),
-            ExceptionMessage(
-                TransactionException.INSUFFICIENT_MAX_FEE_PER_GAS,
-                "gasPrice is less than the current BaseFee",
-            ),
-            ExceptionMessage(
-                TransactionException.TYPE_3_TX_PRE_FORK,
-                (
-                    "Transaction type BLOB is invalid, accepted transaction types are "
-                    "[EIP1559, ACCESS_LIST, FRONTIER]"
-                ),
-            ),
-            ExceptionMessage(
-                TransactionException.TYPE_3_TX_INVALID_BLOB_VERSIONED_HASH,
-                "Only supported hash version is 0x01, sha256 hash.",
-            ),
-            # This message is the same as TYPE_3_TX_MAX_BLOB_GAS_ALLOWANCE_EXCEEDED
-            ExceptionMessage(
-                TransactionException.TYPE_3_TX_BLOB_COUNT_EXCEEDED,
-                "exceed block maximum",
-            ),
-            ExceptionMessage(
-                TransactionException.TYPE_3_TX_ZERO_BLOBS,
-                "Blob transaction must have at least one versioned hash",
-            ),
-            ExceptionMessage(
-                TransactionException.INTRINSIC_GAS_TOO_LOW,
-                "intrinsic gas too low",
-            ),
-            ExceptionMessage(
-                TransactionException.INITCODE_SIZE_EXCEEDED,
-                "max initcode size exceeded",
-            ),
-            # TODO EVMONE needs to differentiate when the section is missing in the header or body
-            ExceptionMessage(EOFException.MISSING_STOP_OPCODE, "err: no_terminating_instruction"),
-            ExceptionMessage(EOFException.MISSING_CODE_HEADER, "err: code_section_missing"),
-            ExceptionMessage(EOFException.MISSING_TYPE_HEADER, "err: type_section_missing"),
-            # TODO EVMONE these exceptions are too similar, this leeds to ambiguity
-            ExceptionMessage(EOFException.MISSING_TERMINATOR, "err: header_terminator_missing"),
-            ExceptionMessage(
-                EOFException.MISSING_HEADERS_TERMINATOR, "err: section_headers_not_terminated"
-            ),
-            ExceptionMessage(EOFException.INVALID_VERSION, "err: eof_version_unknown"),
-            ExceptionMessage(
-                EOFException.INVALID_NON_RETURNING_FLAG, "err: invalid_non_returning_flag"
-            ),
-            ExceptionMessage(EOFException.INVALID_MAGIC, "err: invalid_prefix"),
-            ExceptionMessage(
-                EOFException.INVALID_FIRST_SECTION_TYPE, "err: invalid_first_section_type"
-            ),
-            ExceptionMessage(
-                EOFException.INVALID_SECTION_BODIES_SIZE, "err: invalid_section_bodies_size"
-            ),
-            ExceptionMessage(
-                EOFException.INVALID_TYPE_SECTION_SIZE, "err: invalid_type_section_size"
-            ),
-            ExceptionMessage(EOFException.INCOMPLETE_SECTION_SIZE, "err: incomplete_section_size"),
-            ExceptionMessage(
-                EOFException.INCOMPLETE_SECTION_NUMBER, "err: incomplete_section_number"
-            ),
-            ExceptionMessage(EOFException.TOO_MANY_CODE_SECTIONS, "err: too_many_code_sections"),
-            ExceptionMessage(EOFException.ZERO_SECTION_SIZE, "err: zero_section_size"),
-            ExceptionMessage(EOFException.MISSING_DATA_SECTION, "err: data_section_missing"),
-            ExceptionMessage(EOFException.UNDEFINED_INSTRUCTION, "err: undefined_instruction"),
-            ExceptionMessage(
-                EOFException.INPUTS_OUTPUTS_NUM_ABOVE_LIMIT, "err: inputs_outputs_num_above_limit"
-            ),
-            ExceptionMessage(
-                EOFException.UNREACHABLE_INSTRUCTIONS, "err: unreachable_instructions"
-            ),
-            ExceptionMessage(
-                EOFException.INVALID_RJUMP_DESTINATION, "err: invalid_rjump_destination"
-            ),
-            ExceptionMessage(
-                EOFException.UNREACHABLE_CODE_SECTIONS, "err: unreachable_code_sections"
-            ),
-            ExceptionMessage(EOFException.STACK_UNDERFLOW, "err: stack_underflow"),
-            ExceptionMessage(
-                EOFException.MAX_STACK_HEIGHT_ABOVE_LIMIT, "err: max_stack_height_above_limit"
-            ),
-            ExceptionMessage(
-                EOFException.STACK_HIGHER_THAN_OUTPUTS, "err: stack_higher_than_outputs_required"
-            ),
-            ExceptionMessage(
-                EOFException.JUMPF_DESTINATION_INCOMPATIBLE_OUTPUTS,
-                "err: jumpf_destination_incompatible_outputs",
-            ),
-            ExceptionMessage(
-                EOFException.INVALID_MAX_STACK_HEIGHT, "err: invalid_max_stack_height"
-            ),
-            ExceptionMessage(EOFException.INVALID_DATALOADN_INDEX, "err: invalid_dataloadn_index"),
-            ExceptionMessage(EOFException.TRUNCATED_INSTRUCTION, "err: truncated_instruction"),
-            ExceptionMessage(
-                EOFException.TOPLEVEL_CONTAINER_TRUNCATED, "err: toplevel_container_truncated"
-            ),
-            ExceptionMessage(EOFException.ORPHAN_SUBCONTAINER, "err: unreferenced_subcontainer"),
-            ExceptionMessage(
-                EOFException.CONTAINER_SIZE_ABOVE_LIMIT, "err: container_size_above_limit"
-            ),
-            ExceptionMessage(
-                EOFException.INVALID_CONTAINER_SECTION_INDEX,
-                "err: invalid_container_section_index",
-            ),
-            ExceptionMessage(
-                EOFException.INCOMPATIBLE_CONTAINER_KIND, "err: incompatible_container_kind"
-            ),
-            ExceptionMessage(EOFException.STACK_HEIGHT_MISMATCH, "err: stack_height_mismatch"),
-            ExceptionMessage(EOFException.TOO_MANY_CONTAINERS, "err: too_many_container_sections"),
-            ExceptionMessage(
-                EOFException.INVALID_CODE_SECTION_INDEX, "err: invalid_code_section_index"
-            ),
-        ]
+    mapping_substring: ClassVar[Dict[ExceptionBase, str]] = {
+        TransactionException.NONCE_IS_MAX: "invalid Nonce must be less than",
+        TransactionException.INSUFFICIENT_MAX_FEE_PER_BLOB_GAS: (
+            "transaction invalid tx max fee per blob gas less than block blob gas fee"
+        ),
+        TransactionException.GASLIMIT_PRICE_PRODUCT_OVERFLOW: (
+            "invalid Upfront gas cost cannot exceed 2^256 Wei"
+        ),
+        TransactionException.INSUFFICIENT_MAX_FEE_PER_GAS: (
+            "transaction invalid gasPrice is less than the current BaseFee"
+        ),
+        TransactionException.GAS_ALLOWANCE_EXCEEDED: "provided gas insufficient",
+        TransactionException.PRIORITY_GREATER_THAN_MAX_FEE_PER_GAS: (
+            "transaction invalid max priority fee per gas cannot be greater than max fee per gas"
+        ),
+        TransactionException.TYPE_3_TX_INVALID_BLOB_VERSIONED_HASH: "Invalid versionedHash",
+        TransactionException.TYPE_3_TX_CONTRACT_CREATION: (
+            "transaction invalid transaction blob transactions must have a to address"
+        ),
+        TransactionException.TYPE_3_TX_WITH_FULL_BLOBS: (
+            "Failed to decode transactions from block parameter"
+        ),
+        TransactionException.TYPE_3_TX_ZERO_BLOBS: (
+            "Failed to decode transactions from block parameter"
+        ),
+        TransactionException.TYPE_3_TX_MAX_BLOB_GAS_ALLOWANCE_EXCEEDED: "Invalid Blob Count",
+        TransactionException.TYPE_3_TX_BLOB_COUNT_EXCEEDED: "Invalid Blob Count",
+        TransactionException.TYPE_3_TX_PRE_FORK: (
+            "Transaction type BLOB is invalid, accepted transaction types are"
+        ),
+        TransactionException.TYPE_4_EMPTY_AUTHORIZATION_LIST: (
+            "transaction invalid transaction code delegation transactions must have a "
+            "non-empty code delegation list"
+        ),
+        TransactionException.TYPE_4_TX_CONTRACT_CREATION: (
+            "transaction invalid transaction code delegation transactions must have a to address"
+        ),
+        TransactionException.TYPE_4_TX_PRE_FORK: (
+            "transaction invalid Transaction type DELEGATE_CODE is invalid"
+        ),
+        BlockException.RLP_STRUCTURES_ENCODING: (
+            "Failed to decode transactions from block parameter"
+        ),
+        BlockException.INCORRECT_EXCESS_BLOB_GAS: (
+            "Payload excessBlobGas does not match calculated excessBlobGas"
+        ),
+        BlockException.BLOB_GAS_USED_ABOVE_LIMIT: (
+            "Payload BlobGasUsed does not match calculated BlobGasUsed"
+        ),
+        BlockException.INCORRECT_BLOB_GAS_USED: (
+            "Payload BlobGasUsed does not match calculated BlobGasUsed"
+        ),
+        BlockException.INVALID_GAS_USED_ABOVE_LIMIT: "Header validation failed (FULL)",
+    }
+    mapping_regex = {
+        BlockException.INVALID_REQUESTS: (
+            r"Invalid execution requests|Requests hash mismatch, calculated: 0x[0-9a-f]+ header: "
+            r"0x[0-9a-f]+"
+        ),
+        BlockException.INVALID_BLOCK_HASH: (
+            r"Computed block hash 0x[0-9a-f]+ does not match block hash parameter 0x[0-9a-f]+"
+        ),
+        BlockException.SYSTEM_CONTRACT_CALL_FAILED: (
+            r"System call halted|System call did not execute to completion"
+        ),
+        BlockException.SYSTEM_CONTRACT_EMPTY: (
+            r"(Invalid system call, no code at address)|" r"(Invalid system call address:)"
+        ),
+        BlockException.INVALID_DEPOSIT_EVENT_LAYOUT: (
+            r"Invalid (amount|index|pubKey|signature|withdrawalCred) (offset|size): "
+            r"expected (\d+), but got (-?\d+)|"
+            r"Invalid deposit log length\. Must be \d+ bytes, but is \d+ bytes"
+        ),
+        BlockException.RLP_BLOCK_LIMIT_EXCEEDED: (
+            r"Block size of \d+ bytes exceeds limit of \d+ bytes"
+        ),
+        TransactionException.INITCODE_SIZE_EXCEEDED: (
+            r"transaction invalid Initcode size of \d+ exceeds maximum size of \d+"
+        ),
+        TransactionException.INSUFFICIENT_ACCOUNT_FUNDS: (
+            r"transaction invalid transaction up-front cost 0x[0-9a-f]+ exceeds transaction "
+            r"sender account balance 0x[0-9a-f]+"
+        ),
+        TransactionException.INTRINSIC_GAS_TOO_LOW: (
+            r"transaction invalid intrinsic gas cost \d+ exceeds gas limit \d+"
+        ),
+        TransactionException.INTRINSIC_GAS_BELOW_FLOOR_GAS_COST: (
+            r"transaction invalid intrinsic gas cost \d+ exceeds gas limit \d+"
+        ),
+        TransactionException.SENDER_NOT_EOA: (
+            r"transaction invalid Sender 0x[0-9a-f]+ has deployed code and so is not authorized "
+            r"to send transactions"
+        ),
+        TransactionException.NONCE_MISMATCH_TOO_LOW: (
+            r"transaction invalid transaction nonce \d+ below sender account nonce \d+"
+        ),
+        TransactionException.GAS_LIMIT_EXCEEDS_MAXIMUM: (
+            r"transaction invalid Transaction gas limit must be at most \d+"
+        ),
+    }
