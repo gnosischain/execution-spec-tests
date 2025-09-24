@@ -2,6 +2,8 @@
 
 import pytest
 
+invalid_merge_marker = "Marge"  # codespell:ignore marge
+
 invalid_validity_marker_test_cases = (
     (
         "too_many_valid_from_markers",
@@ -79,7 +81,7 @@ invalid_validity_marker_test_cases = (
         ),
     ),
     (
-        "valid_from_too_many_args",
+        "valid_from_duplicate_arg",
         (
             """
             import pytest
@@ -87,11 +89,11 @@ invalid_validity_marker_test_cases = (
             def test_case(state_test):
                 assert 0
             """,
-            "Too many arguments specified to 'valid_from'",
+            "Duplicate argument specified in 'valid_from'",
         ),
     ),
     (
-        "valid_until_too_many_args",
+        "valid_until_duplicate_arg",
         (
             """
             import pytest
@@ -99,11 +101,11 @@ invalid_validity_marker_test_cases = (
             def test_case(state_test):
                 assert 0
             """,
-            "Too many arguments specified to 'valid_until'",
+            "Duplicate argument specified in 'valid_until'",
         ),
     ),
     (
-        "valid_at_transition_too_many_args",
+        "valid_at_transition_duplicate_arg",
         (
             """
             import pytest
@@ -111,19 +113,19 @@ invalid_validity_marker_test_cases = (
             def test_case(state_test):
                 assert 0
             """,
-            "Too many arguments specified to 'valid_at_transition_to'",
+            "Duplicate argument specified in 'valid_at_transition_to'",
         ),
     ),
     (
         "valid_from_nonexistent_fork",
         (
-            """
+            f"""
             import pytest
-            @pytest.mark.valid_from("Marge")
+            @pytest.mark.valid_from("{invalid_merge_marker}")
             def test_case(state_test):
                 assert 0
             """,
-            "invalid fork 'Marge'",
+            f"Invalid fork '{invalid_merge_marker}'",
         ),
     ),
     (
@@ -135,7 +137,7 @@ invalid_validity_marker_test_cases = (
             def test_case(state_test):
                 assert 0
             """,
-            "invalid fork 'Shangbye'",
+            "Invalid fork 'Shangbye'",
         ),
     ),
     (
@@ -147,7 +149,19 @@ invalid_validity_marker_test_cases = (
             def test_case(state_test):
                 assert 0
             """,
-            "invalid fork 'Cantcun'",
+            "Invalid fork 'Cantcun'",
+        ),
+    ),
+    (
+        "valid_at_transition_to_until_nonexistent_fork",
+        (
+            """
+            import pytest
+            @pytest.mark.valid_at_transition_to("Shanghai", until="Cantcun")
+            def test_case(state_test):
+                assert 0
+            """,
+            "Invalid fork 'Cantcun'",
         ),
     ),
     (
@@ -207,8 +221,8 @@ def test_invalid_validity_markers(pytester, error_string, test_function):
     session.
     """
     pytester.makepyfile(test_function)
-    pytester.copy_example(name="pytest.ini")
-    result = pytester.runpytest()
+    pytester.copy_example(name="src/cli/pytest_commands/pytest_ini_files/pytest-fill.ini")
+    result = pytester.runpytest("-c", "pytest-fill.ini")
     result.assert_outcomes(
         passed=0,
         failed=0,

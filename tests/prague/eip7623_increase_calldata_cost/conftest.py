@@ -25,12 +25,6 @@ from .helpers import DataTestType, find_floor_cost_threshold
 
 
 @pytest.fixture
-def sender(pre: Alloc) -> EOA:
-    """Create the sender account."""
-    return pre.fund_eoa()
-
-
-@pytest.fixture
 def to(
     request: pytest.FixtureRequest,
     pre: Alloc,
@@ -43,8 +37,8 @@ def to(
 
     if param is None:
         return None
-    if isinstance(param, Address):
-        return param
+    if isinstance(param, str) and param == "eoa":
+        return pre.fund_eoa(amount=0)
     if isinstance(param, Bytecode):
         return pre.deploy_contract(param)
 
@@ -231,7 +225,30 @@ def tx_gas_delta() -> int:
 
 
 @pytest.fixture
-def tx_intrinsic_gas_cost(
+def tx_intrinsic_gas_cost_before_execution(
+    fork: Fork,
+    tx_data: Bytes,
+    access_list: List[AccessList] | None,
+    authorization_list: List[AuthorizationTuple] | None,
+    contract_creating_tx: bool,
+) -> int:
+    """
+    Return the intrinsic gas cost that is applied before the execution start.
+
+    This value never includes the floor data gas cost.
+    """
+    intrinsic_gas_cost_calculator = fork.transaction_intrinsic_cost_calculator()
+    return intrinsic_gas_cost_calculator(
+        calldata=tx_data,
+        contract_creation=contract_creating_tx,
+        access_list=access_list,
+        authorization_list_or_count=authorization_list,
+        return_cost_deducted_prior_execution=True,
+    )
+
+
+@pytest.fixture
+def tx_intrinsic_gas_cost_including_floor_data_cost(
     fork: Fork,
     tx_data: Bytes,
     access_list: List[AccessList] | None,
@@ -242,7 +259,9 @@ def tx_intrinsic_gas_cost(
     Transaction intrinsic gas cost.
 
     The calculated value takes into account the normal intrinsic gas cost and the floor data gas
-    cost.
+    cost if it is greater than the intrinsic gas cost.
+
+    In other words, this is the value that is required for the transaction to be valid.
     """
     intrinsic_gas_cost_calculator = fork.transaction_intrinsic_cost_calculator()
     return intrinsic_gas_cost_calculator(
@@ -265,7 +284,7 @@ def tx_floor_data_cost(
 
 @pytest.fixture
 def tx_gas_limit(
-    tx_intrinsic_gas_cost: int,
+    tx_intrinsic_gas_cost_including_floor_data_cost: int,
     tx_gas_delta: int,
 ) -> int:
     """
@@ -273,13 +292,18 @@ def tx_gas_limit(
 
     The gas delta is added to the intrinsic gas cost to generate different test scenarios.
     """
-    return tx_intrinsic_gas_cost + tx_gas_delta
+    return tx_intrinsic_gas_cost_including_floor_data_cost + tx_gas_delta
 
 
 @pytest.fixture
-def tx_error(tx_gas_delta: int) -> TransactionException | None:
+def tx_error(tx_gas_delta: int, data_test_type: DataTestType) -> TransactionException | None:
     """Transaction error, only expected if the gas delta is negative."""
-    return TransactionException.INTRINSIC_GAS_TOO_LOW if tx_gas_delta < 0 else None
+    if tx_gas_delta < 0:
+        if data_test_type == DataTestType.FLOOR_GAS_COST_GREATER_THAN_INTRINSIC_GAS:
+            return TransactionException.INTRINSIC_GAS_BELOW_FLOOR_GAS_COST
+        else:
+            return TransactionException.INTRINSIC_GAS_TOO_LOW
+    return None
 
 
 @pytest.fixture

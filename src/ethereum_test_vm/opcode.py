@@ -87,7 +87,7 @@ class Opcode(Bytecode):
     data_portion_length: int
     data_portion_formatter: Optional[Callable[[Any], bytes]]
     stack_properties_modifier: Optional[Callable[[Any], tuple[int, int, int, int]]]
-    kwargs: List[str] | None
+    kwargs: List[str]
     kwargs_defaults: KW_ARGS_DEFAULTS_TYPE
     unchecked_stack: bool = False
 
@@ -137,7 +137,10 @@ class Opcode(Bytecode):
             obj.data_portion_formatter = data_portion_formatter
             obj.stack_properties_modifier = stack_properties_modifier
             obj.unchecked_stack = unchecked_stack
-            obj.kwargs = kwargs
+            if kwargs is None:
+                obj.kwargs = []
+            else:
+                obj.kwargs = kwargs
             obj.kwargs_defaults = kwargs_defaults
             return obj
         raise TypeError("Opcode constructor '__new__' didn't return an instance!")
@@ -254,6 +257,16 @@ class Opcode(Bytecode):
 
         if self.kwargs is not None and len(kwargs) > 0:
             assert len(args) == 0, f"Cannot mix positional and keyword arguments {args} {kwargs}"
+
+            # Validate that all provided kwargs are valid
+            invalid_kwargs = set(kwargs.keys()) - set(self.kwargs)
+            if invalid_kwargs:
+                raise ValueError(
+                    f"Invalid keyword argument(s) {list(invalid_kwargs)} for opcode "
+                    f"{self._name_}. Valid arguments are: {self.kwargs}"
+                    f"Valid arguments are: {self.kwargs}"
+                )
+
             for kw in self.kwargs:
                 args.append(kwargs[kw] if kw in kwargs else self.kwargs_defaults.get(kw, 0))
 
@@ -312,7 +325,7 @@ class Macro(Bytecode):
             instance.lambda_operation = lambda_operation
             return instance
 
-    def __call__(self, *args_t: OpcodeCallArg) -> Bytecode:
+    def __call__(self, *args_t: OpcodeCallArg, **kwargs) -> Bytecode:
         """Perform macro operation if any. Otherwise is a no-op."""
         if self.lambda_operation is not None:
             return self.lambda_operation(*args_t)
@@ -1169,6 +1182,34 @@ class Opcodes(Opcode, Enum):
     3
 
     Source: [evm.codes/#1D](https://www.evm.codes/#1D)
+    """
+
+    CLZ = Opcode(0x1E, popped_stack_items=1, pushed_stack_items=1)
+    """
+    CLZ(value) = count_leading_zeros(value)
+    ----
+
+    Description
+    ----
+    Counts leading zeros (bitwise).
+
+    Inputs
+    ----
+    - value: integer to count zeros on
+
+    Outputs
+    ----
+    - zeros: leading zero bits
+
+    Fork
+    ----
+    Osaka
+
+    Gas
+    ----
+    3
+
+    Source: [evm.codes/#1E](https://www.evm.codes/#1E)
     """
 
     SHA3 = Opcode(0x20, popped_stack_items=2, pushed_stack_items=1, kwargs=["offset", "size"])
@@ -5062,7 +5103,7 @@ class Opcodes(Opcode, Enum):
     Description
     ----
     Exchanges two stack positions.  Two nybbles, n is high 4 bits + 1, then  m is 4 low bits + 1.
-    Exchanges tne n+1'th item with the n + m + 1 item.
+    Exchanges the n+1'th item with the n + m + 1 item.
 
     Inputs x and y when the opcode is used as `EXCHANGE[x, y]`, are equal to:
     - x = n + 1
@@ -5092,12 +5133,12 @@ class Opcodes(Opcode, Enum):
         popped_stack_items=4,
         pushed_stack_items=1,
         data_portion_length=1,
-        kwargs=["value", "salt", "input_offset", "input_size"],
+        kwargs=["salt", "input_offset", "input_size", "value"],
     )
     """
     !!! Note: This opcode is under development
 
-    EOFCREATE[initcontainer_index](value, salt, input_offset, input_size)
+    EOFCREATE[initcontainer_index] (salt, input_offset, input_size, value)
     ----
 
     Description
@@ -5117,7 +5158,36 @@ class Opcodes(Opcode, Enum):
 
     """
 
-    RETURNCONTRACT = Opcode(
+    TXCREATE = Opcode(
+        0xED,
+        popped_stack_items=5,
+        pushed_stack_items=1,
+        kwargs=["tx_initcode_hash", "salt", "input_offset", "input_size", "value"],
+    )
+    """
+    !!! Note: This opcode is under development
+
+    TXCREATE (tx_initcode_hash, salt, input_offset, input_size, value)
+    ----
+
+    Description
+    ----
+
+    Inputs
+    ----
+
+    Outputs
+    ----
+
+    Fork
+    ----
+
+    Gas
+    ----
+
+    """
+
+    RETURNCODE = Opcode(
         0xEE,
         popped_stack_items=2,
         data_portion_length=1,
@@ -5127,7 +5197,7 @@ class Opcodes(Opcode, Enum):
     """
     !!! Note: This opcode is under development
 
-    RETURNCONTRACT()
+    RETURNCODE()
     ----
 
     Description
@@ -5869,7 +5939,6 @@ class UndefinedOpcodes(Opcode, Enum):
     OPCODE_E9 = Opcode(0xE9)
     OPCODE_EA = Opcode(0xEA)
     OPCODE_EB = Opcode(0xEB)
-    OPCODE_ED = Opcode(0xED)
     OPCODE_EF = Opcode(0xEF)
     OPCODE_F6 = Opcode(0xF6)
     OPCODE_FC = Opcode(0xFC)

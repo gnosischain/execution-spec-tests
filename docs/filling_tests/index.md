@@ -9,7 +9,7 @@ The process of generating fixtures is often referred to as "filling" the tests.
 
 !!! note "The `execute` command"
 
-    The `execute` command directly executes Python test cases against a client via its RPC without using generated JSON fixtures. For all other methods of testing clients, the JSON fixtures are required. For more information, see [Executing Tests](../executing_tests/index.md).
+    The `execute` command directly executes Python test cases against a client via its RPC without using generated JSON fixtures. For all other methods of testing clients, the JSON fixtures are required. For more information, see [Executing Tests](../running_tests/execute/index.md).
 
 ## Transition Tools (`t8n`)
 
@@ -28,3 +28,11 @@ The "fill-consume" method follows a differential testing approach: A reference i
     Some tests cases, particularly those without straightforward post-checks, such as certain gas calculations, may allow subtle inconsistencies to slip through during filling.
     
     **Consequently, filling the tests does not ensure the client’s correctness. Clients must consume the tests to be considered correctly tested, even if that client was used to fill the tests.**
+
+## Filling Static Tests from [ethereum/tests](https://github.com/ethereum/tests)
+
+Filling static test fillers in YAML or JSON formats from [ethereum/tests](https://github.com/ethereum/tests/tree/develop/src) is possible by adding the `--fill-static-tests` to the `fill` command.
+
+This functionality is only available for backwards compatibility and copying legacy tests from the [ethereum/tests](https://github.com/ethereum/tests) repository into this one.
+
+Adding new static test fillers is otherwise not allowed.

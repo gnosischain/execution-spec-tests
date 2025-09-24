@@ -10,47 +10,19 @@ These markers are used to specify the forks for which a test is valid.
 
 ### `@pytest.mark.valid_from("FORK_NAME")`
 
-This marker is used to specify the fork from which the test is valid. The test will not be filled for forks before the specified fork.
-
-```python
-import pytest
-
-from ethereum_test_tools import Alloc, StateTestFiller
-
-@pytest.mark.valid_from("London")
-def test_something_only_valid_after_london(
-    state_test: StateTestFiller, 
-    pre: Alloc
-):
-    pass
-```
-
-In this example, the test will only be filled for the London fork and after, e.g. London, Paris, Shanghai, Cancun, etc.
+:::pytest_plugins.forks.forks.ValidFrom
 
 ### `@pytest.mark.valid_until("FORK_NAME")`
 
-This marker is used to specify the fork until which the test is valid. The test will not be filled for forks after the specified fork.
+:::pytest_plugins.forks.forks.ValidUntil
 
-```python
-import pytest
+### `@pytest.mark.valid_at("FORK_NAME_1", "FORK_NAME_2", ...)`
 
-from ethereum_test_tools import Alloc, StateTestFiller
-
-@pytest.mark.valid_until("London")
-def test_something_only_valid_until_london(
-    state_test: StateTestFiller, 
-    pre: Alloc
-):
-    pass
-```
-
-In this example, the test will only be filled for the London fork and before, e.g. London, Berlin, Istanbul, etc.
+:::pytest_plugins.forks.forks.ValidAt
 
 ### `@pytest.mark.valid_at_transition_to("FORK_NAME")`
 
-This marker is used to specify that a test is only meant to be filled at the transition to the specified fork.
-
-The test usually starts at the fork prior to the specified fork at genesis and at block 5 (for pre-merge forks) or at timestamp 15,000 (for post-merge forks) the fork transition occurs.
+:::pytest_plugins.forks.forks.ValidAtTransitionTo
 
 ## Fork Covariant Markers
 
@@ -82,6 +54,59 @@ In this example, the test will be parameterized for parameter `tx_type` with val
 This marker is used to automatically parameterize a test with all contract creating transaction types that are valid for the fork being tested.
 
 This marker only differs from `pytest.mark.with_all_tx_types` in that it does not include transaction type 3 (Blob Transaction type) on fork Cancun and after.
+
+### `@pytest.mark.with_all_typed_transactions`
+
+This marker is used to automatically parameterize a test with all typed transactions, including `type=0` (legacy transaction), that are valid for the fork being tested.
+This marker is an indirect marker that utilizes the `tx_type` values from the `pytest.mark.with_all_tx_types` marker to build default typed transactions for each `tx_type`.
+
+Optional: Default typed transactions used as values for `typed_transaction` exist in `src/pytest_plugins/shared/transaction_fixtures.py` and can be overridden for the scope of
+the test by re-defining the appropriate `pytest.fixture` for that transaction type.
+
+```python
+import pytest
+
+from ethereum_test_tools import Account, Alloc, StateTestFiller
+from ethereum_test_types import Transaction
+
+# Optional override for type 2 transaction
+@pytest.fixture
+def type_2_default_transaction(sender: Account):
+  return Transaction(
+    ty=2,
+    sender=sender,
+    max_fee_per_gas=0x1337,
+    max_priority_fee_per_gas=0x1337,
+    ...
+  )
+
+# Optional override for type 4 transaction
+@pytest.fixture
+def type_4_default_transaction(sender: Account, pre: Alloc):
+  return Transaction(
+    ty=4,
+    sender=sender,
+    ...,
+    authorization_list=[
+      AuthorizationTuple(
+        address=Address(1234),
+        nonce=0,
+        chain_id=1,
+        signer=pre.fund_eoa(),
+      )
+    ]
+  )
+
+
+@pytest.mark.with_all_typed_transactions
+@pytest.mark.valid_from("Prague")
+def test_something_with_all_tx_types(
+    state_test: StateTestFiller, 
+    pre: Alloc,
+    typed_transaction: Transaction
+):
+    pass
+```
 
 ### `@pytest.mark.with_all_precompiles`
 

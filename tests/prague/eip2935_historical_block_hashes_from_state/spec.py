@@ -11,7 +11,7 @@ class ReferenceSpec:
     version: str
 
 
-ref_spec_2935 = ReferenceSpec("EIPS/eip-2935.md", "a04da454a5a6ba86a87bb9e15f811feaff3c849a")
+ref_spec_2935 = ReferenceSpec("EIPS/eip-2935.md", "06aadd458ee04ede80498db55927b052eb5bef38")
 
 
 @dataclass(frozen=True)
@@ -22,6 +22,6 @@ class Spec:
     """
 
     FORK_TIMESTAMP = 15_000
-    HISTORY_STORAGE_ADDRESS = 0x0F792BE4B0C0CB4DAE440EF133E90C0ECD48CCCC
+    HISTORY_STORAGE_ADDRESS = 0x0000F90827F1C53A10CB7A02335B175320002935
     HISTORY_SERVE_WINDOW = 8191
     BLOCKHASH_OLD_WINDOW = 256

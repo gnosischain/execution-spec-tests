@@ -1,7 +1,7 @@
 """Exceptions for invalid execution."""
 
 from enum import Enum, auto, unique
-from typing import Annotated, Any, Dict, List
+from typing import Annotated, Any, Dict, List, TypeVar
 
 from pydantic import BeforeValidator, GetCoreSchemaHandler, PlainSerializer
 from pydantic_core.core_schema import (
@@ -45,9 +45,9 @@ class ExceptionBase(Enum):
             exception_class = _exception_classes[class_name]
         else:
             # Otherwise, use the class that the method is called on
-            assert (
-                cls.__name__ == class_name
-            ), f"Unexpected exception type: {class_name}, expected {cls.__name__}"
+            assert cls.__name__ == class_name, (
+                f"Unexpected exception type: {class_name}, expected {cls.__name__}"
+            )
             exception_class = cls
 
         exception = getattr(exception_class, enum_name, None)
@@ -86,14 +86,29 @@ def from_pipe_str(value: Any) -> str | List[str]:
     return value
 
 
-@unique
-class UndefinedException(ExceptionBase):
-    """Default Exception."""
+class UndefinedException(str):
+    """Undefined Exception."""
 
-    UNDEFINED_EXCEPTION = auto()
-    """
-    Exception to alert to define a proper exception
-    """
+    mapper_name: str | None
+
+    def __new__(cls, value: str, *, mapper_name: str | None = None) -> "UndefinedException":
+        """Create a new UndefinedException instance."""
+        if isinstance(value, UndefinedException):
+            return value
+        assert isinstance(value, str)
+        instance = super().__new__(cls, value)
+        instance.mapper_name = mapper_name
+        return instance
+
+    @classmethod
+    def __get_pydantic_core_schema__(
+        cls, source_type: Any, handler: GetCoreSchemaHandler
+    ) -> PlainValidatorFunctionSchema:
+        """Call class constructor without info and appends the serialization schema."""
+        return no_info_plain_validator_function(
+            cls,
+            serialization=to_string_ser_schema(),
+        )
 
 
 @unique
@@ -308,6 +323,10 @@ class TransactionException(ExceptionBase):
     """
     Transaction's gas limit is too low.
     """
+    INTRINSIC_GAS_BELOW_FLOOR_GAS_COST = auto()
+    """
+    Transaction's gas limit is below the floor gas cost.
+    """
     INITCODE_SIZE_EXCEEDED = auto()
     """
     Transaction's initcode for a contract-creating transaction is too large.
@@ -344,6 +363,10 @@ class TransactionException(ExceptionBase):
     """
     Transaction causes block to go over blob gas limit.
     """
+    GAS_LIMIT_EXCEEDS_MAXIMUM = auto()
+    """
+    Transaction gas limit exceeds the maximum allowed limit of 30 million.
+    """
     TYPE_3_TX_ZERO_BLOBS = auto()
     """
     Transaction is type 3, but has no blobs.
@@ -367,6 +390,10 @@ class TransactionException(ExceptionBase):
     TYPE_4_INVALID_AUTHORIZATION_FORMAT = auto()
     """
     Transaction is type 4, but contains an authorization that has an invalid format.
+    """
+    TYPE_4_TX_PRE_FORK = auto()
+    """
+    Transaction type 4 included before activation fork.
     """
 
 
@@ -471,6 +498,10 @@ class BlockException(ExceptionBase):
     """
     Block header's actual gas used does not match the provided header's value
     """
+    INVALID_GAS_USED_ABOVE_LIMIT = auto()
+    """
+    Block header's gas used value is above the gas limit field's value.
+    """
     INVALID_WITHDRAWALS_ROOT = auto()
     """
     Block header's withdrawals root does not match calculated withdrawals root.
@@ -492,6 +523,10 @@ class BlockException(ExceptionBase):
     """
     Block's excess blob gas in header is incorrect.
     """
+    INVALID_VERSIONED_HASHES = auto()
+    """
+    Incorrect number of versioned hashes in a payload.
+    """
     RLP_STRUCTURES_ENCODING = auto()
     """
     Block's rlp encoding is valid but ethereum structures in it are invalid.
@@ -507,6 +542,10 @@ class BlockException(ExceptionBase):
     RLP_INVALID_ADDRESS = auto()
     """
     Block withdrawals address is rlp of invalid address != 20 bytes.
+    """
+    RLP_BLOCK_LIMIT_EXCEEDED = auto()
+    """
+    Block's rlp encoding is larger than the allowed limit.
     """
     INVALID_REQUESTS = auto()
     """
@@ -551,6 +590,23 @@ class BlockException(ExceptionBase):
     IMPORT_IMPOSSIBLE_DIFFICULTY_OVER_PARIS = auto()
     """
     Trying to import a block after paris fork that has difficulty != 0.
+    """
+    SYSTEM_CONTRACT_EMPTY = auto()
+    """
+    A system contract address contains no code at the end of fork activation block.
+    """
+    SYSTEM_CONTRACT_CALL_FAILED = auto()
+    """
+    A system contract call at the end of block execution (from the system address) fails.
+    """
+    INVALID_BLOCK_HASH = auto()
+    """
+    Block header's hash does not match the actually computed hash of the block.
+    """
+    INVALID_DEPOSIT_EVENT_LAYOUT = auto()
+    """
+    Transaction emits a `DepositEvent` in the deposit contract (EIP-6110), but the layout
+    of the event does not match the required layout.
     """
 
 
@@ -689,13 +745,17 @@ class EOFException(ExceptionBase):
     """
     EOF container's code produces an stack underflow.
     """
+    STACK_OVERFLOW = auto()
+    """
+    EOF container's code produces an stack overflow.
+    """
     STACK_HEIGHT_MISMATCH = auto()
     """
     EOF container section stack height mismatch.
     """
-    MAX_STACK_HEIGHT_ABOVE_LIMIT = auto()
+    MAX_STACK_INCREASE_ABOVE_LIMIT = auto()
     """
-    EOF container's specified max stack height is above the limit.
+    EOF container's specified max stack increase is above the limit.
     """
     STACK_HIGHER_THAN_OUTPUTS = auto()
     """
@@ -706,9 +766,9 @@ class EOFException(ExceptionBase):
     """
     EOF container section JUMPF's to a destination section with incompatible outputs.
     """
-    INVALID_MAX_STACK_HEIGHT = auto()
+    INVALID_MAX_STACK_INCREASE = auto()
     """
-    EOF container section's specified max stack height does not match the actual stack height.
+    EOF container section's specified max stack increase does not match the actual stack height.
     """
     INVALID_DATALOADN_INDEX = auto()
     """
@@ -738,17 +798,29 @@ class EOFException(ExceptionBase):
     """
     Incompatible instruction found in a container of a specific kind.
     """
+    AMBIGUOUS_CONTAINER_KIND = auto()
+    """
+    The kind of a sub-container cannot be uniquely deduced.
+    """
     TOO_MANY_CONTAINERS = auto()
     """
     EOF container header has too many sub-containers.
     """
     INVALID_CODE_SECTION_INDEX = auto()
     """
-    CALLF Operation referes to a non-existent code section
+    CALLF Operation refers to a non-existent code section
     """
     UNEXPECTED_HEADER_KIND = auto()
     """
-    Header parsing encounterd a section kind it wasn't expecting
+    Header parsing encountered a section kind it wasn't expecting
+    """
+    CALLF_TO_NON_RETURNING = auto()
+    """
+    CALLF instruction targeting a non-returning code section
+    """
+    EOFCREATE_WITH_TRUNCATED_CONTAINER = auto()
+    """
+    EOFCREATE with truncated container
     """
 
 
@@ -779,3 +851,7 @@ EOFExceptionInstanceOrList = Annotated[
     BeforeValidator(from_pipe_str),
     PlainSerializer(to_pipe_str),
 ]
+
+ExceptionBoundTypeVar = TypeVar(
+    "ExceptionBoundTypeVar", TransactionException, BlockException, EOFException
+)

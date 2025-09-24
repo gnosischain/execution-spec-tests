@@ -1,32 +1,57 @@
 {
     "Frontier": {
-        "path": "../../execution-specs/src/ethereum/frontier"
+        "path": "$GITHUB_WORKSPACE/execution-specs/"
     },
     "Homestead": {
-        "path": "../../execution-specs/src/ethereum/homestead"
+        "path": "$GITHUB_WORKSPACE/execution-specs/"
     },
     "Byzantium": {
-        "path": "../../execution-specs/src/ethereum/byzantium"
+        "path": "$GITHUB_WORKSPACE/execution-specs/"
     },
     "ConstantinopleFix": {
-        "path": "../../execution-specs/src/ethereum/constantinople"
+        "path": "$GITHUB_WORKSPACE/execution-specs/"
     },
     "Istanbul": {
-        "path": "../../execution-specs/src/ethereum/istanbul"
+        "path": "$GITHUB_WORKSPACE/execution-specs/"
     },
     "Berlin": {
-        "path": "../../execution-specs/src/ethereum/berlin"
+        "path": "$GITHUB_WORKSPACE/execution-specs/"
     },
     "London": {
-        "path": "../../execution-specs/src/ethereum/london"
+        "path": "$GITHUB_WORKSPACE/execution-specs/"
     },
     "Merge": {
-        "path": "../../execution-specs/src/ethereum/paris"
+        "path": "$GITHUB_WORKSPACE/execution-specs/"
     },
     "Shanghai": {
-        "path": "../../execution-specs/src/ethereum/shanghai"
+        "path": "$GITHUB_WORKSPACE/execution-specs/"
     },
     "Cancun": {
-        "path": "../../execution-specs/src/ethereum/cancun"
+        "path": "$GITHUB_WORKSPACE/execution-specs/"
+    },
+    "Prague": {
+        "path": "$GITHUB_WORKSPACE/execution-specs/"
+    },
+    "Osaka": {
+        "git_url": "https://github.com/marioevz/execution-specs.git",
+        "branch": "forks/bpo1",
+        "commit": "3387e5f4aedfe99becfdc39b444d6371e25e0924"
+    },
+    "BPO1": {
+        "same_as": "Osaka"
+    },
+    "BPO2": {
+        "same_as": "Osaka"
+    },
+    "BPO3": {
+        "same_as": "Osaka"
+    },
+    "BPO4": {
+        "same_as": "Osaka"
+    },
+    "Amsterdam": {
+        "git_url": "https://github.com/fselmo/execution-specs.git",
+        "branch": "feat/amsterdam-fork-and-block-access-lists",
+        "commit": "39e0b59613be4100d2efc86702ff594c54e5bd81"
     }
 }

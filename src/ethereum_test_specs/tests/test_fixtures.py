@@ -8,18 +8,18 @@ import pytest
 from click.testing import CliRunner
 
 import cli.check_fixtures
-from ethereum_clis import ExecutionSpecsTransitionTool
-from ethereum_test_base_types import Account, Address, Hash
+from ethereum_clis import TransitionTool
+from ethereum_test_base_types import AccessList, Account, Address, Hash
 from ethereum_test_exceptions import TransactionException
 from ethereum_test_fixtures import (
     BlockchainEngineFixture,
     BlockchainFixture,
+    BlockchainFixtureCommon,
     FixtureFormat,
     StateFixture,
 )
-from ethereum_test_fixtures.blockchain import FixtureCommon
-from ethereum_test_forks import Berlin, Fork, Istanbul, London, Paris, Shanghai
-from ethereum_test_types import Alloc, Environment, Transaction
+from ethereum_test_forks import Berlin, Cancun, Fork, Istanbul, London, Paris, Shanghai
+from ethereum_test_types import Alloc, Environment, Transaction, TransactionType
 from ethereum_test_vm import Opcodes as Op
 
 from ..blockchain import Block, BlockchainTest, Header
@@ -28,12 +28,15 @@ from .helpers import remove_info_metadata
 
 
 @pytest.fixture()
-def fixture_hash(request: pytest.FixtureRequest):
-    """Set the hash based on the fork and solc version."""
-    if request.node.funcargs["fork"] == Berlin:
+def fixture_hash(fork: Fork) -> bytes:
+    """Set the fixture hash based on the fork."""
+    if fork == Berlin:
         return bytes.fromhex("e57ad774ca")
-    elif request.node.funcargs["fork"] == London:
+    elif fork == London:
         return bytes.fromhex("3714102a4c")
+    elif fork == Cancun:
+        return bytes.fromhex("2885c707e3")
+    raise ValueError(f"Unexpected fork: {fork}")
 
 
 def test_check_helper_fixtures():
@@ -55,17 +58,16 @@ def test_check_helper_fixtures():
     )
 
 
-@pytest.mark.run_in_serial
 @pytest.mark.parametrize(
-    "fork,fixture_hash",
+    "fork",
     [
-        (Berlin, "set using indirect & hash fixture"),
-        (London, "set using indirect & hash fixture"),
+        Berlin,
+        London,
+        Cancun,
     ],
-    indirect=["fixture_hash"],
 )
-def test_make_genesis(fork: Fork, fixture_hash: bytes):  # noqa: D103
-    env = Environment()
+def test_make_genesis(fork: Fork, fixture_hash: bytes, default_t8n: TransitionTool):  # noqa: D103
+    env = Environment(gas_limit=100_000_000_000_000_000)
 
     pre = Alloc(
         {
@@ -78,19 +80,13 @@ def test_make_genesis(fork: Fork, fixture_hash: bytes):  # noqa: D103
         }
     )
 
-    t8n = ExecutionSpecsTransitionTool()
     fixture = BlockchainTest(
         genesis_environment=env,
         pre=pre,
         post={},
         blocks=[],
         tag="some_state_test",
-    ).generate(
-        request=None,  # type: ignore
-        t8n=t8n,
-        fork=fork,
-        fixture_format=BlockchainFixture,
-    )
+    ).generate(t8n=default_t8n, fork=fork, fixture_format=BlockchainFixture)
     assert isinstance(fixture, BlockchainFixture)
     assert fixture.genesis is not None
 
@@ -98,21 +94,26 @@ def test_make_genesis(fork: Fork, fixture_hash: bytes):  # noqa: D103
     assert fixture.genesis.block_hash.startswith(fixture_hash)
 
 
-@pytest.mark.run_in_serial
 @pytest.mark.parametrize(
-    "fork,fixture_format",
+    "fork,fixture_format,tx_type",
     [
-        (Istanbul, BlockchainFixture),
-        (London, BlockchainFixture),
-        (Paris, BlockchainEngineFixture),
-        (Shanghai, BlockchainEngineFixture),
-        (Paris, StateFixture),
-        (Shanghai, StateFixture),
+        (Istanbul, BlockchainFixture, TransactionType.LEGACY),
+        (London, BlockchainFixture, TransactionType.LEGACY),
+        (Cancun, BlockchainFixture, TransactionType.LEGACY),
+        (Paris, BlockchainEngineFixture, TransactionType.LEGACY),
+        (Shanghai, BlockchainEngineFixture, TransactionType.LEGACY),
+        (Cancun, BlockchainEngineFixture, TransactionType.LEGACY),
+        (Paris, StateFixture, TransactionType.LEGACY),
+        (Shanghai, StateFixture, TransactionType.LEGACY),
+        (Cancun, StateFixture, TransactionType.LEGACY),
+        (Cancun, StateFixture, TransactionType.ACCESS_LIST),
     ],
 )
 def test_fill_state_test(
     fork: Fork,
     fixture_format: FixtureFormat,
+    tx_type: TransactionType,
+    default_t8n: TransitionTool,
 ):
     """Test `ethereum_test.filler.fill_fixtures` with `StateTest`."""
     env = Environment(
@@ -128,15 +129,30 @@ def test_fill_state_test(
         "0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b": Account(balance=1000000000000000000000),
     }
 
-    tx = Transaction(
-        ty=0x0,
-        chain_id=0x0,
-        nonce=0,
-        to="0x1000000000000000000000000000000000000000",
-        gas_limit=100000000,
-        gas_price=10,
-        protected=False,
-    )
+    if tx_type == TransactionType.LEGACY:
+        tx = Transaction(
+            chain_id=0x0,
+            nonce=0,
+            to="0x1000000000000000000000000000000000000000",
+            gas_limit=100000000,
+            gas_price=10,
+            protected=False,
+        )
+    elif tx_type == TransactionType.ACCESS_LIST:
+        tx = Transaction(
+            ty=0x1,
+            chain_id=0x1,
+            nonce=0,
+            to="0x1000000000000000000000000000000000000000",
+            gas_limit=100000000,
+            gas_price=10,
+            access_list=[
+                AccessList(
+                    address=0x1234,
+                    storage_keys=[0, 1],
+                )
+            ],
+        )
 
     post = {
         "0x1000000000000000000000000000000000000000": Account(
@@ -144,25 +160,22 @@ def test_fill_state_test(
         ),
     }
 
-    t8n = ExecutionSpecsTransitionTool()
     generated_fixture = StateTest(
         env=env,
         pre=pre,
         post=post,
         tx=tx,
         tag="my_chain_id_test",
-    ).generate(
-        request=None,  # type: ignore
-        t8n=t8n,
-        fork=fork,
-        fixture_format=fixture_format,
-    )
+    ).generate(t8n=default_t8n, fork=fork, fixture_format=fixture_format)
     assert generated_fixture.__class__ == fixture_format
     fixture = {
-        f"000/my_chain_id_test/{fork}": generated_fixture.json_dict_with_info(hash_only=True),
+        f"000/my_chain_id_test/{fork}/tx_type_{tx_type}": generated_fixture.json_dict_with_info(
+            hash_only=True
+        ),
     }
 
-    expected_json_file = f"chainid_{fork.name().lower()}_{fixture_format.fixture_format_name}.json"
+    format_name = fixture_format.format_name
+    expected_json_file = f"chainid_{fork.name().lower()}_{format_name}_tx_type_{tx_type}.json"
     with open(
         os.path.join(
             "src",
@@ -455,8 +468,9 @@ class TestFillBlockchainValidTxs:
     @pytest.fixture
     def genesis_environment(self):  # noqa: D102
         return Environment(
+            gas_limit=100_000_000_000_000_000,
             base_fee_per_gas=1000,
-            fee_recipient="0xba5e000000000000000000000000000000000000",
+            fee_recipient="0x0000000000000000000000000000000000000000",
         )
 
     @pytest.fixture
@@ -473,22 +487,16 @@ class TestFillBlockchainValidTxs:
         blocks: List[Block],
         genesis_environment: Environment,
         fixture_format: FixtureFormat,
+        default_t8n: TransitionTool,
     ):
-        t8n = ExecutionSpecsTransitionTool()
         return BlockchainTest(
             pre=pre,
             post=post,
             blocks=blocks,
             genesis_environment=genesis_environment,
             tag="my_blockchain_test_valid_txs",
-        ).generate(
-            request=None,  # type: ignore
-            t8n=t8n,
-            fork=fork,
-            fixture_format=fixture_format,
-        )
+        ).generate(t8n=default_t8n, fork=fork, fixture_format=fixture_format)
 
-    @pytest.mark.run_in_serial
     @pytest.mark.parametrize("fork", [London, Shanghai], indirect=True)
     def test_fill_blockchain_valid_txs(  # noqa: D102
         self,
@@ -499,7 +507,13 @@ class TestFillBlockchainValidTxs:
         blockchain_test_fixture: BlockchainFixture,
     ):
         assert blockchain_test_fixture.__class__ == fixture_format
-        assert isinstance(blockchain_test_fixture, FixtureCommon)
+        # BlockchainEngineFixture inherits from BlockchainEngineFixtureCommon
+        # (not BlockchainFixtureCommon)
+        from ethereum_test_fixtures.blockchain import BlockchainEngineFixtureCommon
+
+        assert isinstance(
+            blockchain_test_fixture, (BlockchainFixtureCommon, BlockchainEngineFixtureCommon)
+        )
 
         fixture_name = f"000/my_blockchain_test/{fork.name()}"
 
@@ -532,7 +546,7 @@ class TestFillBlockchainValidTxs:
 
         new_state_root = Hash(12345)
         # See description of https://github.com/ethereum/execution-spec-tests/pull/398
-        new_transactions_root = "0x100"
+        new_transactions_root = 0x100
         header_new_fields = Header(
             difficulty=new_difficulty,
             state_root=new_state_root,
@@ -547,7 +561,6 @@ class TestFillBlockchainValidTxs:
         assert isinstance(updated_block_header.transactions_trie, Hash)
 
 
-@pytest.mark.run_in_serial
 @pytest.mark.parametrize(
     "fork,check_hive,expected_json_file",
     [
@@ -555,7 +568,9 @@ class TestFillBlockchainValidTxs:
         (Shanghai, True, "blockchain_shanghai_invalid_filled_engine.json"),
     ],
 )
-def test_fill_blockchain_invalid_txs(fork: Fork, check_hive: bool, expected_json_file: str):
+def test_fill_blockchain_invalid_txs(
+    fork: Fork, check_hive: bool, expected_json_file: str, default_t8n: TransitionTool
+):
     """Test `ethereum_test.filler.fill_fixtures` with `BlockchainTest`."""
     pre = {
         "0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b": Account(balance=0x1000000000000000000),
@@ -850,11 +865,11 @@ def test_fill_blockchain_invalid_txs(fork: Fork, check_hive: bool, expected_json
 
     # We start genesis with a baseFee of 1000
     genesis_environment = Environment(
+        gas_limit=100_000_000_000_000_000,
         base_fee_per_gas=1000,
-        fee_recipient="0xba5e000000000000000000000000000000000000",
+        fee_recipient="0x0000000000000000000000000000000000000000",
     )
 
-    t8n = ExecutionSpecsTransitionTool()
     fixture_format: FixtureFormat = (
         BlockchainEngineFixture if check_hive else BlockchainFixture  # type: ignore
     )
@@ -863,14 +878,13 @@ def test_fill_blockchain_invalid_txs(fork: Fork, check_hive: bool, expected_json
         post=post,
         blocks=blocks,
         genesis_environment=genesis_environment,
-    ).generate(
-        request=None,  # type: ignore
-        t8n=t8n,
-        fork=fork,
-        fixture_format=fixture_format,
-    )
+    ).generate(t8n=default_t8n, fork=fork, fixture_format=fixture_format)
     assert generated_fixture.__class__ == fixture_format
-    assert isinstance(generated_fixture, FixtureCommon)
+    # BlockchainEngineFixture inherits from BlockchainEngineFixtureCommon
+    # (not BlockchainFixtureCommon)
+    from ethereum_test_fixtures.blockchain import BlockchainEngineFixtureCommon
+
+    assert isinstance(generated_fixture, (BlockchainFixtureCommon, BlockchainEngineFixtureCommon))
 
     fixture_name = f"000/my_blockchain_test/{fork.name()}"
 

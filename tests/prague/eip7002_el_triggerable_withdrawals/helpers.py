@@ -17,7 +17,9 @@ class WithdrawalRequest(WithdrawalRequestBase):
 
     fee: int = 0
     """
-    Fee to be paid for the withdrawal request.
+    Fee to be paid to the system contract for the withdrawal request.
+    This is different from `amount` which is the amount of gwei to be withdrawn on the beacon
+    chain.
     """
     valid: bool = True
     """
@@ -38,13 +40,16 @@ class WithdrawalRequest(WithdrawalRequestBase):
 
     @property
     def value(self) -> int:
-        """Returns the value of the withdrawal request."""
+        """
+        Return the value of the call to the withdrawal request contract, equal to the fee
+        to be paid.
+        """
         return self.fee
 
     @cached_property
     def calldata(self) -> bytes:
         """
-        Returns the calldata needed to call the withdrawal request contract and make the
+        Return the calldata needed to call the withdrawal request contract and make the
         withdrawal.
         """
         return self.calldata_modifier(
@@ -121,7 +126,7 @@ class WithdrawalRequestTransaction(WithdrawalRequestInteractionBase):
 
 @dataclass(kw_only=True)
 class WithdrawalRequestContract(WithdrawalRequestInteractionBase):
-    """Class used to describe a deposit originated from a contract."""
+    """Class used to describe a withdrawal originated from a contract."""
 
     tx_gas_limit: int = 1_000_000
     """
@@ -176,7 +181,7 @@ class WithdrawalRequestContract(WithdrawalRequestInteractionBase):
         return code + self.extra_code
 
     def transactions(self) -> List[Transaction]:
-        """Return a transaction for the deposit request."""
+        """Return a transaction for the withdrawal request."""
         assert self.entry_address is not None, "Entry address not initialized"
         return [
             Transaction(

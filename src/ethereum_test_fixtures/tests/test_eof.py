@@ -7,7 +7,7 @@ import pytest
 from ethereum_test_base_types import Bytes, to_json
 from ethereum_test_exceptions import EOFException
 
-from ..eof import ContainerKind, Fixture, Result, Vector
+from ..eof import ContainerKind, EOFFixture, Result, Vector
 
 
 @pytest.mark.parametrize(
@@ -15,13 +15,13 @@ from ..eof import ContainerKind, Fixture, Result, Vector
     [
         pytest.param(
             True,
-            Fixture(
+            EOFFixture(
                 vectors={
                     1: Vector(
                         code=Bytes(b"\x00"),
                         container_kind=ContainerKind.INITCODE,
                         results={
-                            "result1": Result(
+                            "Paris": Result(
                                 exception=None,
                                 valid=True,
                             ),
@@ -35,7 +35,7 @@ from ..eof import ContainerKind, Fixture, Result, Vector
                         "code": "0x00",
                         "containerKind": "INITCODE",
                         "results": {
-                            "result1": {
+                            "Paris": {
                                 "result": True,
                             },
                         },
@@ -46,13 +46,13 @@ from ..eof import ContainerKind, Fixture, Result, Vector
         ),
         pytest.param(
             True,
-            Fixture(
+            EOFFixture(
                 vectors={
                     1: Vector(
                         code=Bytes(b"\x00"),
                         container_kind=ContainerKind.RUNTIME,
                         results={
-                            "result1": Result(
+                            "Paris": Result(
                                 exception=EOFException.INVALID_MAGIC,
                                 valid=False,
                             ),
@@ -66,7 +66,7 @@ from ..eof import ContainerKind, Fixture, Result, Vector
                         "code": "0x00",
                         "containerKind": "RUNTIME",
                         "results": {
-                            "result1": {
+                            "Paris": {
                                 "exception": "EOFException.INVALID_MAGIC",
                                 "result": False,
                             },

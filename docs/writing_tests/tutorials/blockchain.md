@@ -9,13 +9,12 @@ Before proceeding with this tutorial, it is assumed that you have prior knowledg
 - Repository set-up, see [installation](../../getting_started/installation.md).and run an execution specification test as outlined in the .
 - Able to run `fill`, see [Getting Started: Filling Tests](../../filling_tests/getting_started.md).
 - Understand how to read a [blockchain test](https://ethereum-tests.readthedocs.io/en/latest/test_filler/blockchain_filler.html).
-- Know the basics of [Yul](https://docs.soliditylang.org/en/latest/yul.html), which is an EVM assembly language.
 - Familiarity with [Python](https://docs.python.org/3/tutorial/).
 - Understand how to write an execution spec [state transition test](./state_transition.md).
 
 ## Example Tests
 
-In this tutorial we will go over [test_block_number] in `test_block_example.py`(https://github.com/ethereum/execution-spec-tests/tree/main/tests/example/test_block_example.py#L19).
+In this tutorial we will go over [test_block_number] in `test_block_example.py`.
 
 It is assumed you have already gone through the state transition test tutorial. Only new concepts will be discussed.
 
@@ -26,15 +25,7 @@ A smart contract is defined that is called by each transaction in the test. It s
 ```python
 contract_addr: Account(
     balance=1000000000000000000000,
-    code=Yul(
-        """
-        {
-            let next_slot := sload(0)
-            sstore(next_slot, number())
-            sstore(0, add(next_slot, 1))
-        }
-        """
-    ),
+    code=code,
     storage={
         0x00: 0x01,
     },
@@ -75,7 +66,7 @@ Each integer in the `tx_per_block` array is the number of transactions in a bloc
 tx_per_block = [2, 0, 4, 8, 0, 0, 20, 1, 50]
 ```
 
-The code section that creates the blocks is a bit complex in this test. For some simpler definitions of Block creation you can browse tests within [`test_withdrawals.py`](https://github.com/ethereum/execution-spec-tests/blob/main/tests/withdrawals/test_withdrawals.py).
+The code section that creates the blocks is a bit complex in this test. For some simpler definitions of Block creation you can browse tests within [`test_withdrawals.py`](https://github.com/ethereum/execution-spec-tests/blob/main/tests/shanghai/eip4895_withdrawals/test_withdrawals.py).
 
 ```python
 blocks = map(

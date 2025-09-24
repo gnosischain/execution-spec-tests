@@ -1,5 +1,5 @@
 """
-Test the forks plugin.
+Test the filler plugin.
 """
 
 import configparser
@@ -11,8 +11,9 @@ from pathlib import Path
 
 import pytest
 
+from ethereum_test_tools import Environment
 from ethereum_clis import ExecutionSpecsTransitionTool, TransitionTool
-from pytest_plugins.filler.filler import default_output_directory
+from ..filler import default_output_directory
 
 
 # flake8: noqa
@@ -77,9 +78,8 @@ test_count_shanghai = 8
 total_test_count = test_count_paris + test_count_shanghai
 
 
-@pytest.mark.run_in_serial
 @pytest.mark.parametrize(
-    "args, expected_fixture_files, expected_fixture_counts, expected_index",
+    "args, expected_fixture_files, expected_fixture_counts",
     [
         pytest.param(
             [],
@@ -102,11 +102,10 @@ total_test_count = test_count_paris + test_count_shanghai
                 Path("fixtures/state_tests/shanghai/module_shanghai/shanghai_two.json"),
             ],
             [2, 2, 2, 2, 2, 2, 2, 2, 2, 6, 6, 6],
-            False,
             id="default-args",
         ),
         pytest.param(
-            ["--index", "--build-name", "test_build"],
+            ["--skip-index"],
             [
                 Path("fixtures/blockchain_tests/paris/module_paris/paris_one.json"),
                 Path("fixtures/blockchain_tests_engine/paris/module_paris/paris_one.json"),
@@ -126,365 +125,269 @@ total_test_count = test_count_paris + test_count_shanghai
                 Path("fixtures/state_tests/shanghai/module_shanghai/shanghai_two.json"),
             ],
             [2, 2, 2, 2, 2, 2, 2, 2, 2, 6, 6, 6],
-            True,
+            id="skip-index",
+        ),
+        pytest.param(
+            ["--build-name", "test_build"],
+            [
+                Path("fixtures/blockchain_tests/paris/module_paris/paris_one.json"),
+                Path("fixtures/blockchain_tests_engine/paris/module_paris/paris_one.json"),
+                Path("fixtures/state_tests/paris/module_paris/paris_one.json"),
+                Path("fixtures/blockchain_tests/paris/module_paris/paris_two.json"),
+                Path("fixtures/blockchain_tests_engine/paris/module_paris/paris_two.json"),
+                Path("fixtures/state_tests/paris/module_paris/paris_two.json"),
+                Path("fixtures/blockchain_tests/shanghai/module_shanghai/shanghai_one.json"),
+                Path(
+                    "fixtures/blockchain_tests_engine/shanghai/module_shanghai/shanghai_one.json"
+                ),
+                Path("fixtures/state_tests/shanghai/module_shanghai/shanghai_one.json"),
+                Path("fixtures/blockchain_tests/shanghai/module_shanghai/shanghai_two.json"),
+                Path(
+                    "fixtures/blockchain_tests_engine/shanghai/module_shanghai/shanghai_two.json"
+                ),
+                Path("fixtures/state_tests/shanghai/module_shanghai/shanghai_two.json"),
+            ],
+            [2, 2, 2, 2, 2, 2, 2, 2, 2, 6, 6, 6],
             id="build-name-in-fixtures-ini-file",
         ),
         pytest.param(
-            ["--flat-output", "--index"],
-            [
-                Path("fixtures/blockchain_tests/paris_one.json"),
-                Path("fixtures/blockchain_tests_engine/paris_one.json"),
-                Path("fixtures/state_tests/paris_one.json"),
-                Path("fixtures/blockchain_tests/paris_two.json"),
-                Path("fixtures/blockchain_tests_engine/paris_two.json"),
-                Path("fixtures/state_tests/paris_two.json"),
-                Path("fixtures/blockchain_tests/shanghai_one.json"),
-                Path("fixtures/blockchain_tests_engine/shanghai_one.json"),
-                Path("fixtures/state_tests/shanghai_one.json"),
-                Path("fixtures/blockchain_tests/shanghai_two.json"),
-                Path("fixtures/blockchain_tests_engine/shanghai_two.json"),
-                Path("fixtures/state_tests/shanghai_two.json"),
-            ],
-            [2, 2, 2, 2, 2, 2, 2, 2, 2, 6, 6, 6],
-            True,
-            id="flat-output",
-        ),
-        pytest.param(
-            ["--flat-output", "--index", "--output", "other_fixtures"],
-            [
-                Path("other_fixtures/blockchain_tests/paris_one.json"),
-                Path("other_fixtures/blockchain_tests_engine/paris_one.json"),
-                Path("other_fixtures/state_tests/paris_one.json"),
-                Path("other_fixtures/blockchain_tests/paris_two.json"),
-                Path("other_fixtures/blockchain_tests_engine/paris_two.json"),
-                Path("other_fixtures/state_tests/paris_two.json"),
-                Path("other_fixtures/blockchain_tests/shanghai_one.json"),
-                Path("other_fixtures/blockchain_tests_engine/shanghai_one.json"),
-                Path("other_fixtures/state_tests/shanghai_one.json"),
-                Path("other_fixtures/blockchain_tests/shanghai_two.json"),
-                Path("other_fixtures/blockchain_tests_engine/shanghai_two.json"),
-                Path("other_fixtures/state_tests/shanghai_two.json"),
-            ],
-            [2, 2, 2, 2, 2, 2, 2, 2, 2, 6, 6, 6],
-            True,
-            id="flat-output_custom-output-dir",
-        ),
-        pytest.param(
-            ["--single-fixture-per-file", "--index"],
+            ["--single-fixture-per-file"],
             [
                 Path(
-                    "fixtures/blockchain_tests/paris/module_paris/paris_one__fork_Paris_blockchain_test.json"
+                    "fixtures/blockchain_tests/paris/module_paris/paris_one__fork_Paris_blockchain_test_from_state_test.json"
                 ),
                 Path(
                     "fixtures/state_tests/paris/module_paris/paris_one__fork_Paris_state_test.json"
                 ),
                 Path(
-                    "fixtures/blockchain_tests_engine/paris/module_paris/paris_one__fork_Paris_blockchain_test_engine.json"
+                    "fixtures/blockchain_tests_engine/paris/module_paris/paris_one__fork_Paris_blockchain_test_engine_from_state_test.json"
                 ),
                 Path(
-                    "fixtures/blockchain_tests/paris/module_paris/paris_one__fork_Shanghai_blockchain_test.json"
+                    "fixtures/blockchain_tests/paris/module_paris/paris_one__fork_Shanghai_blockchain_test_from_state_test.json"
                 ),
                 Path(
                     "fixtures/state_tests/paris/module_paris/paris_one__fork_Shanghai_state_test.json"
                 ),
                 Path(
-                    "fixtures/blockchain_tests_engine/paris/module_paris/paris_one__fork_Shanghai_blockchain_test_engine.json"
+                    "fixtures/blockchain_tests_engine/paris/module_paris/paris_one__fork_Shanghai_blockchain_test_engine_from_state_test.json"
                 ),
                 Path(
-                    "fixtures/blockchain_tests/paris/module_paris/paris_two__fork_Paris_blockchain_test.json"
+                    "fixtures/blockchain_tests/paris/module_paris/paris_two__fork_Paris_blockchain_test_from_state_test.json"
                 ),
                 Path(
                     "fixtures/state_tests/paris/module_paris/paris_two__fork_Paris_state_test.json"
                 ),
                 Path(
-                    "fixtures/blockchain_tests_engine/paris/module_paris/paris_two__fork_Paris_blockchain_test_engine.json"
+                    "fixtures/blockchain_tests_engine/paris/module_paris/paris_two__fork_Paris_blockchain_test_engine_from_state_test.json"
                 ),
                 Path(
-                    "fixtures/blockchain_tests/paris/module_paris/paris_two__fork_Shanghai_blockchain_test.json"
+                    "fixtures/blockchain_tests/paris/module_paris/paris_two__fork_Shanghai_blockchain_test_from_state_test.json"
                 ),
                 Path(
                     "fixtures/state_tests/paris/module_paris/paris_two__fork_Shanghai_state_test.json"
                 ),
                 Path(
-                    "fixtures/blockchain_tests_engine/paris/module_paris/paris_two__fork_Shanghai_blockchain_test_engine.json"
+                    "fixtures/blockchain_tests_engine/paris/module_paris/paris_two__fork_Shanghai_blockchain_test_engine_from_state_test.json"
                 ),
                 Path(
-                    "fixtures/blockchain_tests/shanghai/module_shanghai/shanghai_one__fork_Paris_blockchain_test.json"
+                    "fixtures/blockchain_tests/shanghai/module_shanghai/shanghai_one__fork_Paris_blockchain_test_from_state_test.json"
                 ),
                 Path(
                     "fixtures/state_tests/shanghai/module_shanghai/shanghai_one__fork_Paris_state_test.json"
                 ),
                 Path(
-                    "fixtures/blockchain_tests_engine/shanghai/module_shanghai/shanghai_one__fork_Paris_blockchain_test_engine.json"
+                    "fixtures/blockchain_tests_engine/shanghai/module_shanghai/shanghai_one__fork_Paris_blockchain_test_engine_from_state_test.json"
                 ),
                 Path(
-                    "fixtures/blockchain_tests/shanghai/module_shanghai/shanghai_one__fork_Shanghai_blockchain_test.json"
+                    "fixtures/blockchain_tests/shanghai/module_shanghai/shanghai_one__fork_Shanghai_blockchain_test_from_state_test.json"
                 ),
                 Path(
                     "fixtures/state_tests/shanghai/module_shanghai/shanghai_one__fork_Shanghai_state_test.json"
                 ),
                 Path(
-                    "fixtures/blockchain_tests_engine/shanghai/module_shanghai/shanghai_one__fork_Shanghai_blockchain_test_engine.json"
+                    "fixtures/blockchain_tests_engine/shanghai/module_shanghai/shanghai_one__fork_Shanghai_blockchain_test_engine_from_state_test.json"
                 ),
                 Path(
-                    "fixtures/blockchain_tests/shanghai/module_shanghai/shanghai_two__fork_Paris_blockchain_test_x_1.json"
+                    "fixtures/blockchain_tests/shanghai/module_shanghai/shanghai_two__fork_Paris_blockchain_test_from_state_test_x_1.json"
                 ),
                 Path(
                     "fixtures/state_tests/shanghai/module_shanghai/shanghai_two__fork_Paris_state_test_x_1.json"
                 ),
                 Path(
-                    "fixtures/blockchain_tests_engine/shanghai/module_shanghai/shanghai_two__fork_Paris_blockchain_test_engine_x_1.json"
+                    "fixtures/blockchain_tests_engine/shanghai/module_shanghai/shanghai_two__fork_Paris_blockchain_test_engine_from_state_test_x_1.json"
                 ),
                 Path(
-                    "fixtures/blockchain_tests/shanghai/module_shanghai/shanghai_two__fork_Paris_blockchain_test_x_2.json"
+                    "fixtures/blockchain_tests/shanghai/module_shanghai/shanghai_two__fork_Paris_blockchain_test_from_state_test_x_2.json"
                 ),
                 Path(
                     "fixtures/state_tests/shanghai/module_shanghai/shanghai_two__fork_Paris_state_test_x_2.json"
                 ),
                 Path(
-                    "fixtures/blockchain_tests_engine/shanghai/module_shanghai/shanghai_two__fork_Paris_blockchain_test_engine_x_2.json"
+                    "fixtures/blockchain_tests_engine/shanghai/module_shanghai/shanghai_two__fork_Paris_blockchain_test_engine_from_state_test_x_2.json"
                 ),
                 Path(
-                    "fixtures/blockchain_tests/shanghai/module_shanghai/shanghai_two__fork_Paris_blockchain_test_x_3.json"
+                    "fixtures/blockchain_tests/shanghai/module_shanghai/shanghai_two__fork_Paris_blockchain_test_from_state_test_x_3.json"
                 ),
                 Path(
                     "fixtures/state_tests/shanghai/module_shanghai/shanghai_two__fork_Paris_state_test_x_3.json"
                 ),
                 Path(
-                    "fixtures/blockchain_tests_engine/shanghai/module_shanghai/shanghai_two__fork_Paris_blockchain_test_engine_x_3.json"
+                    "fixtures/blockchain_tests_engine/shanghai/module_shanghai/shanghai_two__fork_Paris_blockchain_test_engine_from_state_test_x_3.json"
                 ),
                 Path(
-                    "fixtures/blockchain_tests/shanghai/module_shanghai/shanghai_two__fork_Shanghai_blockchain_test_x_1.json"
+                    "fixtures/blockchain_tests/shanghai/module_shanghai/shanghai_two__fork_Shanghai_blockchain_test_from_state_test_x_1.json"
                 ),
                 Path(
                     "fixtures/state_tests/shanghai/module_shanghai/shanghai_two__fork_Shanghai_state_test_x_1.json"
                 ),
                 Path(
-                    "fixtures/blockchain_tests_engine/shanghai/module_shanghai/shanghai_two__fork_Shanghai_blockchain_test_engine_x_1.json"
+                    "fixtures/blockchain_tests_engine/shanghai/module_shanghai/shanghai_two__fork_Shanghai_blockchain_test_engine_from_state_test_x_1.json"
                 ),
                 Path(
-                    "fixtures/blockchain_tests/shanghai/module_shanghai/shanghai_two__fork_Shanghai_blockchain_test_x_2.json"
+                    "fixtures/blockchain_tests/shanghai/module_shanghai/shanghai_two__fork_Shanghai_blockchain_test_from_state_test_x_2.json"
                 ),
                 Path(
                     "fixtures/state_tests/shanghai/module_shanghai/shanghai_two__fork_Shanghai_state_test_x_2.json"
                 ),
                 Path(
-                    "fixtures/blockchain_tests_engine/shanghai/module_shanghai/shanghai_two__fork_Shanghai_blockchain_test_engine_x_2.json"
+                    "fixtures/blockchain_tests_engine/shanghai/module_shanghai/shanghai_two__fork_Shanghai_blockchain_test_engine_from_state_test_x_2.json"
                 ),
                 Path(
-                    "fixtures/blockchain_tests/shanghai/module_shanghai/shanghai_two__fork_Shanghai_blockchain_test_x_3.json"
+                    "fixtures/blockchain_tests/shanghai/module_shanghai/shanghai_two__fork_Shanghai_blockchain_test_from_state_test_x_3.json"
                 ),
                 Path(
                     "fixtures/state_tests/shanghai/module_shanghai/shanghai_two__fork_Shanghai_state_test_x_3.json"
                 ),
                 Path(
-                    "fixtures/blockchain_tests_engine/shanghai/module_shanghai/shanghai_two__fork_Shanghai_blockchain_test_engine_x_3.json"
+                    "fixtures/blockchain_tests_engine/shanghai/module_shanghai/shanghai_two__fork_Shanghai_blockchain_test_engine_from_state_test_x_3.json"
                 ),
             ],
             [1] * 36,
-            True,
             id="single-fixture-per-file",
         ),
         pytest.param(
-            ["--single-fixture-per-file", "--index", "--output", "other_fixtures"],
+            ["--single-fixture-per-file", "--output", "other_fixtures"],
             [
                 Path(
-                    "other_fixtures/blockchain_tests/paris/module_paris/paris_one__fork_Paris_blockchain_test.json"
+                    "other_fixtures/blockchain_tests/paris/module_paris/paris_one__fork_Paris_blockchain_test_from_state_test.json"
                 ),
                 Path(
                     "other_fixtures/state_tests/paris/module_paris/paris_one__fork_Paris_state_test.json"
                 ),
                 Path(
-                    "other_fixtures/blockchain_tests_engine/paris/module_paris/paris_one__fork_Paris_blockchain_test_engine.json"
+                    "other_fixtures/blockchain_tests_engine/paris/module_paris/paris_one__fork_Paris_blockchain_test_engine_from_state_test.json"
                 ),
                 Path(
-                    "other_fixtures/blockchain_tests/paris/module_paris/paris_one__fork_Shanghai_blockchain_test.json"
+                    "other_fixtures/blockchain_tests/paris/module_paris/paris_one__fork_Shanghai_blockchain_test_from_state_test.json"
                 ),
                 Path(
                     "other_fixtures/state_tests/paris/module_paris/paris_one__fork_Shanghai_state_test.json"
                 ),
                 Path(
-                    "other_fixtures/blockchain_tests_engine/paris/module_paris/paris_one__fork_Shanghai_blockchain_test_engine.json"
+                    "other_fixtures/blockchain_tests_engine/paris/module_paris/paris_one__fork_Shanghai_blockchain_test_engine_from_state_test.json"
                 ),
                 Path(
-                    "other_fixtures/blockchain_tests/paris/module_paris/paris_two__fork_Paris_blockchain_test.json"
+                    "other_fixtures/blockchain_tests/paris/module_paris/paris_two__fork_Paris_blockchain_test_from_state_test.json"
                 ),
                 Path(
                     "other_fixtures/state_tests/paris/module_paris/paris_two__fork_Paris_state_test.json"
                 ),
                 Path(
-                    "other_fixtures/blockchain_tests_engine/paris/module_paris/paris_two__fork_Paris_blockchain_test_engine.json"
+                    "other_fixtures/blockchain_tests_engine/paris/module_paris/paris_two__fork_Paris_blockchain_test_engine_from_state_test.json"
                 ),
                 Path(
-                    "other_fixtures/blockchain_tests/paris/module_paris/paris_two__fork_Shanghai_blockchain_test.json"
+                    "other_fixtures/blockchain_tests/paris/module_paris/paris_two__fork_Shanghai_blockchain_test_from_state_test.json"
                 ),
                 Path(
                     "other_fixtures/state_tests/paris/module_paris/paris_two__fork_Shanghai_state_test.json"
                 ),
                 Path(
-                    "other_fixtures/blockchain_tests_engine/paris/module_paris/paris_two__fork_Shanghai_blockchain_test_engine.json"
+                    "other_fixtures/blockchain_tests_engine/paris/module_paris/paris_two__fork_Shanghai_blockchain_test_engine_from_state_test.json"
                 ),
                 Path(
-                    "other_fixtures/blockchain_tests/shanghai/module_shanghai/shanghai_one__fork_Paris_blockchain_test.json"
+                    "other_fixtures/blockchain_tests/shanghai/module_shanghai/shanghai_one__fork_Paris_blockchain_test_from_state_test.json"
                 ),
                 Path(
                     "other_fixtures/state_tests/shanghai/module_shanghai/shanghai_one__fork_Paris_state_test.json"
                 ),
                 Path(
-                    "other_fixtures/blockchain_tests_engine/shanghai/module_shanghai/shanghai_one__fork_Paris_blockchain_test_engine.json"
+                    "other_fixtures/blockchain_tests_engine/shanghai/module_shanghai/shanghai_one__fork_Paris_blockchain_test_engine_from_state_test.json"
                 ),
                 Path(
-                    "other_fixtures/blockchain_tests/shanghai/module_shanghai/shanghai_one__fork_Shanghai_blockchain_test.json"
+                    "other_fixtures/blockchain_tests/shanghai/module_shanghai/shanghai_one__fork_Shanghai_blockchain_test_from_state_test.json"
                 ),
                 Path(
                     "other_fixtures/state_tests/shanghai/module_shanghai/shanghai_one__fork_Shanghai_state_test.json"
                 ),
                 Path(
-                    "other_fixtures/blockchain_tests_engine/shanghai/module_shanghai/shanghai_one__fork_Shanghai_blockchain_test_engine.json"
+                    "other_fixtures/blockchain_tests_engine/shanghai/module_shanghai/shanghai_one__fork_Shanghai_blockchain_test_engine_from_state_test.json"
                 ),
                 Path(
-                    "other_fixtures/blockchain_tests/shanghai/module_shanghai/shanghai_two__fork_Paris_blockchain_test_x_1.json"
+                    "other_fixtures/blockchain_tests/shanghai/module_shanghai/shanghai_two__fork_Paris_blockchain_test_from_state_test_x_1.json"
                 ),
                 Path(
                     "other_fixtures/state_tests/shanghai/module_shanghai/shanghai_two__fork_Paris_state_test_x_1.json"
                 ),
                 Path(
-                    "other_fixtures/blockchain_tests_engine/shanghai/module_shanghai/shanghai_two__fork_Paris_blockchain_test_engine_x_1.json"
+                    "other_fixtures/blockchain_tests_engine/shanghai/module_shanghai/shanghai_two__fork_Paris_blockchain_test_engine_from_state_test_x_1.json"
                 ),
                 Path(
-                    "other_fixtures/blockchain_tests/shanghai/module_shanghai/shanghai_two__fork_Paris_blockchain_test_x_2.json"
+                    "other_fixtures/blockchain_tests/shanghai/module_shanghai/shanghai_two__fork_Paris_blockchain_test_from_state_test_x_2.json"
                 ),
                 Path(
                     "other_fixtures/state_tests/shanghai/module_shanghai/shanghai_two__fork_Paris_state_test_x_2.json"
                 ),
                 Path(
-                    "other_fixtures/blockchain_tests_engine/shanghai/module_shanghai/shanghai_two__fork_Paris_blockchain_test_engine_x_2.json"
+                    "other_fixtures/blockchain_tests_engine/shanghai/module_shanghai/shanghai_two__fork_Paris_blockchain_test_engine_from_state_test_x_2.json"
                 ),
                 Path(
-                    "other_fixtures/blockchain_tests/shanghai/module_shanghai/shanghai_two__fork_Paris_blockchain_test_x_3.json"
+                    "other_fixtures/blockchain_tests/shanghai/module_shanghai/shanghai_two__fork_Paris_blockchain_test_from_state_test_x_3.json"
                 ),
                 Path(
                     "other_fixtures/state_tests/shanghai/module_shanghai/shanghai_two__fork_Paris_state_test_x_3.json"
                 ),
                 Path(
-                    "other_fixtures/blockchain_tests_engine/shanghai/module_shanghai/shanghai_two__fork_Paris_blockchain_test_engine_x_3.json"
+                    "other_fixtures/blockchain_tests_engine/shanghai/module_shanghai/shanghai_two__fork_Paris_blockchain_test_engine_from_state_test_x_3.json"
                 ),
                 Path(
-                    "other_fixtures/blockchain_tests/shanghai/module_shanghai/shanghai_two__fork_Shanghai_blockchain_test_x_1.json"
+                    "other_fixtures/blockchain_tests/shanghai/module_shanghai/shanghai_two__fork_Shanghai_blockchain_test_from_state_test_x_1.json"
                 ),
                 Path(
                     "other_fixtures/state_tests/shanghai/module_shanghai/shanghai_two__fork_Shanghai_state_test_x_1.json"
                 ),
                 Path(
-                    "other_fixtures/blockchain_tests_engine/shanghai/module_shanghai/shanghai_two__fork_Shanghai_blockchain_test_engine_x_1.json"
+                    "other_fixtures/blockchain_tests_engine/shanghai/module_shanghai/shanghai_two__fork_Shanghai_blockchain_test_engine_from_state_test_x_1.json"
                 ),
                 Path(
-                    "other_fixtures/blockchain_tests/shanghai/module_shanghai/shanghai_two__fork_Shanghai_blockchain_test_x_2.json"
+                    "other_fixtures/blockchain_tests/shanghai/module_shanghai/shanghai_two__fork_Shanghai_blockchain_test_from_state_test_x_2.json"
                 ),
                 Path(
                     "other_fixtures/state_tests/shanghai/module_shanghai/shanghai_two__fork_Shanghai_state_test_x_2.json"
                 ),
                 Path(
-                    "other_fixtures/blockchain_tests_engine/shanghai/module_shanghai/shanghai_two__fork_Shanghai_blockchain_test_engine_x_2.json"
+                    "other_fixtures/blockchain_tests_engine/shanghai/module_shanghai/shanghai_two__fork_Shanghai_blockchain_test_engine_from_state_test_x_2.json"
                 ),
                 Path(
-                    "other_fixtures/blockchain_tests/shanghai/module_shanghai/shanghai_two__fork_Shanghai_blockchain_test_x_3.json"
+                    "other_fixtures/blockchain_tests/shanghai/module_shanghai/shanghai_two__fork_Shanghai_blockchain_test_from_state_test_x_3.json"
                 ),
                 Path(
                     "other_fixtures/state_tests/shanghai/module_shanghai/shanghai_two__fork_Shanghai_state_test_x_3.json"
                 ),
                 Path(
-                    "other_fixtures/blockchain_tests_engine/shanghai/module_shanghai/shanghai_two__fork_Shanghai_blockchain_test_engine_x_3.json"
+                    "other_fixtures/blockchain_tests_engine/shanghai/module_shanghai/shanghai_two__fork_Shanghai_blockchain_test_engine_from_state_test_x_3.json"
                 ),
             ],
             [1] * 36,
-            True,
             id="single-fixture-per-file_custom_output_dir",
-        ),
-        pytest.param(
-            ["--flat-output", "--index", "--single-fixture-per-file"],
-            [
-                Path("fixtures/blockchain_tests/paris_one__fork_Paris_blockchain_test.json"),
-                Path("fixtures/state_tests/paris_one__fork_Paris_state_test.json"),
-                Path(
-                    "fixtures/blockchain_tests_engine/paris_one__fork_Paris_blockchain_test_engine.json"
-                ),
-                Path("fixtures/blockchain_tests/paris_one__fork_Shanghai_blockchain_test.json"),
-                Path("fixtures/state_tests/paris_one__fork_Shanghai_state_test.json"),
-                Path(
-                    "fixtures/blockchain_tests_engine/paris_one__fork_Shanghai_blockchain_test_engine.json"
-                ),
-                Path("fixtures/blockchain_tests/paris_two__fork_Paris_blockchain_test.json"),
-                Path("fixtures/state_tests/paris_two__fork_Paris_state_test.json"),
-                Path(
-                    "fixtures/blockchain_tests_engine/paris_two__fork_Paris_blockchain_test_engine.json"
-                ),
-                Path("fixtures/blockchain_tests/paris_two__fork_Shanghai_blockchain_test.json"),
-                Path("fixtures/state_tests/paris_two__fork_Shanghai_state_test.json"),
-                Path(
-                    "fixtures/blockchain_tests_engine/paris_two__fork_Shanghai_blockchain_test_engine.json"
-                ),
-                Path("fixtures/blockchain_tests/shanghai_one__fork_Paris_blockchain_test.json"),
-                Path("fixtures/state_tests/shanghai_one__fork_Paris_state_test.json"),
-                Path(
-                    "fixtures/blockchain_tests_engine/shanghai_one__fork_Paris_blockchain_test_engine.json"
-                ),
-                Path("fixtures/blockchain_tests/shanghai_one__fork_Shanghai_blockchain_test.json"),
-                Path("fixtures/state_tests/shanghai_one__fork_Shanghai_state_test.json"),
-                Path(
-                    "fixtures/blockchain_tests_engine/shanghai_one__fork_Shanghai_blockchain_test_engine.json"
-                ),
-                Path(
-                    "fixtures/blockchain_tests/shanghai_two__fork_Paris_blockchain_test_x_1.json"
-                ),
-                Path("fixtures/state_tests/shanghai_two__fork_Paris_state_test_x_1.json"),
-                Path(
-                    "fixtures/blockchain_tests_engine/shanghai_two__fork_Paris_blockchain_test_engine_x_1.json"
-                ),
-                Path(
-                    "fixtures/blockchain_tests/shanghai_two__fork_Paris_blockchain_test_x_2.json"
-                ),
-                Path("fixtures/state_tests/shanghai_two__fork_Paris_state_test_x_2.json"),
-                Path(
-                    "fixtures/blockchain_tests_engine/shanghai_two__fork_Paris_blockchain_test_engine_x_2.json"
-                ),
-                Path(
-                    "fixtures/blockchain_tests/shanghai_two__fork_Paris_blockchain_test_x_3.json"
-                ),
-                Path("fixtures/state_tests/shanghai_two__fork_Paris_state_test_x_3.json"),
-                Path(
-                    "fixtures/blockchain_tests_engine/shanghai_two__fork_Paris_blockchain_test_engine_x_3.json"
-                ),
-                Path(
-                    "fixtures/blockchain_tests/shanghai_two__fork_Shanghai_blockchain_test_x_1.json"
-                ),
-                Path("fixtures/state_tests/shanghai_two__fork_Shanghai_state_test_x_1.json"),
-                Path(
-                    "fixtures/blockchain_tests_engine/shanghai_two__fork_Shanghai_blockchain_test_engine_x_1.json"
-                ),
-                Path(
-                    "fixtures/blockchain_tests/shanghai_two__fork_Shanghai_blockchain_test_x_2.json"
-                ),
-                Path("fixtures/state_tests/shanghai_two__fork_Shanghai_state_test_x_2.json"),
-                Path(
-                    "fixtures/blockchain_tests_engine/shanghai_two__fork_Shanghai_blockchain_test_engine_x_2.json"
-                ),
-                Path(
-                    "fixtures/blockchain_tests/shanghai_two__fork_Shanghai_blockchain_test_x_3.json"
-                ),
-                Path("fixtures/state_tests/shanghai_two__fork_Shanghai_state_test_x_3.json"),
-                Path(
-                    "fixtures/blockchain_tests_engine/shanghai_two__fork_Shanghai_blockchain_test_engine_x_3.json"
-                ),
-            ],
-            [1] * 36,
-            True,
-            id="flat-single-per-file_flat-output",
         ),
     ],
 )
 def test_fixture_output_based_on_command_line_args(
-    testdir, args, expected_fixture_files, expected_fixture_counts, expected_index
+    testdir,
+    args,
+    expected_fixture_files,
+    expected_fixture_counts,
+    default_t8n,
 ):
     """
     Test:
@@ -516,9 +419,14 @@ def test_fixture_output_based_on_command_line_args(
     test_module = shanghai_tests_dir.join("test_module_shanghai.py")
     test_module.write(test_module_shanghai)
 
-    testdir.copy_example(name="pytest.ini")
+    testdir.copy_example(name="src/cli/pytest_commands/pytest_ini_files/pytest-fill.ini")
+    args.append("-c")
+    args.append("pytest-fill.ini")
     args.append("-v")
     args.append("--no-html")
+    args.append("--t8n-server-url")
+    args.append(default_t8n.server_url)
+
     result = testdir.runpytest(*args)
     result.assert_outcomes(
         passed=total_test_count * 3,
@@ -539,6 +447,7 @@ def test_fixture_output_based_on_command_line_args(
     expected_ini_file = "fixtures.ini"
     expected_index_file = "index.json"
     expected_resolver_file = None
+    resolver_file = None
     if TransitionTool.default_tool == ExecutionSpecsTransitionTool:
         expected_resolver_file = "eels_resolutions.json"
 
@@ -559,19 +468,161 @@ def test_fixture_output_based_on_command_line_args(
     all_fixtures = [file for file in all_files if file.name not in expected_additional_files]
     for fixture_file, fixture_count in zip(expected_fixture_files, expected_fixture_counts):
         assert fixture_file.exists(), f"{fixture_file} does not exist"
-        assert fixture_count == count_keys_in_fixture(
-            fixture_file
-        ), f"Fixture count mismatch for {fixture_file}"
+        assert fixture_count == count_keys_in_fixture(fixture_file), (
+            f"Fixture count mismatch for {fixture_file}"
+        )
 
-    assert set(all_fixtures) == set(
-        expected_fixture_files
-    ), f"Unexpected files in directory: {set(all_fixtures) - set(expected_fixture_files)}"
+    assert set(all_fixtures) == set(expected_fixture_files), (
+        f"Unexpected files in directory: {set(all_fixtures) - set(expected_fixture_files)}"
+    )
 
     assert ini_file is not None, f"No {expected_ini_file} file was found in {meta_dir}"
     config = configparser.ConfigParser()
-    config.read(ini_file)
+    ini_file_text = ini_file.read_text()
+    ini_file_text = ini_file_text.replace(default_t8n.server_url, "t8n_server_path")
+    config.read_string(ini_file_text)
 
-    if expected_index:
+    if "--skip-index" not in args:
+        assert index_file is not None, f"No {expected_index_file} file was found in {meta_dir}"
+
+    properties = {key: value for key, value in config.items("fixtures")}
+    assert "timestamp" in properties
+    timestamp = datetime.fromisoformat(properties["timestamp"])
+    assert timestamp.year == datetime.now().year
+    if "--build-name" in args:
+        assert "build" in properties
+        build_name = args[args.index("--build-name") + 1]
+        assert properties["build"] == build_name
+
+
+test_module_environment_variables = textwrap.dedent(
+    """\
+    import pytest
+
+    from ethereum_test_tools import Account, Environment, Transaction
+
+    @pytest.mark.parametrize("block_gas_limit", [Environment().gas_limit])
+    @pytest.mark.valid_at("Cancun")
+    def test_max_gas_limit(state_test, pre, block_gas_limit):
+        env = Environment()
+        assert block_gas_limit == {expected_gas_limit}
+        tx = Transaction(gas_limit=block_gas_limit, sender=pre.fund_eoa())
+        state_test(env=env, pre=pre, post={{}}, tx=tx)
+    """
+)
+
+
+@pytest.mark.parametrize(
+    "args, expected_fixture_files, expected_fixture_counts, expected_gas_limit",
+    [
+        pytest.param(
+            [],
+            [
+                Path(
+                    "fixtures/state_tests/cancun/module_environment_variables/max_gas_limit.json"
+                ),
+            ],
+            [1],
+            Environment().gas_limit,
+            id="default-args",
+        ),
+        pytest.param(
+            ["--block-gas-limit", str(Environment().gas_limit * 2)],
+            [
+                Path(
+                    "fixtures/state_tests/cancun/module_environment_variables/max_gas_limit.json"
+                ),
+            ],
+            [1],
+            Environment().gas_limit * 2,
+            id="higher-gas-limit",
+        ),
+    ],
+)
+def test_fill_variables(
+    testdir,
+    args,
+    expected_fixture_files,
+    expected_fixture_counts,
+    expected_gas_limit,
+    default_t8n,
+):
+    """
+    Test filling tests that depend on variables such as the max block gas limit.
+    """
+    tests_dir = testdir.mkdir("tests")
+
+    cancun_tests_dir = tests_dir.mkdir("cancun")
+    test_module = cancun_tests_dir.join("test_module_environment_variables.py")
+    test_module.write(
+        test_module_environment_variables.format(expected_gas_limit=expected_gas_limit)
+    )
+
+    testdir.copy_example(name="src/cli/pytest_commands/pytest_ini_files/pytest-fill.ini")
+    args.append("-c")
+    args.append("pytest-fill.ini")
+    args.append("-v")
+    args.append("-m")
+    args.append("state_test")
+    args.append("--no-html")
+    args.append("--t8n-server-url")
+    args.append(default_t8n.server_url)
+    result = testdir.runpytest(*args)
+    result.assert_outcomes(
+        passed=1,
+        failed=0,
+        skipped=0,
+        errors=0,
+    )
+    if "--output" in args:
+        output_dir = Path(args[args.index("--output") + 1]).absolute()
+    else:
+        output_dir = Path(default_output_directory()).absolute()
+    assert output_dir.exists()
+
+    all_files = get_all_files_in_directory(output_dir)
+    meta_dir = os.path.join(output_dir, ".meta")
+    assert os.path.exists(meta_dir), f"The directory {meta_dir} does not exist"
+
+    expected_ini_file = "fixtures.ini"
+    expected_index_file = "index.json"
+    expected_resolver_file = None
+    resolver_file = None
+    if TransitionTool.default_tool == ExecutionSpecsTransitionTool:
+        expected_resolver_file = "eels_resolutions.json"
+
+    ini_file = None
+    index_file = None
+    for file in all_files:
+        if file.name == expected_ini_file:
+            ini_file = file
+        elif file.name == expected_index_file:
+            index_file = file
+        elif expected_resolver_file and file.name == expected_resolver_file:
+            resolver_file = file
+            assert resolver_file.exists(), f"{resolver_file} does not exist"
+
+    expected_additional_files = {expected_ini_file, expected_index_file}
+    if resolver_file:
+        expected_additional_files.add(expected_resolver_file)
+    all_fixtures = [file for file in all_files if file.name not in expected_additional_files]
+    for fixture_file, fixture_count in zip(expected_fixture_files, expected_fixture_counts):
+        assert fixture_file.exists(), f"{fixture_file} does not exist"
+        assert fixture_count == count_keys_in_fixture(fixture_file), (
+            f"Fixture count mismatch for {fixture_file}"
+        )
+
+    assert set(all_fixtures) == set(expected_fixture_files), (
+        f"Unexpected files in directory: {set(all_fixtures) - set(expected_fixture_files)}"
+    )
+
+    assert ini_file is not None, f"No {expected_ini_file} file was found in {meta_dir}"
+    config = configparser.ConfigParser()
+    ini_file_text = ini_file.read_text()
+    ini_file_text = ini_file_text.replace(default_t8n.server_url, "t8n_server_path")
+    config.read_string(ini_file_text)
+
+    if "--skip-index" not in args:
         assert index_file is not None, f"No {expected_index_file} file was found in {meta_dir}"
 
     properties = {key: value for key, value in config.items("fixtures")}

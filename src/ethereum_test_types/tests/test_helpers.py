@@ -9,11 +9,17 @@ from ..helpers import compute_create2_address, compute_create_address
 
 def test_address():
     """Test `ethereum_test.base_types.Address`."""
-    assert Address("0x0") == "0x0000000000000000000000000000000000000000"
+    assert (
+        Address("0x0000000000000000000000000000000000000000")
+        == "0x0000000000000000000000000000000000000000"
+    )
     assert Address(0) == "0x0000000000000000000000000000000000000000"
     assert Address(1) == "0x0000000000000000000000000000000000000001"
     assert Address(10) == "0x000000000000000000000000000000000000000a"
-    assert Address("0x10") == "0x0000000000000000000000000000000000000010"
+    assert (
+        Address("0x0000000000000000000000000000000000000010")
+        == "0x0000000000000000000000000000000000000010"
+    )
     assert Address(2 ** (20 * 8) - 1) == "0xffffffffffffffffffffffffffffffffffffffff"
     assert Address(0) == Address(0)
     assert Address(0) != Address(1)
@@ -52,7 +58,7 @@ def test_address():
             "0x06012c8cf97bead5deae237070f9587f8e7a266d",
             id="large-nonce-0x-str-address",
             marks=pytest.mark.xfail(
-                reason="Nonce too large to convert with hard-coded to_bytes " "length of 1"
+                reason="Nonce too large to convert with hard-coded to_bytes length of 1"
             ),
         ),
     ],

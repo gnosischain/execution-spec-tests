@@ -13,7 +13,7 @@ class ReferenceSpec:
     version: str
 
 
-ref_spec_4788 = ReferenceSpec("EIPS/eip-4788.md", "e7608fe8ac8a60934ca874f5aab7d5c1f4ff7782")
+ref_spec_4788 = ReferenceSpec("EIPS/eip-4788.md", "efcac43ef9aadd87dd4e0a2fbd14d5d1317eddf3")
 
 
 # Constants
@@ -58,7 +58,7 @@ class SpecHelpers:
         - validity of the timestamp input used within the call.
         """
         # By default assume the call is unsuccessful and all keys are zero
-        storage = Storage({k: 0 for k in range(4)})  # type: ignore
+        storage = Storage(dict.fromkeys(range(4), 0))  # type: ignore
         if valid_call and valid_input:
             # beacon root contract call is successful
             storage[0] = 1

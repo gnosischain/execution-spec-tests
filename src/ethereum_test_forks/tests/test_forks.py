@@ -1,46 +1,64 @@
 """Test fork utilities."""
 
-from typing import Mapping, cast
+from typing import Dict, cast
 
 import pytest
-from semver import Version
+from pydantic import BaseModel
 
-from ..base_fork import Fork
+from ethereum_test_base_types import BlobSchedule
+
 from ..forks.forks import (
+    BPO1,
+    BPO2,
+    BPO3,
+    BPO4,
     Berlin,
     Cancun,
     Frontier,
     Homestead,
     Istanbul,
     London,
+    Osaka,
     Paris,
     Prague,
     Shanghai,
 )
-from ..forks.transition import BerlinToLondonAt5, ParisToShanghaiAtTime15k
+from ..forks.transition import (
+    BerlinToLondonAt5,
+    BPO1ToBPO2AtTime15k,
+    BPO2ToBPO3AtTime15k,
+    BPO3ToBPO4AtTime15k,
+    CancunToPragueAtTime15k,
+    OsakaToBPO1AtTime15k,
+    ParisToShanghaiAtTime15k,
+    PragueToOsakaAtTime15k,
+    ShanghaiToCancunAtTime15k,
+)
 from ..helpers import (
+    Fork,
+    ForkAdapter,
+    ForkOrNoneAdapter,
+    ForkSetAdapter,
     forks_from,
     forks_from_until,
-    get_closest_fork_with_solc_support,
     get_deployed_forks,
     get_forks,
-    get_forks_with_solc_support,
     transition_fork_from_to,
     transition_fork_to,
 )
 from ..transition_base_fork import transition_fork
 
 FIRST_DEPLOYED = Frontier
-LAST_DEPLOYED = Cancun
-LAST_DEVELOPMENT = Prague
-DEVELOPMENT_FORKS = [Prague]
+LAST_DEPLOYED = Prague
+LAST_DEVELOPMENT = Osaka
+DEVELOPMENT_FORKS = [Osaka]
 
 
 def test_transition_forks():
     """Test transition fork utilities."""
     assert transition_fork_from_to(Berlin, London) == BerlinToLondonAt5
     assert transition_fork_from_to(Berlin, Paris) is None
-    assert transition_fork_to(Shanghai) == [ParisToShanghaiAtTime15k]
+    assert transition_fork_to(Shanghai) == {ParisToShanghaiAtTime15k}
 
     # Test forks transitioned to and from
     assert BerlinToLondonAt5.transitions_to() == London
@@ -101,9 +119,9 @@ def test_forks():
     # the default
     assert Paris.transition_tool_name() == "Merge"
     assert Shanghai.transition_tool_name() == "Shanghai"
-    assert Paris.blockchain_test_network_name() == "Paris"
-    assert Shanghai.blockchain_test_network_name() == "Shanghai"
-    assert ParisToShanghaiAtTime15k.blockchain_test_network_name() == "ParisToShanghaiAtTime15k"
+    assert f"{Paris}" == "Paris"
+    assert f"{Shanghai}" == "Shanghai"
+    assert f"{ParisToShanghaiAtTime15k}" == "ParisToShanghaiAtTime15k"
 
     # Test some fork properties
     assert Berlin.header_base_fee_required(0, 0) is False
@@ -119,6 +137,37 @@ def test_forks():
     assert cast(Fork, ParisToShanghaiAtTime15k).header_withdrawals_required(0, 15_000) is True
     assert cast(Fork, ParisToShanghaiAtTime15k).header_withdrawals_required() is True
 
+
+class ForkInPydanticModel(BaseModel):
+    """Fork in pydantic model."""
+
+    fork_1: Fork
+    fork_2: Fork
+    fork_3: Fork | None
+
+
+def test_fork_in_pydantic_model():
+    """Test fork in pydantic model."""
+    model = ForkInPydanticModel(fork_1=Paris, fork_2=ParisToShanghaiAtTime15k, fork_3=None)
+    assert model.model_dump() == {
+        "fork_1": "Paris",
+        "fork_2": "ParisToShanghaiAtTime15k",
+        "fork_3": None,
+    }
+    assert (
+        model.model_dump_json()
+        == '{"fork_1":"Paris","fork_2":"ParisToShanghaiAtTime15k","fork_3":null}'
+    )
+    model = ForkInPydanticModel.model_validate_json(
+        '{"fork_1": "Paris", "fork_2": "ParisToShanghaiAtTime15k", "fork_3": null}'
+    )
+    assert model.fork_1 == Paris
+    assert model.fork_2 == ParisToShanghaiAtTime15k
+    assert model.fork_3 is None
+
+
+def test_fork_comparison():
+    """Test fork comparison operators."""
     # Test fork comparison
     assert Paris > Berlin
     assert not Berlin > Paris
@@ -153,6 +202,52 @@ def test_forks():
     assert fork == Berlin
 
 
+def test_transition_fork_comparison():
+    """
+    Test comparing to a transition fork.
+
+    The comparison logic is based on the logic we use to generate the tests.
+
+    E.g. given transition fork A->B, when filling, and given the from/until markers,
+    we expect the following logic:
+
+    Marker    Comparison   A->B Included
+    --------- ------------ ---------------
+    From A    fork >= A    True
+    Until A   fork <= A    False
+    From B    fork >= B    True
+    Until B   fork <= B    True
+    """
+    assert BerlinToLondonAt5 >= Berlin
+    assert not BerlinToLondonAt5 <= Berlin
+    assert BerlinToLondonAt5 >= London
+    assert BerlinToLondonAt5 <= London
+
+    # Comparisons between transition forks is done against the `transitions_to` fork
+    assert BerlinToLondonAt5 < ParisToShanghaiAtTime15k
+    assert ParisToShanghaiAtTime15k > BerlinToLondonAt5
+    assert BerlinToLondonAt5 == BerlinToLondonAt5
+    assert BerlinToLondonAt5 != ParisToShanghaiAtTime15k
+    assert BerlinToLondonAt5 <= ParisToShanghaiAtTime15k
+    assert ParisToShanghaiAtTime15k >= BerlinToLondonAt5
+
+    assert sorted(
+        {
+            PragueToOsakaAtTime15k,
+            CancunToPragueAtTime15k,
+            ParisToShanghaiAtTime15k,
+            ShanghaiToCancunAtTime15k,
+            BerlinToLondonAt5,
+        }
+    ) == [
+        BerlinToLondonAt5,
+        ParisToShanghaiAtTime15k,
+        ShanghaiToCancunAtTime15k,
+        CancunToPragueAtTime15k,
+        PragueToOsakaAtTime15k,
+    ]
+
+
 def test_get_forks():  # noqa: D103
     all_forks = get_forks()
     assert all_forks[0] == FIRST_DEPLOYED
@@ -169,7 +264,7 @@ class PrePreAllocFork(Shanghai):
     """Dummy fork used for testing."""
 
     @classmethod
-    def pre_allocation(cls) -> Mapping:
+    def pre_allocation(cls) -> Dict:
         """Return some starting point for allocation."""
         return {"test": "test"}
 
@@ -178,12 +273,12 @@ class PreAllocFork(PrePreAllocFork):
     """Dummy fork used for testing."""
 
     @classmethod
-    def pre_allocation(cls) -> Mapping:
+    def pre_allocation(cls) -> Dict:
         """Add allocation to the pre-existing one from previous fork."""
         return {"test2": "test2"} | super(PreAllocFork, cls).pre_allocation()
 
 
-@transition_fork(to_fork=PreAllocFork, at_timestamp=15_000)
+@transition_fork(to_fork=PreAllocFork, at_timestamp=15_000)  # type: ignore
 class PreAllocTransitionFork(PrePreAllocFork):
     """PrePreAllocFork to PreAllocFork transition at Timestamp 15k."""
 
@@ -209,18 +304,6 @@ def test_precompiles():  # noqa: D103
 
 def test_tx_types():  # noqa: D103
     Cancun.tx_types() == list(range(4))  # noqa: B015
-
-
-def test_solc_versioning():  # noqa: D103
-    assert len(get_forks_with_solc_support(Version.parse("0.8.20"))) == 13
-    assert len(get_forks_with_solc_support(Version.parse("0.8.24"))) > 13
-
-
-def test_closest_fork_supported_by_solc():  # noqa: D103
-    assert get_closest_fork_with_solc_support(Paris, Version.parse("0.8.20")) == Paris
-    assert get_closest_fork_with_solc_support(Cancun, Version.parse("0.8.20")) == Shanghai
-    assert get_closest_fork_with_solc_support(Cancun, Version.parse("0.8.24")) == Cancun
-    assert get_closest_fork_with_solc_support(Prague, Version.parse("0.8.24")) == Cancun
 
 
 @pytest.mark.parametrize(
@@ -264,3 +347,163 @@ def test_tx_intrinsic_gas_functions(fork: Fork, calldata: bytes, create_tx: bool
         )
         == intrinsic_gas
     )
+
+
+class FutureFork(Osaka):
+    """
+    Dummy fork used for testing.
+
+    Contains no changes to the blob parameters from the parent fork in order to confirm that
+    it's added to the blob schedule even if it doesn't have any changes.
+    """
+
+    pass
+
+
+@pytest.mark.parametrize(
+    "fork,expected_schedule",
+    [
+        pytest.param(Frontier, None, id="Frontier"),
+        pytest.param(
+            Cancun,
+            {
+                "Cancun": {
+                    "target_blobs_per_block": 3,
+                    "max_blobs_per_block": 6,
+                    "baseFeeUpdateFraction": 3338477,
+                },
+            },
+            id="Cancun",
+        ),
+        pytest.param(
+            Prague,
+            {
+                "Cancun": {
+                    "target_blobs_per_block": 3,
+                    "max_blobs_per_block": 6,
+                    "baseFeeUpdateFraction": 3338477,
+                },
+                "Prague": {
+                    "target_blobs_per_block": 6,
+                    "max_blobs_per_block": 9,
+                    "baseFeeUpdateFraction": 5007716,
+                },
+            },
+            id="Prague",
+        ),
+        pytest.param(
+            Osaka,
+            {
+                "Cancun": {
+                    "target_blobs_per_block": 3,
+                    "max_blobs_per_block": 6,
+                    "baseFeeUpdateFraction": 3338477,
+                },
+                "Prague": {
+                    "target_blobs_per_block": 6,
+                    "max_blobs_per_block": 9,
+                    "baseFeeUpdateFraction": 5007716,
+                },
+                "Osaka": {
+                    "target_blobs_per_block": 6,
+                    "max_blobs_per_block": 9,
+                    "baseFeeUpdateFraction": 5007716,
+                },
+            },
+            id="Osaka",
+        ),
+        pytest.param(
+            CancunToPragueAtTime15k,
+            {
+                "Cancun": {
+                    "target_blobs_per_block": 3,
+                    "max_blobs_per_block": 6,
+                    "baseFeeUpdateFraction": 3338477,
+                },
+                "Prague": {
+                    "target_blobs_per_block": 6,
+                    "max_blobs_per_block": 9,
+                    "baseFeeUpdateFraction": 5007716,
+                },
+            },
+            id="CancunToPragueAtTime15k",
+        ),
+        pytest.param(
+            PragueToOsakaAtTime15k,
+            {
+                "Cancun": {
+                    "target_blobs_per_block": 3,
+                    "max_blobs_per_block": 6,
+                    "baseFeeUpdateFraction": 3338477,
+                },
+                "Prague": {
+                    "target_blobs_per_block": 6,
+                    "max_blobs_per_block": 9,
+                    "baseFeeUpdateFraction": 5007716,
+                },
+                "Osaka": {
+                    "target_blobs_per_block": 6,
+                    "max_blobs_per_block": 9,
+                    "baseFeeUpdateFraction": 5007716,
+                },
+            },
+            id="PragueToOsakaAtTime15k",
+        ),
+        pytest.param(
+            FutureFork,
+            {
+                "Cancun": {
+                    "target_blobs_per_block": 3,
+                    "max_blobs_per_block": 6,
+                    "baseFeeUpdateFraction": 3338477,
+                },
+                "Prague": {
+                    "target_blobs_per_block": 6,
+                    "max_blobs_per_block": 9,
+                    "baseFeeUpdateFraction": 5007716,
+                },
+                "Osaka": {
+                    "target_blobs_per_block": 6,
+                    "max_blobs_per_block": 9,
+                    "baseFeeUpdateFraction": 5007716,
+                },
+                "FutureFork": {
+                    "target_blobs_per_block": 6,
+                    "max_blobs_per_block": 9,
+                    "baseFeeUpdateFraction": 5007716,
+                },
+            },
+            id="FutureFork",
+        ),
+    ],
+)
+def test_blob_schedules(fork: Fork, expected_schedule: Dict | None):
+    """Test blob schedules for different forks."""
+    if expected_schedule is None:
+        assert fork.blob_schedule() is None
+    else:
+        assert fork.blob_schedule() == BlobSchedule(**expected_schedule)
+
+
+def test_bpo_fork():  # noqa: D103
+    assert Osaka.bpo_fork() is False
+    assert BPO1.bpo_fork() is True
+    assert BPO2.bpo_fork() is True
+    assert BPO3.bpo_fork() is True
+    assert BPO4.bpo_fork() is True
+    assert OsakaToBPO1AtTime15k.bpo_fork() is True
+    assert BPO1ToBPO2AtTime15k.bpo_fork() is True
+    assert BPO2ToBPO3AtTime15k.bpo_fork() is True
+    assert BPO3ToBPO4AtTime15k.bpo_fork() is True
+
+
+def test_fork_adapters():  # noqa: D103
+    assert Osaka == ForkAdapter.validate_python("Osaka")
+    assert Osaka == ForkOrNoneAdapter.validate_python("Osaka")
+    assert ForkOrNoneAdapter.validate_python(None) is None
+    assert {Osaka, Prague} == ForkSetAdapter.validate_python("Osaka, Prague")
+    assert {Osaka, Prague} == ForkSetAdapter.validate_python("osaka, Prague")
+    assert {Osaka, Prague} == ForkSetAdapter.validate_python({"osaka", "Prague"})
+    assert {Osaka} == ForkSetAdapter.validate_python("Osaka")
+    assert {Osaka} == ForkSetAdapter.validate_python({Osaka})
+    assert set() == ForkSetAdapter.validate_python("")

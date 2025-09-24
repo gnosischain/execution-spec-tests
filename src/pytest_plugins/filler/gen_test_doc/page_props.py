@@ -12,11 +12,10 @@ file paths for use in navigation menu.
 
 import re
 from abc import abstractmethod
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import IO, Any, ContextManager, Dict, List, Protocol
 
-import mkdocs_gen_files  # type: ignore
 from jinja2 import Environment
 
 from ethereum_test_tools import Opcodes
@@ -79,6 +78,17 @@ def nav_path_to_sanitized_str_tuple(nav_path: Path) -> tuple:
     return tuple(sanitize_string_title(part) for part in nav_path.parts)
 
 
+class FileOpener(Protocol):
+    """
+    Protocol to replace `mkdocs_gen_files` so it doesn't have to be imported/installed for
+    unit tests.
+    """
+
+    def open(self, path: Path, mode: str) -> ContextManager[IO[Any]]:
+        """Open a file for writing."""
+        raise NotImplementedError
+
+
 @dataclass
 class PagePropsBase:
     """
@@ -94,6 +104,7 @@ class PagePropsBase:
     path: Path
     pytest_node_id: str
     package_name: str
+    is_benchmark: bool = False
 
     @property
     @abstractmethod
@@ -114,13 +125,36 @@ class PagePropsBase:
         path = top_level_nav_entry / Path(*self.path.parts[1:]).with_suffix("")
         return nav_path_to_sanitized_str_tuple(path)
 
-    def write_page(self, jinja2_env: Environment):
+    def write_page(self, file_opener: FileOpener, jinja2_env: Environment):
         """Write the page to the target directory."""
         template = jinja2_env.get_template(self.template)
         rendered_content = template.render(**asdict(self))
-        with mkdocs_gen_files.open(self.target_output_file, "w") as destination:
+        with file_opener.open(self.target_output_file, "w") as destination:
             for line in rendered_content.splitlines(keepends=True):
                 destination.write(line)
+
+
+@dataclass
+class EipChecklistPageProps(PagePropsBase):
+    """Properties used to generate the EIP checklist page."""
+
+    eip: int = 0
+    lines: List[str] = field(default_factory=list)
+
+    @property
+    def template(self) -> str:
+        """Get the jinja2 template used to render this page."""
+        raise Exception("EipChecklistPageProps does not have a template")
+
+    @property
+    def target_output_file(self) -> Path:
+        """Get the target output file for this page."""
+        return self.path
+
+    def write_page(self, file_opener: FileOpener, jinja2_env: Environment):
+        """Write the page to the target directory."""
+        with file_opener.open(self.target_output_file, "w") as destination:
+            destination.write("\n".join(self.lines))
 
 
 @dataclass
@@ -141,13 +175,13 @@ class FunctionPageProps(PagePropsBase):
     corresponding static HTML pages.
     """
 
-    test_case_count: int
-    fixture_formats: List[str]
-    test_type: str
-    docstring_one_liner: str
-    html_static_page_target: str
-    mkdocs_function_page_target: str
-    cases: List[TestCase]
+    test_case_count: int = 0
+    fixture_formats: List[str] = field(default_factory=list)
+    test_type: str = ""
+    docstring_one_liner: str = ""
+    html_static_page_target: str = ""
+    mkdocs_function_page_target: str = ""
+    cases: List[TestCase] = field(default_factory=list)
 
     @property
     def template(self) -> str:
@@ -164,20 +198,20 @@ class FunctionPageProps(PagePropsBase):
         nav_path_prefix = super().nav_entry(top_level_nav_entry)  # already sanitized
         return (*nav_path_prefix, f"<code>{self.title}</code>")
 
-    def write_page(self, jinja2_env: Environment):
+    def write_page(self, file_opener: FileOpener, jinja2_env: Environment):
         """
         Test functions also get a static HTML page with parametrized test cases.
 
         This is intended for easier viewing (without mkdocs styling) of the data-table
         that documents the parametrized test cases.
         """
-        super().write_page(jinja2_env)
+        super().write_page(file_opener, jinja2_env)
         if not self.cases:
             return
         html_template = jinja2_env.get_template("function.html.j2")
         rendered_html_content = html_template.render(**asdict(self))
         html_output_file = self.target_output_file.with_suffix(".html")
-        with mkdocs_gen_files.open(html_output_file, "w") as destination:
+        with file_opener.open(html_output_file, "w") as destination:
             for line in rendered_html_content.splitlines(keepends=True):
                 destination.write(line)
 
@@ -196,7 +230,7 @@ class TestFunction:
 class ModulePageProps(PagePropsBase):
     """Definitions used for test modules, e.g., `tests/berlin/eip2930_access_list/test_acl.py`."""
 
-    test_functions: List[TestFunction]
+    test_functions: List[TestFunction] = field(default_factory=list)
 
     @property
     def template(self) -> str:
@@ -240,7 +274,7 @@ class MarkdownPageProps(PagePropsBase):
         """Get the target output file for this page."""
         return self.path
 
-    def write_page(self, jinja2_env: Environment):
+    def write_page(self, file_opener: FileOpener, jinja2_env: Environment):
         """
         Write the page to the target directory.
 
@@ -249,14 +283,20 @@ class MarkdownPageProps(PagePropsBase):
         template = jinja2_env.get_template(self.template)
         rendered_content = template.render(**asdict(self))
         with open(self.path, "r") as md_source:
-            with mkdocs_gen_files.open(self.target_output_file, "w") as destination:
+            with file_opener.open(self.target_output_file, "w") as destination:
                 for line in rendered_content.splitlines(keepends=True):
                     destination.write(line)
                 for line in md_source:
                     destination.write(line)
 
 
-PageProps = DirectoryPageProps | ModulePageProps | FunctionPageProps | MarkdownPageProps
+PageProps = (
+    DirectoryPageProps
+    | ModulePageProps
+    | FunctionPageProps
+    | MarkdownPageProps
+    | EipChecklistPageProps
+)
 PagePropsLookup = Dict[str, PageProps]
 ModulePagePropsLookup = Dict[str, ModulePageProps]
 FunctionPagePropsLookup = Dict[str, FunctionPageProps]

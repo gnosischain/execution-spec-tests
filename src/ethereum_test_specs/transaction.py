@@ -1,13 +1,21 @@
 """Ethereum transaction test spec definition and filler."""
 
-from typing import Callable, ClassVar, Generator, List, Optional, Type
-
-import pytest
+from typing import Callable, ClassVar, Generator, Sequence, Type
 
 from ethereum_clis import TransitionTool
-from ethereum_test_execution import BaseExecute, ExecuteFormat, TransactionPost
-from ethereum_test_fixtures import BaseFixture, FixtureFormat, TransactionFixture
-from ethereum_test_fixtures.transaction import Fixture, FixtureResult
+from ethereum_test_execution import (
+    BaseExecute,
+    ExecuteFormat,
+    LabeledExecuteFormat,
+    TransactionPost,
+)
+from ethereum_test_fixtures import (
+    BaseFixture,
+    FixtureFormat,
+    LabeledFixtureFormat,
+    TransactionFixture,
+)
+from ethereum_test_fixtures.transaction import FixtureResult
 from ethereum_test_forks import Fork
 from ethereum_test_types import Alloc, Transaction
 
@@ -20,18 +28,21 @@ class TransactionTest(BaseTest):
     tx: Transaction
     pre: Alloc | None = None
 
-    supported_fixture_formats: ClassVar[List[FixtureFormat]] = [
+    supported_fixture_formats: ClassVar[Sequence[FixtureFormat | LabeledFixtureFormat]] = [
         TransactionFixture,
     ]
-    supported_execute_formats: ClassVar[List[ExecuteFormat]] = [
-        TransactionPost,
+    supported_execute_formats: ClassVar[Sequence[LabeledExecuteFormat]] = [
+        LabeledExecuteFormat(
+            TransactionPost,
+            "transaction_test",
+            "An execute test derived from a transaction test",
+        ),
     ]
 
     def make_transaction_test_fixture(
         self,
         fork: Fork,
-        eips: Optional[List[int]] = None,
-    ) -> Fixture:
+    ) -> TransactionFixture:
         """Create a fixture from the transaction test definition."""
         if self.tx.error is not None:
             result = FixtureResult(
@@ -55,24 +66,23 @@ class TransactionTest(BaseTest):
                 sender=self.tx.sender,
             )
 
-        return Fixture(
+        return TransactionFixture(
             result={
-                fork.blockchain_test_network_name(): result,
+                fork: result,
             },
-            transaction=self.tx.with_signature_and_sender().rlp,
+            transaction=self.tx.with_signature_and_sender().rlp(),
         )
 
     def generate(
         self,
-        request: pytest.FixtureRequest,
         t8n: TransitionTool,
         fork: Fork,
         fixture_format: FixtureFormat,
-        eips: Optional[List[int]] = None,
     ) -> BaseFixture:
         """Generate the TransactionTest fixture."""
+        self.check_exception_test(exception=self.tx.error is not None)
         if fixture_format == TransactionFixture:
-            return self.make_transaction_test_fixture(fork, eips)
+            return self.make_transaction_test_fixture(fork)
 
         raise Exception(f"Unknown fixture format: {fixture_format}")
 
@@ -81,12 +91,11 @@ class TransactionTest(BaseTest):
         *,
         fork: Fork,
         execute_format: ExecuteFormat,
-        eips: Optional[List[int]] = None,
     ) -> BaseExecute:
         """Execute the transaction test by sending it to the live network."""
         if execute_format == TransactionPost:
             return TransactionPost(
-                transactions=[self.tx],
+                blocks=[[self.tx]],
                 post={},
             )
         raise Exception(f"Unsupported execute format: {execute_format}")

@@ -1,27 +1,33 @@
 """Pytest plugin to enable fork range configuration for the test session."""
 
 import itertools
+import re
 import sys
 import textwrap
+from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from types import FunctionType
-from typing import Any, Callable, ClassVar, Iterable, List, Set, Tuple, Type
+from typing import Any, Callable, ClassVar, Dict, Iterable, Iterator, List, Set, Tuple, Type
 
 import pytest
 from _pytest.mark.structures import ParameterSet
-from pytest import Metafunc
+from pytest import Mark, Metafunc
 
 from ethereum_clis import TransitionTool
 from ethereum_test_forks import (
+    ALL_FORKS,
+    ALL_FORKS_WITH_TRANSITIONS,
     Fork,
+    ForkSetAdapter,
+    InvalidForkError,
     get_deployed_forks,
-    get_forks,
-    get_forks_with_no_parents,
-    get_from_until_fork_set,
-    get_last_descendants,
+    get_selected_fork_set,
     get_transition_forks,
     transition_fork_to,
 )
+from pytest_plugins.logging import get_logger
+
+logger = get_logger(__name__)
 
 
 def pytest_addoption(parser):
@@ -38,21 +44,21 @@ def pytest_addoption(parser):
         "--fork",
         action="store",
         dest="single_fork",
-        default=None,
+        default="",
         help="Only fill tests for the specified fork.",
     )
     fork_group.addoption(
         "--from",
         action="store",
         dest="forks_from",
-        default=None,
+        default="",
         help="Fill tests from and including the specified fork.",
     )
     fork_group.addoption(
         "--until",
         action="store",
         dest="forks_until",
-        default=None,
+        default="",
         help="Fill tests until and including the specified fork.",
     )
 
@@ -182,7 +188,7 @@ class CovariantDescriptor:
             else argnames
         )
         self.fn = fn
-        self.selector = selector
+        self.selector = selector  # type: ignore[assignment]
         self.marks = marks
 
     def process_value(
@@ -255,6 +261,8 @@ class CovariantDecorator(CovariantDescriptor):
         description: Description of the marker.
         fork_attribute_name: Name of the method to call on the fork to get the values.
         marker_parameter_names: Names of the parameters to be parametrized in the test function.
+        indirect: Whether the parameters should be passed through fixtures (indirect
+            parametrization).
 
     """
 
@@ -262,6 +270,7 @@ class CovariantDecorator(CovariantDescriptor):
     description: ClassVar[str]
     fork_attribute_name: ClassVar[str]
     marker_parameter_names: ClassVar[List[str]]
+    indirect: ClassVar[bool]
 
     def __init__(self, metafunc: Metafunc):
         """
@@ -315,6 +324,7 @@ def covariant_decorator(
     description: str,
     fork_attribute_name: str,
     argnames: List[str],
+    indirect: bool = False,
 ) -> Type[CovariantDecorator]:
     """Generate a new covariant decorator subclass."""
     return type(
@@ -325,6 +335,7 @@ def covariant_decorator(
             "description": description,
             "fork_attribute_name": fork_attribute_name,
             "marker_parameter_names": argnames,
+            "indirect": indirect,
         },
     )
 
@@ -343,6 +354,16 @@ fork_covariant_decorators: List[Type[CovariantDecorator]] = [
         " at parameter named tx_type of type int",
         fork_attribute_name="contract_creating_tx_types",
         argnames=["tx_type"],
+    ),
+    covariant_decorator(
+        marker_name="with_all_typed_transactions",
+        description="marks a test to be parametrized with default typed transactions named "
+        "typed_transaction",
+        fork_attribute_name="tx_types",
+        argnames=["typed_transaction"],
+        # indirect means the values from `tx_types` will be passed to the
+        # `typed_transaction` fixture which will then be used in the test
+        indirect=True,
     ),
     covariant_decorator(
         marker_name="with_all_precompiles",
@@ -382,7 +403,6 @@ fork_covariant_decorators: List[Type[CovariantDecorator]] = [
 ]
 
 
-@pytest.hookimpl(tryfirst=True)
 def pytest_configure(config: pytest.Config):
     """
     Register the plugin's custom markers and process command-line options.
@@ -393,8 +413,9 @@ def pytest_configure(config: pytest.Config):
     config.addinivalue_line(
         "markers",
         (
-            "valid_at_transition_to(fork): specifies a test case is valid "
-            "only at fork transition boundary to the specified fork"
+            "valid_at_transition_to(fork, subsequent_forks: bool = False, "
+            "until: str | None = None): specifies a test case is only valid "
+            "at the specified fork transition boundaries"
         ),
     )
     config.addinivalue_line(
@@ -407,6 +428,10 @@ def pytest_configure(config: pytest.Config):
     )
     config.addinivalue_line(
         "markers",
+        "valid_at(fork): specifies at which fork a test case is valid",
+    )
+    config.addinivalue_line(
+        "markers",
         (
             "parametrize_by_fork(names, values_fn): parametrize a test case by fork using the "
             "specified names and values returned by the function values_fn(fork)"
@@ -415,15 +440,10 @@ def pytest_configure(config: pytest.Config):
     for d in fork_covariant_decorators:
         config.addinivalue_line("markers", f"{d.marker_name}: {d.description}")
 
-    forks = {fork for fork in get_forks() if not fork.ignore()}
-    config.forks = forks  # type: ignore
-    config.fork_names = {fork.name() for fork in sorted(forks)}  # type: ignore
-    config.forks_by_name = {fork.name(): fork for fork in forks}  # type: ignore
-
     available_forks_help = textwrap.dedent(
         f"""\
         Available forks:
-        {", ".join(fork.name() for fork in forks)}
+        {", ".join(fork.name() for fork in ALL_FORKS)}
         """
     )
     available_forks_help += textwrap.dedent(
@@ -436,21 +456,9 @@ def pytest_configure(config: pytest.Config):
     def get_fork_option(config, option_name: str, parameter_name: str) -> Set[Fork]:
         """Post-process get option to allow for external fork conditions."""
         config_str = config.getoption(option_name)
-        if not config_str:
-            return set()
-        forks_str = config_str.split(",")
-        for i in range(len(forks_str)):
-            forks_str[i] = forks_str[i].strip()
-            if forks_str[i] == "Merge":
-                forks_str[i] = "Paris"
-
-        resulting_forks = set()
-
-        for fork in get_forks():
-            if fork.name() in forks_str:
-                resulting_forks.add(fork)
-
-        if len(resulting_forks) != len(forks_str):
+        try:
+            return ForkSetAdapter.validate_python(config_str)
+        except InvalidForkError:
             print(
                 f"Error: Unsupported fork provided to {parameter_name}:",
                 config_str,
@@ -460,8 +468,6 @@ def pytest_configure(config: pytest.Config):
             print(available_forks_help, file=sys.stderr)
             pytest.exit("Invalid command-line options.", returncode=pytest.ExitCode.USAGE_ERROR)
 
-        return resulting_forks
-
     single_fork = get_fork_option(config, "single_fork", "--fork")
     forks_from = get_fork_option(config, "forks_from", "--from")
     forks_until = get_fork_option(config, "forks_until", "--until")
@@ -469,7 +475,7 @@ def pytest_configure(config: pytest.Config):
 
     dev_forks_help = textwrap.dedent(
         "To run tests for a fork under active development, it must be "
-        "specified explicitly via --forks-until=FORK.\n"
+        "specified explicitly via --until=FORK.\n"
         "Tests are only ran for deployed mainnet forks by default, i.e., "
         f"until {get_deployed_forks()[-1].name()}.\n"
     )
@@ -484,19 +490,26 @@ def pytest_configure(config: pytest.Config):
         )
         pytest.exit("Invalid command-line options.", returncode=pytest.ExitCode.USAGE_ERROR)
 
-    if single_fork:
-        forks_from = single_fork
-        forks_until = single_fork
-    else:
-        if not forks_from:
-            forks_from = get_forks_with_no_parents(forks)
-        if not forks_until:
-            forks_until = get_last_descendants(set(get_deployed_forks()), forks_from)
+    transition_forks = not getattr(config, "skip_transition_forks", False)
 
-    fork_set = get_from_until_fork_set(forks, forks_from, forks_until)
-    config.fork_set = fork_set  # type: ignore
+    selected_fork_set = get_selected_fork_set(
+        single_fork=single_fork,
+        forks_from=forks_from,
+        forks_until=forks_until,
+        transition_forks=transition_forks,
+    )
+    if getattr(config, "single_fork_mode", False) and len(selected_fork_set) != 1:
+        pytest.exit(
+            f"""
+            Expected exactly one fork to be specified, got {len(selected_fork_set)}
+            ({selected_fork_set}).
+            Make sure to specify exactly one fork using the --fork command line argument.
+            """,
+            returncode=pytest.ExitCode.USAGE_ERROR,
+        )
+    config.selected_fork_set = selected_fork_set  # type: ignore
 
-    if not fork_set:
+    if not selected_fork_set:
         print(
             f"Error: --from {','.join(fork.name() for fork in forks_from)} "
             f"--until {','.join(fork.name() for fork in forks_until)} "
@@ -508,17 +521,13 @@ def pytest_configure(config: pytest.Config):
             returncode=pytest.ExitCode.USAGE_ERROR,
         )
 
-    # with --collect-only, we don't have access to these config options
     config.unsupported_forks: Set[Fork] = set()  # type: ignore
-    if config.option.collectonly:
-        return
-
-    evm_bin = config.getoption("evm_bin", None)
-    if evm_bin is not None:
-        t8n = TransitionTool.from_binary_path(binary_path=evm_bin)
+    t8n: TransitionTool | None = getattr(config, "t8n", None)
+    if t8n:
         config.unsupported_forks = frozenset(  # type: ignore
-            fork for fork in fork_set if not t8n.is_fork_supported(fork)
+            fork for fork in selected_fork_set if not t8n.is_fork_supported(fork)
         )
+        logger.debug(f"List of unsupported forks: {list(config.unsupported_forks)}")  # type: ignore
 
 
 @pytest.hookimpl(trylast=True)
@@ -531,11 +540,11 @@ def pytest_report_header(config, start_path):
         (
             bold
             + "Generating fixtures for: "
-            + ", ".join([f.name() for f in sorted(config.fork_set)])
+            + ", ".join([f.name() for f in sorted(config.selected_fork_set)])
             + reset
         ),
     ]
-    if all(fork.is_deployed() for fork in config.fork_set):
+    if all(fork.is_deployed() for fork in config.selected_fork_set):
         header += [
             (
                 bold + warning + "Only generating fixtures with stable/deployed forks: "
@@ -552,161 +561,437 @@ def fork(request):
     pass
 
 
-def get_validity_marker_args(
-    metafunc: Metafunc,
-    validity_marker_name: str,
-    test_name: str,
-) -> Set[Fork]:
+@pytest.fixture(scope="session")
+def session_fork(request: pytest.FixtureRequest) -> Fork | None:
+    """Session-wide fork object used if the plugin is configured in single-fork mode."""
+    if hasattr(request.config, "single_fork_mode") and request.config.single_fork_mode:
+        return list(request.config.selected_fork_set)[0]  # type: ignore
+    raise AssertionError(
+        "Plugin used `session_fork` fixture without the correct configuration (single_fork_mode)."
+    )
+
+
+ALL_VALIDITY_MARKERS: Dict[str, "Type[ValidityMarker]"] = {}
+MARKER_NAME_REGEX = re.compile(r"(?<!^)(?=[A-Z])")
+
+
+@dataclass(kw_only=True)
+class ValidityMarker(ABC):
     """
-    Check and return the arguments specified to validity markers.
+    Abstract class to represent any fork validity marker.
 
-    Check that the validity markers:
+    Subclassing this class allows for the creation of new validity markers.
 
-    - `pytest.mark.valid_from`
-    - `pytest.mark.valid_until`
-    - `pytest.mark.valid_at_transition_to`
+    Instantiation must be done per test function, and the `process` method must be called to
+    process the fork arguments.
 
-    are applied at most once and have been provided with exactly one
-    argument which is a valid fork name.
-
-    Args:
-        metafunc: Pytest's metafunc object.
-        validity_marker_name: Name of the validity marker to validate
-            and return.
-        test_name: The name of the test being parametrized by
-            `pytest_generate_tests`.
-
-    Returns:
-        The name of the fork specified to the validity marker.
-
+    When subclassing, the following optional parameters can be set:
+    - marker_name: Name of the marker, if not set, the class name is converted to underscore.
+    - mutually_exclusive: List of other marker types incompatible with this one.
+    - flag: Whether the marker is a flag and should always be included.
     """
-    validity_markers = list(metafunc.definition.iter_markers(validity_marker_name))
-    if not validity_markers:
-        return set()
-    if len(validity_markers) > 1:
-        pytest.fail(f"'{test_name}': Too many '{validity_marker_name}' markers applied to test. ")
-    if len(validity_markers[0].args) == 0:
-        pytest.fail(f"'{test_name}': Missing fork argument with '{validity_marker_name}' marker. ")
-    if len(validity_markers[0].args) > 1:
-        pytest.fail(
-            f"'{test_name}': Too many arguments specified to '{validity_marker_name}' marker. "
+
+    marker_name: ClassVar[str]
+    mutually_exclusive: ClassVar[List[Type["ValidityMarker"]]]
+    flag: ClassVar[bool]
+
+    mark: Mark | None
+
+    def __init_subclass__(
+        cls,
+        marker_name: str | None = None,
+        mutually_exclusive: List[Type["ValidityMarker"]] | None = None,
+        flag: bool = False,
+        **kwargs,
+    ) -> None:
+        """Register the validity marker subclass."""
+        super().__init_subclass__(**kwargs)
+        if marker_name is None:
+            # Use the class name converted to underscore: https://stackoverflow.com/a/1176023
+            marker_name = MARKER_NAME_REGEX.sub("_", cls.__name__).lower()
+        cls.marker_name = marker_name
+        cls.mutually_exclusive = mutually_exclusive if mutually_exclusive else []
+        cls.flag = flag
+        if marker_name in ALL_VALIDITY_MARKERS:
+            raise ValueError(f"Duplicate validity marker class: {cls}")
+        ALL_VALIDITY_MARKERS[marker_name] = cls
+
+    def __post_init__(self):
+        """Post-initialize the validity marker."""
+        if self.flag:
+            return
+        if self.mark is None:
+            raise Exception(f"Marker error '{self.marker_name}'")
+        if len(self.mark.args) == 0:
+            raise Exception(f"Missing fork argument with '{self.marker_name}' marker")
+
+    def process_fork_arguments(self, *fork_args: str) -> Set[Fork]:
+        """Process the fork arguments."""
+        fork_set = ForkSetAdapter.validate_python(fork_args)
+        if len(fork_set) != len(fork_args):
+            raise Exception(f"Duplicate argument specified in '{self.marker_name}'")
+        return fork_set
+
+    @staticmethod
+    def get_all_validity_markers(markers: Iterator[pytest.Mark]) -> List["ValidityMarker"]:
+        """Get all the validity markers applied to the test function."""
+        markers_dict: Dict[str, ValidityMarker] = {}
+        for marker in markers:
+            for marker_name in ALL_VALIDITY_MARKERS:
+                if marker.name == marker_name:
+                    if marker_name in markers_dict:
+                        raise Exception(f"Too many '{marker_name}' markers applied to test")
+                    cls = ALL_VALIDITY_MARKERS[marker.name]
+                    markers_dict[marker_name] = cls(mark=marker)
+
+        for cls in ALL_VALIDITY_MARKERS.values():
+            if cls.flag and cls.marker_name not in markers_dict:
+                markers_dict[cls.marker_name] = cls(mark=None)
+
+        for marker_name, validity_marker in markers_dict.items():
+            for incompatible_marker in validity_marker.mutually_exclusive:
+                if incompatible_marker.marker_name in markers_dict:
+                    raise Exception(
+                        f"The markers '{incompatible_marker.marker_name}' and "
+                        f"'{marker_name}' can't be combined. "
+                    )
+        return list(markers_dict.values())
+
+    @staticmethod
+    def get_test_fork_set(validity_markers: List["ValidityMarker"]) -> Set[Fork]:
+        """Get the set of forks where a test is valid from the validity markers and filters."""
+        if not len(
+            [validity_marker for validity_marker in validity_markers if not validity_marker.flag]
+        ):
+            # Limit to non-transition forks if no validity markers were applied
+            test_fork_set = set(ALL_FORKS)
+        else:
+            # Start with all forks and transitions if any validity markers were applied
+            test_fork_set = set(ALL_FORKS_WITH_TRANSITIONS)
+
+        for v in validity_markers:
+            # Apply the validity markers to the test function if applicable
+            test_fork_set = v.process(test_fork_set)
+
+        return test_fork_set
+
+    @staticmethod
+    def get_test_fork_set_from_markers(markers: Iterator[pytest.Mark]) -> Set[Fork]:
+        """Get the set of forks where a test is valid using the markers applied to the test."""
+        return ValidityMarker.get_test_fork_set(ValidityMarker.get_all_validity_markers(markers))
+
+    @staticmethod
+    def get_test_fork_set_from_metafunc(
+        metafunc: Metafunc,
+    ) -> Set[Fork]:
+        """Get the set of forks where a test is valid using its pytest meta-function."""
+        return ValidityMarker.get_test_fork_set_from_markers(metafunc.definition.iter_markers())
+
+    @staticmethod
+    def is_validity_or_filter_marker(name: str) -> bool:
+        """Check if a marker is a validity or filter marker."""
+        return name in ALL_VALIDITY_MARKERS
+
+    def process(self, forks: Set[Fork]) -> Set[Fork]:
+        """Process the fork arguments."""
+        if self.mark is None:
+            fork_set = self._process_with_marker_args()
+        else:
+            fork_set = self._process_with_marker_args(*self.mark.args, **self.mark.kwargs)
+        if self.flag:
+            return forks - fork_set
+        return forks & fork_set
+
+    @abstractmethod
+    def _process_with_marker_args(self, *args, **kwargs) -> Set[Fork]:
+        """
+        Process the fork arguments as specified for the marker.
+
+        Method must be implemented by the subclass.
+
+        If the validity marker is of flag type, the returned forks will be subtracted from the
+        fork set, otherwise the returned forks will be intersected with the current set.
+        """
+        pass
+
+
+class ValidFrom(ValidityMarker):
+    """
+    Marker used to specify the fork from which the test is valid. The test will not be filled for
+    forks before the specified fork.
+
+    ```python
+    import pytest
+
+    from ethereum_test_tools import Alloc, StateTestFiller
+
+    @pytest.mark.valid_from("London")
+    def test_something_only_valid_after_london(
+        state_test: StateTestFiller,
+        pre: Alloc
+    ):
+        pass
+    ```
+
+    In this example, the test will only be filled for the London fork and after, e.g. London,
+    Paris, Shanghai, Cancun, etc.
+    """
+
+    def _process_with_marker_args(self, *fork_args) -> Set[Fork]:
+        """Process the fork arguments."""
+        forks: Set[Fork] = self.process_fork_arguments(*fork_args)
+        resulting_set: Set[Fork] = set()
+        for fork in forks:
+            resulting_set |= {f for f in ALL_FORKS if f >= fork}
+        return resulting_set
+
+
+class ValidUntil(ValidityMarker):
+    """
+    Marker to specify the fork until which the test is valid. The test will not be filled for
+    forks after the specified fork.
+
+    ```python
+    import pytest
+
+    from ethereum_test_tools import Alloc, StateTestFiller
+
+    @pytest.mark.valid_until("London")
+    def test_something_only_valid_until_london(
+        state_test: StateTestFiller,
+        pre: Alloc
+    ):
+        pass
+    ```
+
+    In this example, the test will only be filled for the London fork and before, e.g. London,
+    Berlin, Istanbul, etc.
+    """
+
+    def _process_with_marker_args(self, *fork_args) -> Set[Fork]:
+        """Process the fork arguments."""
+        forks: Set[Fork] = self.process_fork_arguments(*fork_args)
+        resulting_set: Set[Fork] = set()
+        for fork in forks:
+            resulting_set |= {f for f in ALL_FORKS if f <= fork}
+        return resulting_set
+
+
+class ValidAt(ValidityMarker):
+    """
+    Marker to specify each fork individually for which the test is valid.
+
+    ```python
+    import pytest
+
+    from ethereum_test_tools import Alloc, StateTestFiller
+
+    @pytest.mark.valid_at("London", "Cancun")
+    def test_something_only_valid_at_london_and_cancun(
+        state_test: StateTestFiller,
+        pre: Alloc
+    ):
+        pass
+    ```
+
+    In this example, the test will only be filled for the London and Cancun forks.
+    """
+
+    def _process_with_marker_args(self, *fork_args) -> Set[Fork]:
+        """Process the fork arguments."""
+        return self.process_fork_arguments(*fork_args)
+
+
+class ValidAtTransitionTo(ValidityMarker, mutually_exclusive=[ValidAt, ValidFrom, ValidUntil]):
+    """
+    Marker to specify that a test is only meant to be filled at the transition to the specified
+    fork.
+
+    The test usually starts at the fork prior to the specified fork at genesis and at block 5 (for
+    pre-merge forks) or at timestamp 15,000 (for post-merge forks) the fork transition occurs.
+
+    ```python
+    import pytest
+
+    from ethereum_test_tools import Alloc, BlockchainTestFiller
+
+    @pytest.mark.valid_at_transition_to("London")
+    def test_something_that_happens_during_the_fork_transition_to_london(
+        blockchain_test: BlockchainTestFiller,
+        pre: Alloc
+    ):
+        pass
+    ```
+
+    In this example, the test will only be filled for the fork that transitions to London at block
+    number 5, `BerlinToLondonAt5`, and no other forks.
+
+    To see or add a new transition fork, see the `ethereum_test_forks.forks.transition` module.
+
+    Note that the test uses a `BlockchainTestFiller` fixture instead of a `StateTestFiller`,
+    as the transition forks are used to test changes throughout the blockchain progression, and
+    not just the state change of a single transaction.
+
+    This marker also accepts the following keyword arguments:
+
+    - `subsequent_transitions`: Force the test to also fill for subsequent fork transitions.
+    - `until`: Implies `subsequent_transitions` and puts a limit on which transition fork will the
+        test filling will be limited to.
+
+    For example:
+    ```python
+    @pytest.mark.valid_at_transition_to("Cancun", subsequent_transitions=True)
+    ```
+
+    produces tests on `ShanghaiToCancunAtTime15k` and `CancunToPragueAtTime15k`, and any transition
+    fork after that.
+
+    And:
+    ```python
+    @pytest.mark.valid_at_transition_to("Cancun", subsequent_transitions=True, until="Prague")
+    ```
+
+    produces tests on `ShanghaiToCancunAtTime15k` and `CancunToPragueAtTime15k`, but no forks after
+    Prague.
+    """
+
+    def _process_with_marker_args(
+        self, *fork_args, subsequent_forks: bool = False, until: str | None = None
+    ) -> Set[Fork]:
+        """Process the fork arguments."""
+        forks: Set[Fork] = self.process_fork_arguments(*fork_args)
+        until_forks: Set[Fork] | None = (
+            None if until is None else self.process_fork_arguments(until)
         )
-    fork_names_string = validity_markers[0].args[0]
-    fork_names = fork_names_string.split(",")
-    resulting_set: Set[Fork] = set()
-    for fork_name in fork_names:  # type: ignore
-        if fork_name not in metafunc.config.fork_names:  # type: ignore
-            pytest.fail(
-                f"'{test_name}' specifies an invalid fork '{fork_names_string}' to the "
-                f"'{validity_marker_name}'. "
-                "List of valid forks: "
-                ", ".join(name for name in metafunc.config.fork_names)  # type: ignore
-            )
+        if len(forks) == 0:
+            raise Exception("Missing fork argument with 'valid_at_transition_to' marker.")
 
-        resulting_set.add(metafunc.config.forks_by_name[fork_name])  # type: ignore
+        if len(forks) > 1:
+            raise Exception("Too many forks specified to 'valid_at_transition_to' marker.")
 
-    return resulting_set
+        resulting_set: Set[Fork] = set()
+        for fork in forks:
+            resulting_set |= transition_fork_to(fork)
+            if subsequent_forks:
+                for transition_forks in (transition_fork_to(f) for f in ALL_FORKS if f > fork):
+                    for transition_fork in transition_forks:
+                        if transition_fork and (
+                            until_forks is None
+                            or any(transition_fork <= until_fork for until_fork in until_forks)
+                        ):
+                            resulting_set.add(transition_fork)
+        return resulting_set
+
+
+class ValidForBPOForks(ValidityMarker, marker_name="valid_for_bpo_forks", flag=True):
+    """
+    Marker to specify that a test is valid for BPO forks.
+
+    ```python
+    import pytest
+
+    from ethereum_test_tools import Alloc, BlockchainTestFiller
+
+    @pytest.mark.valid_for_bpo_forks()
+    def test_something_in_a_bpo_fork(
+        blockchain_test: BlockchainTestFiller,
+        pre: Alloc
+    ):
+        pass
+    ```
+    """
+
+    def _process_with_marker_args(self) -> Set[Fork]:
+        """Process the fork arguments."""
+        include_bpo_forks = self.mark is not None
+        if include_bpo_forks:
+            return set()
+        resulting_set: Set[Fork] = set()
+        for fork in ALL_FORKS:
+            if fork.bpo_fork():
+                resulting_set.add(fork)
+                resulting_set |= transition_fork_to(fork)
+        return resulting_set
 
 
 def pytest_generate_tests(metafunc: pytest.Metafunc):
     """Pytest hook used to dynamically generate test cases."""
     test_name = metafunc.function.__name__
-    valid_at_transition_to = get_validity_marker_args(
-        metafunc, "valid_at_transition_to", test_name
-    )
-    valid_from = get_validity_marker_args(metafunc, "valid_from", test_name)
-    valid_until = get_validity_marker_args(metafunc, "valid_until", test_name)
+    try:
+        test_fork_set = ValidityMarker.get_test_fork_set_from_metafunc(metafunc)
+    except Exception as e:
+        pytest.fail(f"Error generating tests for {test_name}: {e}")
 
-    if valid_at_transition_to and valid_from:
+    if not test_fork_set:
         pytest.fail(
-            f"'{test_name}': "
-            "The markers 'valid_from' and 'valid_at_transition_to' can't be combined. "
-        )
-    if valid_at_transition_to and valid_until:
-        pytest.fail(
-            f"'{test_name}': "
-            "The markers 'valid_until' and 'valid_at_transition_to' can't be combined. "
+            "The test function's "
+            f"'{test_name}' fork validity markers generate "
+            "an empty fork range. Please check the arguments to its "
+            f"markers:  @pytest.mark.valid_from and "
+            f"@pytest.mark.valid_until."
         )
 
-    fork_set: Set[Fork] = metafunc.config.fork_set  # type: ignore
-    forks: Set[Fork] = metafunc.config.forks  # type: ignore
+    # Get the intersection between the test's validity marker and the current
+    # filling parameters.
+    intersection_set = test_fork_set & metafunc.config.selected_fork_set  # type: ignore
 
-    intersection_set: Set[Fork] = set()
-    if valid_at_transition_to:
-        for fork in valid_at_transition_to:
-            if fork in fork_set:
-                intersection_set = intersection_set | set(transition_fork_to(fork))
-
-    else:
-        if not valid_from:
-            valid_from = get_forks_with_no_parents(forks)
-
-        if not valid_until:
-            valid_until = get_last_descendants(forks, valid_from)
-
-        test_fork_set = get_from_until_fork_set(forks, valid_from, valid_until)
-
-        if not test_fork_set:
-            pytest.fail(
-                "The test function's "
-                f"'{test_name}' fork validity markers generate "
-                "an empty fork range. Please check the arguments to its "
-                f"markers:  @pytest.mark.valid_from ({valid_from}) and "
-                f"@pytest.mark.valid_until ({valid_until})."
-            )
-
-        intersection_set = fork_set & test_fork_set
+    if "fork" not in metafunc.fixturenames:
+        return
 
     pytest_params: List[Any]
-    if "fork" in metafunc.fixturenames:
-        if not intersection_set:
-            if metafunc.config.getoption("verbose") >= 2:
-                pytest_params = [
-                    pytest.param(
-                        None,
-                        marks=[
-                            pytest.mark.skip(
-                                reason=(
-                                    f"{test_name} is not valid for any any of forks specified on "
-                                    "the command-line."
-                                )
-                            )
-                        ],
-                    )
-                ]
-                metafunc.parametrize("fork", pytest_params, scope="function")
-        else:
-            unsupported_forks: Set[Fork] = metafunc.config.unsupported_forks  # type: ignore
+    if not intersection_set:
+        if metafunc.config.getoption("verbose") >= 2:
             pytest_params = [
-                (
-                    ForkParametrizer(
-                        fork=fork,
-                        marks=[
-                            pytest.mark.skip(
-                                reason=(
-                                    f"Fork '{fork}' unsupported by "
-                                    f"'{metafunc.config.getoption('evm_bin')}'."
-                                )
+                pytest.param(
+                    None,
+                    marks=[
+                        pytest.mark.skip(
+                            reason=(
+                                f"{test_name} is not valid for any any of forks specified on "
+                                "the command-line."
                             )
-                        ],
-                    )
-                    if fork in sorted(unsupported_forks)
-                    else ForkParametrizer(fork=fork)
+                        )
+                    ],
                 )
-                for fork in sorted(intersection_set)
             ]
-            add_fork_covariant_parameters(metafunc, pytest_params)
-            parametrize_fork(metafunc, pytest_params)
+            metafunc.parametrize("fork", pytest_params, scope="function")
+    else:
+        unsupported_forks: Set[Fork] = metafunc.config.unsupported_forks  # type: ignore
+        pytest_params = [
+            (
+                ForkParametrizer(
+                    fork=fork,
+                    marks=[
+                        pytest.mark.skip(
+                            reason=(
+                                f"Fork '{fork}' unsupported by "
+                                f"{metafunc.config.t8n.__class__.__name__}."  # type: ignore
+                            )
+                        )
+                    ],
+                )
+                if fork in sorted(unsupported_forks)
+                else ForkParametrizer(fork=fork)
+            )
+            for fork in sorted(intersection_set)
+        ]
+        add_fork_covariant_parameters(metafunc, pytest_params)
+        parametrize_fork(metafunc, pytest_params)
 
 
 def add_fork_covariant_parameters(
     metafunc: Metafunc, fork_parametrizers: List[ForkParametrizer]
 ) -> None:
     """Iterate over the fork covariant descriptors and add their values to the test function."""
+    # Process all covariant decorators uniformly
     for covariant_descriptor in fork_covariant_decorators:
-        for fork_parametrizer in fork_parametrizers:
-            covariant_descriptor(metafunc=metafunc).add_values(fork_parametrizer=fork_parametrizer)
+        if list(metafunc.definition.iter_markers(covariant_descriptor.marker_name)):
+            for fork_parametrizer in fork_parametrizers:
+                covariant_descriptor(metafunc=metafunc).add_values(
+                    fork_parametrizer=fork_parametrizer
+                )
 
+    # Handle custom parametrize_by_fork markers
     for marker in metafunc.definition.iter_markers():
         if marker.name == "parametrize_by_fork":
             descriptor = CovariantDescriptor(
@@ -760,6 +1045,16 @@ def parameters_from_fork_parametrizer_list(
 
 def parametrize_fork(metafunc: Metafunc, fork_parametrizers: List[ForkParametrizer]) -> None:
     """Add the fork parameters to the test function."""
-    metafunc.parametrize(
-        *parameters_from_fork_parametrizer_list(fork_parametrizers), scope="function"
-    )
+    param_names, param_values = parameters_from_fork_parametrizer_list(fork_parametrizers)
+
+    # Collect all parameters that should be indirect from the decorators
+    indirect = []
+    for covariant_descriptor in fork_covariant_decorators:
+        if (
+            list(metafunc.definition.iter_markers(covariant_descriptor.marker_name))
+            and covariant_descriptor.indirect
+        ):
+            # Add all argnames from this decorator to indirect list
+            indirect.extend(covariant_descriptor.marker_parameter_names)
+
+    metafunc.parametrize(param_names, param_values, scope="function", indirect=indirect)

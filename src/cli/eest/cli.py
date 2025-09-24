@@ -5,8 +5,8 @@ Invoke using `uv run eest`.
 
 import click
 
-from cli.eest.commands import clean
-from cli.eest.make.cli import make
+from .commands import clean, info
+from .make.cli import make
 
 
 @click.group(context_settings={"help_option_names": ["-h", "--help"], "max_content_width": 120})
@@ -27,3 +27,4 @@ https://click.palletsprojects.com/en/8.0.x/commands/#nested-handling-and-context
 """
 eest.add_command(make)
 eest.add_command(clean)
+eest.add_command(info)

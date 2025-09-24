@@ -1,20 +1,28 @@
 """Shared pytest fixtures and hooks for EEST generation modes (fill and execute)."""
 
-import warnings
-from typing import List, cast
+from typing import List
 
 import pytest
 
-from ethereum_test_execution import EXECUTE_FORMATS
-from ethereum_test_fixtures import FIXTURE_FORMATS
-from ethereum_test_forks import (
-    Fork,
-    get_closest_fork_with_solc_support,
-    get_forks_with_solc_support,
-)
-from ethereum_test_specs import SPEC_TYPES
-from ethereum_test_tools import Yul
-from pytest_plugins.spec_version_checker.spec_version_checker import EIPSpecTestItem
+from ethereum_test_execution import BaseExecute, LabeledExecuteFormat
+from ethereum_test_fixtures import BaseFixture, LabeledFixtureFormat
+from ethereum_test_specs import BaseTest
+from ethereum_test_specs.base import OpMode
+from ethereum_test_types import EOA, Alloc, ChainConfig
+
+from ..spec_version_checker.spec_version_checker import EIPSpecTestItem
+
+ALL_FIXTURE_PARAMETERS = {
+    "genesis_environment",
+    "env",
+}
+"""
+List of test parameters that have a default fixture value which can be retrieved and used
+for the test instance if it was not explicitly specified when calling from the test
+function.
+
+All parameter names included in this list must define a fixture in one of the plugins.
+"""
 
 
 @pytest.hookimpl(tryfirst=True)
@@ -34,19 +42,39 @@ def pytest_configure(config: pytest.Config):
         it uses the modified `htmlpath` option.
     """
     if config.pluginmanager.has_plugin("pytest_plugins.filler.filler"):
-        for fixture_format in FIXTURE_FORMATS.values():
+        for fixture_format in BaseFixture.formats.values():
             config.addinivalue_line(
                 "markers",
-                (f"{fixture_format.fixture_format_name.lower()}: {fixture_format.description}"),
+                (f"{fixture_format.format_name.lower()}: {fixture_format.description}"),
+            )
+        for label, labeled_fixture_format in LabeledFixtureFormat.registered_labels.items():
+            config.addinivalue_line(
+                "markers",
+                (f"{label}: {labeled_fixture_format.description}"),
             )
     elif config.pluginmanager.has_plugin("pytest_plugins.execute.execute"):
-        for execute_format in EXECUTE_FORMATS.values():
+        for execute_format in BaseExecute.formats.values():
             config.addinivalue_line(
                 "markers",
-                (f"{execute_format.execute_format_name.lower()}: {execute_format.description}"),
+                (f"{execute_format.format_name.lower()}: {execute_format.description}"),
+            )
+        for label, labeled_execute_format in LabeledExecuteFormat.registered_labels.items():
+            config.addinivalue_line(
+                "markers",
+                (f"{label}: {labeled_execute_format.description}"),
             )
     else:
         raise Exception("Neither the filler nor the execute plugin is loaded.")
+
+    for spec_type in BaseTest.spec_types.values():
+        for marker, description in spec_type.supported_markers.items():
+            config.addinivalue_line(
+                "markers",
+                (f"{marker}: {description}"),
+            )
+
+    if not hasattr(config, "op_mode"):
+        config.op_mode = OpMode.CONSENSUS  # type: ignore[attr-defined]
 
     config.addinivalue_line(
         "markers",
@@ -64,62 +92,63 @@ def pytest_configure(config: pytest.Config):
         "markers",
         "execute: Markers to be added in execute mode only.",
     )
-
-
-@pytest.fixture(autouse=True)
-def eips():
-    """
-    Fixture for specifying that, by default, no EIPs should be activated for
-    tests.
-
-    This fixture (function) may be redefined in test filler modules in order
-    to overwrite this default and return a list of integers specifying which
-    EIPs should be activated for the tests in scope.
-    """
-    return []
-
-
-@pytest.fixture
-def yul(fork: Fork, request: pytest.FixtureRequest):
-    """
-    Fixture that allows contract code to be defined with Yul code.
-
-    This fixture defines a class that wraps the ::ethereum_test_tools.Yul
-    class so that upon instantiation within the test case, it provides the
-    test case's current fork parameter. The forks is then available for use
-    in solc's arguments for the Yul code compilation.
-
-    Test cases can override the default value by specifying a fixed version
-    with the @pytest.mark.compile_yul_with(FORK) marker.
-    """
-    solc_target_fork: Fork | None
-    marker = request.node.get_closest_marker("compile_yul_with")
-    assert hasattr(request.config, "solc_version"), "solc_version not set in pytest config."
-    if marker:
-        if not marker.args[0]:
-            pytest.fail(
-                f"{request.node.name}: Expected one argument in 'compile_yul_with' marker."
-            )
-        for fork in request.config.forks:  # type: ignore
-            if fork.name() == marker.args[0]:
-                solc_target_fork = fork
-                break
-        else:
-            pytest.fail(f"{request.node.name}: Fork {marker.args[0]} not found in forks list.")
-        assert solc_target_fork in get_forks_with_solc_support(request.config.solc_version)
-    else:
-        solc_target_fork = get_closest_fork_with_solc_support(fork, request.config.solc_version)
-        assert solc_target_fork is not None, "No fork supports provided solc version."
-        if solc_target_fork != fork and request.config.getoption("verbose") >= 1:
-            warnings.warn(
-                f"Compiling Yul for {solc_target_fork.name()}, not {fork.name()}.", stacklevel=2
-            )
-
-    class YulWrapper(Yul):
-        def __new__(cls, *args, **kwargs):
-            return super(YulWrapper, cls).__new__(cls, *args, **kwargs, fork=solc_target_fork)
-
-    return YulWrapper
+    config.addinivalue_line(
+        "markers",
+        "benchmark: Tests relevant to benchmarking EVMs.",
+    )
+    config.addinivalue_line(
+        "markers",
+        "exception_test: Negative tests that include an invalid block or transaction.",
+    )
+    config.addinivalue_line(
+        "markers",
+        "eip_checklist(item_id, eip=None): Mark a test as implementing a specific checklist item. "
+        "The first positional parameter is the checklist item ID. "
+        "The optional 'eip' keyword parameter specifies additional EIPs covered by the test.",
+    )
+    config.addinivalue_line(
+        "markers",
+        "derived_test: Mark a test as a derived test (E.g. a BlockchainTest that is derived "
+        "from a StateTest).",
+    )
+    config.addinivalue_line(
+        "markers",
+        "tagged: Marks a static test as tagged. Tags are used to generate dynamic "
+        "addresses for static tests at fill time. All tagged tests are compatible with "
+        "dynamic address generation.",
+    )
+    config.addinivalue_line(
+        "markers",
+        "untagged: Marks a static test as untagged. Tags are used to generate dynamic "
+        "addresses for static tests at fill time. Untagged tests are incompatible with "
+        "dynamic address generation.",
+    )
+    config.addinivalue_line(
+        "markers",
+        "verify_sync: Marks a test to be run with `consume sync`, verifying blockchain "
+        "engine tests and having hive clients sync after payload execution.",
+    )
+    config.addinivalue_line(
+        "markers",
+        "pre_alloc_group: Control shared pre-allocation grouping (use "
+        '"separate" for isolated group or custom string for named groups)',
+    )
+    config.addinivalue_line(
+        "markers",
+        "pre_alloc_modify: Marks a test to apply plugin-specific pre_alloc_group modifiers",
+    )
+    config.addinivalue_line(
+        "markers",
+        "slow: Marks a test as slow (deselect with '-m \"not slow\"')",
+    )
+    config.addinivalue_line(
+        "markers",
+        "ported_from: Marks a test as ported from ethereum/tests",
+    )
+    config.addinivalue_line(
+        "markers",
+        "valid_for_bpo_forks: Marks a test as valid for BPO forks",
+    )
 
 
 @pytest.fixture(scope="function")
@@ -128,12 +157,12 @@ def test_case_description(request: pytest.FixtureRequest) -> str:
     description_unavailable = (
         "No description available - add a docstring to the python test class or function."
     )
-    test_class_doc = f"Test class documentation:\n{request.cls.__doc__}" if request.cls else ""
-    test_function_doc = (
-        f"Test function documentation:\n{request.function.__doc__}"
-        if request.function.__doc__
-        else ""
-    )
+    test_class_doc = ""
+    test_function_doc = ""
+    if hasattr(request.node, "cls"):
+        test_class_doc = f"Test class documentation:\n{request.cls.__doc__}" if request.cls else ""
+    if hasattr(request.node, "function"):
+        test_function_doc = f"{request.function.__doc__}" if request.function.__doc__ else ""
     if not test_class_doc and not test_function_doc:
         return description_unavailable
     combined_docstring = f"{test_class_doc}\n\n{test_function_doc}".strip()
@@ -148,7 +177,7 @@ def pytest_make_parametrize_id(config: pytest.Config, val: str, argname: str):
     return f"{argname}_{val}"
 
 
-SPEC_TYPES_PARAMETERS: List[str] = [s.pytest_parameter_name() for s in SPEC_TYPES]
+SPEC_TYPES_PARAMETERS: List[str] = list(BaseTest.spec_types.keys())
 
 
 def pytest_runtest_call(item: pytest.Item):
@@ -160,11 +189,12 @@ def pytest_runtest_call(item: pytest.Item):
         def __init__(self, message):
             super().__init__(message)
 
-    item = cast(pytest.Function, item)  # help mypy infer type
+    if not isinstance(item, pytest.Function):
+        return
 
     if "state_test" in item.fixturenames and "blockchain_test" in item.fixturenames:
         raise InvalidFillerError(
-            "A filler should only implement either a state test or " "a blockchain test; not both."
+            "A filler should only implement either a state test or a blockchain test; not both."
         )
 
     # Check that the test defines either test type as parameter.
@@ -174,3 +204,28 @@ def pytest_runtest_call(item: pytest.Item):
             + "properly generate a test: "
             + ", ".join(SPEC_TYPES_PARAMETERS)
         )
+
+
+# Global `sender` fixture that can be overridden by tests.
+@pytest.fixture
+def sender(pre: Alloc) -> EOA:
+    """Fund an EOA from pre-alloc."""
+    return pre.fund_eoa()
+
+
+@pytest.fixture(scope="session")
+def chain_config() -> ChainConfig:
+    """Return chain configuration."""
+    return ChainConfig()
+
+
+def pytest_addoption(parser: pytest.Parser):
+    """Add command-line options to pytest."""
+    static_filler_group = parser.getgroup("static", "Arguments defining static filler behavior")
+    static_filler_group.addoption(
+        "--fill-static-tests",
+        action="store_true",
+        dest="fill_static_tests_enabled",
+        default=None,
+        help=("Enable reading and filling from static test files."),
+    )

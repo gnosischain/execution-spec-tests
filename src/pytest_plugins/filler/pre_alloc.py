@@ -3,8 +3,9 @@
 import inspect
 from enum import IntEnum
 from functools import cache
+from hashlib import sha256
 from itertools import count
-from typing import Iterator, Literal
+from typing import Iterator, List, Literal
 
 import pytest
 from pydantic import PrivateAttr
@@ -24,12 +25,15 @@ from ethereum_test_base_types.conversions import (
     FixedSizeBytesConvertible,
     NumberConvertible,
 )
+from ethereum_test_fixtures import LabeledFixtureFormat
+from ethereum_test_forks import Fork
+from ethereum_test_specs import BaseTest
 from ethereum_test_types import EOA
 from ethereum_test_types import Alloc as BaseAlloc
 from ethereum_test_types.eof.v1 import Container
 from ethereum_test_vm import Bytecode, EVMCodeType, Opcodes
 
-CONTRACT_START_ADDRESS_DEFAULT = 0x1000
+CONTRACT_START_ADDRESS_DEFAULT = 0x1000000000000000000000000000000000001000
 CONTRACT_ADDRESS_INCREMENTS_DEFAULT = 0x100
 
 
@@ -88,9 +92,9 @@ DELEGATION_DESIGNATION = b"\xef\x01\x00"
 class Alloc(BaseAlloc):
     """Allocation of accounts in the state, pre and post test execution."""
 
-    _alloc_mode: AllocMode = PrivateAttr(...)
-    _contract_address_iterator: Iterator[Address] = PrivateAttr(...)
-    _eoa_iterator: Iterator[EOA] = PrivateAttr(...)
+    _alloc_mode: AllocMode = PrivateAttr()
+    _contract_address_iterator: Iterator[Address] = PrivateAttr()
+    _eoa_iterator: Iterator[EOA] = PrivateAttr()
     _evm_code_type: EVMCodeType | None = PrivateAttr(None)
 
     def __init__(
@@ -138,6 +142,7 @@ class Alloc(BaseAlloc):
         address: Address | None = None,
         evm_code_type: EVMCodeType | None = None,
         label: str | None = None,
+        stub: str | None = None,
     ) -> Address:
         """
         Deploy a contract to the allocation.
@@ -250,6 +255,27 @@ class Alloc(BaseAlloc):
                 return
         super().__setitem__(address, Account(balance=amount))
 
+    def empty_account(self) -> Address:
+        """
+        Add a previously unused account guaranteed to be empty to the pre-alloc.
+
+        This ensures the account has:
+        - Zero balance
+        - Zero nonce
+        - No code
+        - No storage
+
+        This is different from precompiles or system contracts. The function does not
+        send any transactions, ensuring that the account remains "empty."
+
+        Returns:
+            Address: The address of the created empty account.
+
+        """
+        eoa = next(self._eoa_iterator)
+
+        return Address(eoa)
+
 
 @pytest.fixture(scope="session")
 def alloc_mode(request: pytest.FixtureRequest) -> AllocMode:
@@ -271,14 +297,76 @@ def contract_address_increments(request: pytest.FixtureRequest) -> int:
     return int(request.config.getoption("test_contract_address_increments"), 0)
 
 
+def sha256_from_string(s: str) -> int:
+    """Return SHA-256 hash of a string."""
+    return int.from_bytes(sha256(s.encode("utf-8")).digest(), "big")
+
+
+ALL_FIXTURE_FORMAT_NAMES: List[str] = []
+
+for spec in BaseTest.spec_types.values():
+    for labeled_fixture_format in spec.supported_fixture_formats:
+        name = (
+            labeled_fixture_format.label
+            if isinstance(labeled_fixture_format, LabeledFixtureFormat)
+            else labeled_fixture_format.format_name.lower()
+        )
+        if name not in ALL_FIXTURE_FORMAT_NAMES:
+            ALL_FIXTURE_FORMAT_NAMES.append(name)
+
+# Sort by length, from longest to shortest, since some fixture format names contain others
+# so we are always sure to catch the longest one first.
+ALL_FIXTURE_FORMAT_NAMES.sort(key=len, reverse=True)
+
+
+@pytest.fixture(scope="function")
+def node_id_for_entropy(request: pytest.FixtureRequest, fork: Fork | None) -> str:
+    """
+    Return the node id with the fixture format name and fork name stripped.
+
+    Used in cases where we are filling for pre-alloc groups, and we take the name of the
+    test as source of entropy to get a deterministic address when generating the pre-alloc
+    grouping.
+
+    Removing the fixture format and the fork name from the node id before hashing results in the
+    contracts and senders addresses being the same across fixture types and forks for the same
+    test.
+    """
+    node_id: str = request.node.nodeid
+    if fork is None:
+        # FIXME: Static tests don't have a fork, so we need to get it from the node.
+        assert hasattr(request.node, "fork")
+        fork = request.node.fork
+    for fixture_format_name in ALL_FIXTURE_FORMAT_NAMES:
+        if fixture_format_name in node_id:
+            parts = request.node.nodeid.split("::")
+            test_file_path = parts[0]
+            test_name = "::".join(parts[1:])
+            stripped_test_name = test_name.replace(fixture_format_name, "").replace(
+                fork.name(), ""
+            )
+            return f"{test_file_path}::{stripped_test_name}"
+    raise Exception(f"Fixture format name not found in test {node_id}")
+
+
 @pytest.fixture(scope="function")
 def contract_address_iterator(
+    request: pytest.FixtureRequest,
     contract_start_address: int,
     contract_address_increments: int,
+    node_id_for_entropy: str,
 ) -> Iterator[Address]:
-    """Return iterator over contract addresses."""
+    """Return iterator over contract addresses with dynamic scoping."""
+    if request.config.getoption(
+        # TODO: Ideally, we should check the fixture format instead of checking parameters.
+        "generate_pre_alloc_groups",
+        default=False,
+    ) or request.config.getoption("use_pre_alloc_groups", default=False):
+        # Use a starting address that is derived from the test node
+        contract_start_address = sha256_from_string(node_id_for_entropy)
     return iter(
-        Address(contract_start_address + (i * contract_address_increments)) for i in count()
+        Address((contract_start_address + (i * contract_address_increments)) % 2**160)
+        for i in count()
     )
 
 
@@ -289,8 +377,26 @@ def eoa_by_index(i: int) -> EOA:
 
 
 @pytest.fixture(scope="function")
-def eoa_iterator() -> Iterator[EOA]:
-    """Return iterator over EOAs copies."""
+def eoa_iterator(
+    request: pytest.FixtureRequest,
+    node_id_for_entropy: str,
+) -> Iterator[EOA]:
+    """Return iterator over EOAs copies with dynamic scoping."""
+    if request.config.getoption(
+        # TODO: Ideally, we should check the fixture format instead of checking parameters.
+        "generate_pre_alloc_groups",
+        default=False,
+    ) or request.config.getoption("use_pre_alloc_groups", default=False):
+        # Use a starting address that is derived from the test node
+        eoa_start_pk = sha256_from_string(node_id_for_entropy)
+        return iter(
+            EOA(
+                key=(eoa_start_pk + i)
+                % 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141,
+                nonce=0,
+            )
+            for i in count()
+        )
     return iter(eoa_by_index(i).copy() for i in count())
 
 

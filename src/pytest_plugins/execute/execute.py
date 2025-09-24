@@ -1,5 +1,6 @@
 """Test execution plugin for pytest, to run Ethereum tests using in live networks."""
 
+import os
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, Generator, List, Type
@@ -7,14 +8,19 @@ from typing import Any, Dict, Generator, List, Type
 import pytest
 from pytest_metadata.plugin import metadata_key  # type: ignore
 
-from ethereum_test_base_types import Number
-from ethereum_test_execution import EXECUTE_FORMATS, BaseExecute
+from ethereum_test_execution import BaseExecute
 from ethereum_test_forks import Fork
-from ethereum_test_rpc import EthRPC
-from ethereum_test_tools import SPEC_TYPES, BaseTest, TestInfo, Transaction
-from ethereum_test_types import TransactionDefaults
-from pytest_plugins.spec_version_checker.spec_version_checker import EIPSpecTestItem
+from ethereum_test_rpc import EngineRPC, EthRPC
+from ethereum_test_tools import BaseTest
+from ethereum_test_types import ChainConfigDefaults, EnvironmentDefaults, TransactionDefaults
 
+from ..shared.execute_fill import ALL_FIXTURE_PARAMETERS
+from ..shared.helpers import (
+    get_spec_format_for_item,
+    is_help_or_collectonly_mode,
+    labeled_format_parameter_set,
+)
+from ..spec_version_checker.spec_version_checker import EIPSpecTestItem
 from .pre_alloc import Alloc
 
 
@@ -56,6 +62,43 @@ def pytest_addoption(parser):
             "unless overridden by the test."
         ),
     )
+    execute_group.addoption(
+        "--transaction-gas-limit",
+        action="store",
+        dest="transaction_gas_limit",
+        default=EnvironmentDefaults.gas_limit // 4,
+        type=int,
+        help=(
+            "Maximum gas used to execute a single transaction. "
+            "Will be used as ceiling for tests that attempt to consume the entire block gas limit."
+            f"(Default: {EnvironmentDefaults.gas_limit // 4})"
+        ),
+    )
+    execute_group.addoption(
+        "--transactions-per-block",
+        action="store",
+        dest="transactions_per_block",
+        type=int,
+        default=None,
+        help=("Number of transactions to send before producing the next block."),
+    )
+    execute_group.addoption(
+        "--get-payload-wait-time",
+        action="store",
+        dest="get_payload_wait_time",
+        type=float,
+        default=0.3,
+        help=("Time to wait after sending a forkchoice_updated before getting the payload."),
+    )
+    execute_group.addoption(
+        "--chain-id",
+        action="store",
+        dest="chain_id",
+        required=False,
+        type=int,
+        default=None,
+        help="ID of the chain where the tests will be executed.",
+    )
 
     report_group = parser.getgroup("tests", "Arguments defining html report behavior")
     report_group.addoption(
@@ -86,23 +129,39 @@ def pytest_configure(config):
         called before the pytest-html plugin's pytest_configure to ensure that
         it uses the modified `htmlpath` option.
     """
-    if config.option.collectonly:
+    # Modify the block gas limit if specified.
+    if config.getoption("transaction_gas_limit"):
+        EnvironmentDefaults.gas_limit = config.getoption("transaction_gas_limit")
+    if is_help_or_collectonly_mode(config):
         return
+
+    config.engine_rpc_supported = False
     if config.getoption("disable_html") and config.getoption("htmlpath") is None:
         # generate an html report by default, unless explicitly disabled
         config.option.htmlpath = Path(default_html_report_file_path())
 
-    command_line_args = "fill " + " ".join(config.invocation_params.args)
+    command_line_args = "execute " + " ".join(config.invocation_params.args)
     config.stash[metadata_key]["Command-line args"] = f"<code>{command_line_args}</code>"
 
-    if len(config.fork_set) != 1:
-        pytest.exit(
-            f"""
-            Expected exactly one fork to be specified, got {len(config.fork_set)}.
-            Make sure to specify exactly one fork using the --fork command line argument.
-            """,
-            returncode=pytest.ExitCode.USAGE_ERROR,
-        )
+    # Configuration for the forks pytest plugin
+    config.skip_transition_forks = True
+    config.single_fork_mode = True
+
+    # Configure the chain ID for the tests.
+    rpc_chain_id = config.getoption("rpc_chain_id", None)
+    chain_id = config.getoption("chain_id")
+    if rpc_chain_id is not None or chain_id is not None:
+        if rpc_chain_id is not None and chain_id is not None:
+            if chain_id != rpc_chain_id:
+                pytest.exit(
+                    "Conflicting chain ID configuration. "
+                    "The --rpc-chain-id flag is deprecated and will be removed in a future "
+                    "release. Use --chain-id instead."
+                )
+        if rpc_chain_id is not None:
+            ChainConfigDefaults.chain_id = rpc_chain_id
+        if chain_id is not None:
+            ChainConfigDefaults.chain_id = chain_id
 
 
 def pytest_metadata(metadata):
@@ -162,9 +221,23 @@ def pytest_html_report_title(report):
 
 
 @pytest.fixture(scope="session")
+def transactions_per_block(request) -> int:  # noqa: D103
+    if transactions_per_block := request.config.getoption("transactions_per_block"):
+        return transactions_per_block
+
+    # Get the number of workers for the test
+    worker_count_env = os.environ.get("PYTEST_XDIST_WORKER_COUNT")
+    if not worker_count_env:
+        return 1
+    return max(int(worker_count_env), 1)
+
+
+@pytest.fixture(scope="session")
 def default_gas_price(request) -> int:
     """Return default gas price used for transactions."""
-    return request.config.getoption("default_gas_price")
+    gas_price = request.config.getoption("default_gas_price")
+    assert gas_price > 0, "Gas price must be greater than 0"
+    return gas_price
 
 
 @pytest.fixture(scope="session")
@@ -214,16 +287,6 @@ def collector(
     yield collector
 
 
-def node_to_test_info(node) -> TestInfo:
-    """Return test info of the current node item."""
-    return TestInfo(
-        name=node.name,
-        id=node.nodeid,
-        original_name=node.originalname,
-        path=Path(node.path),
-    )
-
-
 def base_test_parametrizer(cls: Type[BaseTest]):
     """
     Generate pytest.fixture for a given BaseTest subclass.
@@ -231,6 +294,7 @@ def base_test_parametrizer(cls: Type[BaseTest]):
     Implementation detail: All spec fixtures must be scoped on test function level to avoid
     leakage between tests.
     """
+    cls_fixture_parameters = [p for p in ALL_FIXTURE_PARAMETERS if p in cls.model_fields]
 
     @pytest.fixture(
         scope="function",
@@ -240,10 +304,9 @@ def base_test_parametrizer(cls: Type[BaseTest]):
         request: Any,
         fork: Fork,
         pre: Alloc,
-        eips: List[int],
         eth_rpc: EthRPC,
+        engine_rpc: EngineRPC | None,
         collector: Collector,
-        default_gas_price: int,
     ):
         """
         Fixture used to instantiate an auto-fillable BaseTest object from within
@@ -256,7 +319,11 @@ def base_test_parametrizer(cls: Type[BaseTest]):
         When parametrize, indirect must be used along with the fixture format as value.
         """
         execute_format = request.param
-        assert execute_format in EXECUTE_FORMATS.values()
+        assert execute_format in BaseExecute.formats.values()
+        assert issubclass(execute_format, BaseExecute)
+
+        if execute_format.requires_engine_rpc:
+            assert engine_rpc is not None, "Engine RPC is required for this format."
 
         class BaseTestWrapper(cls):  # type: ignore
             def __init__(self, *args, **kwargs):
@@ -265,62 +332,43 @@ def base_test_parametrizer(cls: Type[BaseTest]):
                     kwargs["pre"] = pre
                 elif kwargs["pre"] != pre:
                     raise ValueError("The pre-alloc object was modified by the test.")
+                kwargs |= {
+                    p: request.getfixturevalue(p)
+                    for p in cls_fixture_parameters
+                    if p not in kwargs
+                }
 
                 request.node.config.sender_address = str(pre._sender)
 
                 super(BaseTestWrapper, self).__init__(*args, **kwargs)
+                self._request = request
 
                 # wait for pre-requisite transactions to be included in blocks
                 pre.wait_for_transactions()
-                for deployed_contract, deployed_code in pre._deployed_contracts:
-                    if eth_rpc.get_code(deployed_contract) == deployed_code:
-                        pass
-                    else:
+                for deployed_contract, expected_code in pre._deployed_contracts:
+                    actual_code = eth_rpc.get_code(deployed_contract)
+                    if actual_code != expected_code:
                         raise Exception(
                             f"Deployed test contract didn't match expected code at address "
-                            f"{deployed_contract} (not enough gas_limit?)."
+                            f"{deployed_contract} (not enough gas_limit?).\n"
+                            f"Expected: {expected_code}\n"
+                            f"Actual: {actual_code}"
                         )
                 request.node.config.funded_accounts = ", ".join(
                     [str(eoa) for eoa in pre._funded_eoa]
                 )
 
-                execute = self.execute(fork=fork, execute_format=execute_format, eips=eips)
-                execute.execute(eth_rpc)
+                execute = self.execute(fork=fork, execute_format=execute_format)
+                execute.execute(fork=fork, eth_rpc=eth_rpc, engine_rpc=engine_rpc, request=request)
                 collector.collect(request.node.nodeid, execute)
 
-        sender_start_balance = eth_rpc.get_balance(pre._sender)
-
-        yield BaseTestWrapper
-
-        # Refund all EOAs (regardless of whether the test passed or failed)
-        refund_txs = []
-        for eoa in pre._funded_eoa:
-            remaining_balance = eth_rpc.get_balance(eoa)
-            eoa.nonce = Number(eth_rpc.get_transaction_count(eoa))
-            refund_gas_limit = 21_000
-            tx_cost = refund_gas_limit * default_gas_price
-            if remaining_balance < tx_cost:
-                continue
-            refund_txs.append(
-                Transaction(
-                    sender=eoa,
-                    to=pre._sender,
-                    gas_limit=21_000,
-                    gas_price=default_gas_price,
-                    value=remaining_balance - tx_cost,
-                ).with_signature_and_sender()
-            )
-        eth_rpc.send_wait_transactions(refund_txs)
-
-        sender_end_balance = eth_rpc.get_balance(pre._sender)
-        used_balance = sender_start_balance - sender_end_balance
-        print(f"Used balance={used_balance / 10**18:.18f}")
+        return BaseTestWrapper
 
     return base_test_parametrizer_func
 
 
 # Dynamically generate a pytest fixture for each test spec type.
-for cls in SPEC_TYPES:
+for cls in BaseTest.spec_types.values():
     # Fixture needs to be defined in the global scope so pytest can detect it.
     globals()[cls.pytest_parameter_name()] = base_test_parametrizer(cls)
 
@@ -330,39 +378,52 @@ def pytest_generate_tests(metafunc: pytest.Metafunc):
     Pytest hook used to dynamically generate test cases for each fixture format a given
     test spec supports.
     """
-    for test_type in SPEC_TYPES:
+    engine_rpc_supported = metafunc.config.engine_rpc_supported  # type: ignore
+    for test_type in BaseTest.spec_types.values():
         if test_type.pytest_parameter_name() in metafunc.fixturenames:
+            parameter_set = []
+            for format_with_or_without_label in test_type.supported_execute_formats:
+                param = labeled_format_parameter_set(format_with_or_without_label)
+                if format_with_or_without_label.requires_engine_rpc and not engine_rpc_supported:
+                    param.marks.append(pytest.mark.skip(reason="Engine RPC is not supported"))  # type: ignore
+                parameter_set.append(param)
             metafunc.parametrize(
                 [test_type.pytest_parameter_name()],
-                [
-                    pytest.param(
-                        execute_format,
-                        id=execute_format.execute_format_name.lower(),
-                        marks=[getattr(pytest.mark, execute_format.execute_format_name.lower())],
-                    )
-                    for execute_format in test_type.supported_execute_formats
-                ],
+                parameter_set,
                 scope="function",
                 indirect=True,
             )
 
 
 def pytest_collection_modifyitems(config: pytest.Config, items: List[pytest.Item]):
-    """
-    Remove pre-Paris tests parametrized to generate hive type fixtures; these
-    can't be used in the Hive Pyspec Simulator.
-
-    This can't be handled in this plugins pytest_generate_tests() as the fork
-    parametrization occurs in the forks plugin.
-    """
-    for item in items[:]:  # use a copy of the list, as we'll be modifying it
+    """Remove transition tests and add the appropriate execute markers to the test."""
+    items_for_removal = []
+    for i, item in enumerate(items):
         if isinstance(item, EIPSpecTestItem):
             continue
-        for marker in item.iter_markers():
+        params: Dict[str, Any] = item.callspec.params  # type: ignore
+        if "fork" not in params or params["fork"] is None:
+            items_for_removal.append(i)
+            continue
+        fork: Fork = params["fork"]
+        spec_type, execute_format = get_spec_format_for_item(params)
+        assert issubclass(execute_format, BaseExecute)
+        markers = list(item.iter_markers())
+        if spec_type.discard_execute_format_by_marks(execute_format, fork, markers):
+            items_for_removal.append(i)
+            continue
+        for marker in markers:
             if marker.name == "execute":
                 for mark in marker.args:
                     item.add_marker(mark)
             elif marker.name == "valid_at_transition_to":
-                item.add_marker(pytest.mark.skip(reason="transition tests not executable"))
+                items_for_removal.append(i)
+                continue
+            elif marker.name == "pre_alloc_modify":
+                item.add_marker(pytest.mark.skip(reason="Pre-alloc modification not supported"))
+
         if "yul" in item.fixturenames:  # type: ignore
             item.add_marker(pytest.mark.yul_test)
+
+    for i in reversed(items_for_removal):
+        items.pop(i)

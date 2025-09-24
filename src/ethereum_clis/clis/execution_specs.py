@@ -4,24 +4,27 @@ Ethereum Specs EVM Resolver Transition Tool Interface.
 https://github.com/petertdavies/ethereum-spec-evm-resolver
 """
 
+import os
 import re
 import subprocess
 import time
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from typing import Dict, List, Optional
+from typing import ClassVar, Dict, List, Optional
 
 from ethereum_test_exceptions import (
-    EOFException,
+    BlockException,
+    ExceptionBase,
     ExceptionMapper,
-    ExceptionMessage,
     TransactionException,
 )
 from ethereum_test_forks import Fork
+from pytest_plugins.logging import get_logger
 
 from ..transition_tool import TransitionTool
 
 DAEMON_STARTUP_TIMEOUT_SECONDS = 5
+logger = get_logger(__name__)
 
 
 class ExecutionSpecsTransitionTool(TransitionTool):
@@ -45,14 +48,17 @@ class ExecutionSpecsTransitionTool(TransitionTool):
     detect_binary_pattern = re.compile(r"^ethereum-spec-evm-resolver\b")
     t8n_use_server: bool = True
     server_dir: Optional[TemporaryDirectory] = None
+    server_url: str | None = None
 
     def __init__(
         self,
         *,
         binary: Optional[Path] = None,
         trace: bool = False,
+        server_url: str | None = None,
     ):
         """Initialize the Ethereum Specs EVM Resolver Transition Tool interface."""
+        os.environ.setdefault("NO_PROXY", "*")  # Disable proxy for local connections
         super().__init__(
             exception_mapper=ExecutionSpecsExceptionMapper(), binary=binary, trace=trace
         )
@@ -69,11 +75,12 @@ class ExecutionSpecsTransitionTool(TransitionTool):
                 f"Unexpected exception calling ethereum-spec-evm-resolver: {e}."
             ) from e
         self.help_string = result.stdout
+        self.server_url = server_url
 
     def start_server(self):
         """
         Start the t8n-server process, extract the port, and leave it running
-        for future re-use.
+        for future reuse.
         """
         self.server_dir = TemporaryDirectory()
         self.server_file_path = Path(self.server_dir.name) / "t8n.sock"
@@ -111,7 +118,10 @@ class ExecutionSpecsTransitionTool(TransitionTool):
 
         `ethereum-spec-evm` appends newlines to forks in the help string.
         """
-        return (fork.transition_tool_name() + "\n") in self.help_string
+        fork_is_supported = (fork.transition_tool_name() + "\n") in self.help_string
+        logger.debug(f"EELS supports fork {fork}: {fork_is_supported}")
+
+        return fork_is_supported
 
     def _generate_post_args(
         self, t8n_data: TransitionTool.TransitionToolData
@@ -127,134 +137,53 @@ class ExecutionSpecsTransitionTool(TransitionTool):
 class ExecutionSpecsExceptionMapper(ExceptionMapper):
     """Translate between EEST exceptions and error strings returned by ExecutionSpecs."""
 
-    @property
-    def _mapping_data(self):
-        return [
-            ExceptionMessage(
-                TransactionException.TYPE_4_TX_CONTRACT_CREATION,
-                "Failed transaction: ",
-            ),
-            ExceptionMessage(
-                TransactionException.INSUFFICIENT_ACCOUNT_FUNDS,
-                "ailed transaction: ",
-            ),
-            ExceptionMessage(
-                TransactionException.TYPE_3_TX_MAX_BLOB_GAS_ALLOWANCE_EXCEEDED,
-                "iled transaction: ",
-            ),
-            ExceptionMessage(
-                TransactionException.INSUFFICIENT_MAX_FEE_PER_BLOB_GAS,
-                "led transaction: ",
-            ),
-            ExceptionMessage(
-                TransactionException.INSUFFICIENT_MAX_FEE_PER_GAS,
-                "ed transaction: ",
-            ),
-            ExceptionMessage(
-                TransactionException.TYPE_3_TX_PRE_FORK,
-                "module 'ethereum.shanghai.transactions' has no attribute 'BlobTransaction'",
-            ),
-            ExceptionMessage(
-                TransactionException.TYPE_3_TX_INVALID_BLOB_VERSIONED_HASH,
-                "d transaction: ",
-            ),
-            # This message is the same as TYPE_3_TX_MAX_BLOB_GAS_ALLOWANCE_EXCEEDED
-            ExceptionMessage(
-                TransactionException.TYPE_3_TX_BLOB_COUNT_EXCEEDED,
-                " transaction: ",
-            ),
-            ExceptionMessage(
-                TransactionException.TYPE_3_TX_ZERO_BLOBS,
-                "transaction: ",
-            ),
-            ExceptionMessage(
-                TransactionException.INTRINSIC_GAS_TOO_LOW,
-                "ransaction: ",
-            ),
-            ExceptionMessage(
-                TransactionException.INITCODE_SIZE_EXCEEDED,
-                "ansaction: ",
-            ),
-            ExceptionMessage(
-                TransactionException.PRIORITY_GREATER_THAN_MAX_FEE_PER_GAS,
-                "nsaction: ",
-            ),
-            # TODO EVMONE needs to differentiate when the section is missing in the header or body
-            ExceptionMessage(EOFException.MISSING_STOP_OPCODE, "err: no_terminating_instruction"),
-            ExceptionMessage(EOFException.MISSING_CODE_HEADER, "err: code_section_missing"),
-            ExceptionMessage(EOFException.MISSING_TYPE_HEADER, "err: type_section_missing"),
-            # TODO EVMONE these exceptions are too similar, this leeds to ambiguity
-            ExceptionMessage(EOFException.MISSING_TERMINATOR, "err: header_terminator_missing"),
-            ExceptionMessage(
-                EOFException.MISSING_HEADERS_TERMINATOR, "err: section_headers_not_terminated"
-            ),
-            ExceptionMessage(EOFException.INVALID_VERSION, "err: eof_version_unknown"),
-            ExceptionMessage(
-                EOFException.INVALID_NON_RETURNING_FLAG, "err: invalid_non_returning_flag"
-            ),
-            ExceptionMessage(EOFException.INVALID_MAGIC, "err: invalid_prefix"),
-            ExceptionMessage(
-                EOFException.INVALID_FIRST_SECTION_TYPE, "err: invalid_first_section_type"
-            ),
-            ExceptionMessage(
-                EOFException.INVALID_SECTION_BODIES_SIZE, "err: invalid_section_bodies_size"
-            ),
-            ExceptionMessage(
-                EOFException.INVALID_TYPE_SECTION_SIZE, "err: invalid_type_section_size"
-            ),
-            ExceptionMessage(EOFException.INCOMPLETE_SECTION_SIZE, "err: incomplete_section_size"),
-            ExceptionMessage(
-                EOFException.INCOMPLETE_SECTION_NUMBER, "err: incomplete_section_number"
-            ),
-            ExceptionMessage(EOFException.TOO_MANY_CODE_SECTIONS, "err: too_many_code_sections"),
-            ExceptionMessage(EOFException.ZERO_SECTION_SIZE, "err: zero_section_size"),
-            ExceptionMessage(EOFException.MISSING_DATA_SECTION, "err: data_section_missing"),
-            ExceptionMessage(EOFException.UNDEFINED_INSTRUCTION, "err: undefined_instruction"),
-            ExceptionMessage(
-                EOFException.INPUTS_OUTPUTS_NUM_ABOVE_LIMIT, "err: inputs_outputs_num_above_limit"
-            ),
-            ExceptionMessage(
-                EOFException.UNREACHABLE_INSTRUCTIONS, "err: unreachable_instructions"
-            ),
-            ExceptionMessage(
-                EOFException.INVALID_RJUMP_DESTINATION, "err: invalid_rjump_destination"
-            ),
-            ExceptionMessage(
-                EOFException.UNREACHABLE_CODE_SECTIONS, "err: unreachable_code_sections"
-            ),
-            ExceptionMessage(EOFException.STACK_UNDERFLOW, "err: stack_underflow"),
-            ExceptionMessage(
-                EOFException.MAX_STACK_HEIGHT_ABOVE_LIMIT, "err: max_stack_height_above_limit"
-            ),
-            ExceptionMessage(
-                EOFException.STACK_HIGHER_THAN_OUTPUTS, "err: stack_higher_than_outputs_required"
-            ),
-            ExceptionMessage(
-                EOFException.JUMPF_DESTINATION_INCOMPATIBLE_OUTPUTS,
-                "err: jumpf_destination_incompatible_outputs",
-            ),
-            ExceptionMessage(
-                EOFException.INVALID_MAX_STACK_HEIGHT, "err: invalid_max_stack_height"
-            ),
-            ExceptionMessage(EOFException.INVALID_DATALOADN_INDEX, "err: invalid_dataloadn_index"),
-            ExceptionMessage(EOFException.TRUNCATED_INSTRUCTION, "err: truncated_instruction"),
-            ExceptionMessage(
-                EOFException.TOPLEVEL_CONTAINER_TRUNCATED, "err: toplevel_container_truncated"
-            ),
-            ExceptionMessage(EOFException.ORPHAN_SUBCONTAINER, "err: unreferenced_subcontainer"),
-            ExceptionMessage(
-                EOFException.CONTAINER_SIZE_ABOVE_LIMIT, "err: container_size_above_limit"
-            ),
-            ExceptionMessage(
-                EOFException.INVALID_CONTAINER_SECTION_INDEX,
-                "err: invalid_container_section_index",
-            ),
-            ExceptionMessage(
-                EOFException.INCOMPATIBLE_CONTAINER_KIND, "err: incompatible_container_kind"
-            ),
-            ExceptionMessage(EOFException.STACK_HEIGHT_MISMATCH, "err: stack_height_mismatch"),
-            ExceptionMessage(EOFException.TOO_MANY_CONTAINERS, "err: too_many_container_sections"),
-            ExceptionMessage(
-                EOFException.INVALID_CODE_SECTION_INDEX, "err: invalid_code_section_index"
-            ),
-        ]
+    mapping_substring: ClassVar[Dict[ExceptionBase, str]] = {
+        TransactionException.TYPE_4_EMPTY_AUTHORIZATION_LIST: "EmptyAuthorizationListError",
+        TransactionException.SENDER_NOT_EOA: "InvalidSenderError",
+        TransactionException.TYPE_4_TX_CONTRACT_CREATION: (
+            "TransactionTypeContractCreationError("
+            "'transaction type `SetCodeTransaction` not allowed to create contracts')"
+        ),
+        TransactionException.INSUFFICIENT_ACCOUNT_FUNDS: "InsufficientBalanceError",
+        TransactionException.TYPE_3_TX_MAX_BLOB_GAS_ALLOWANCE_EXCEEDED: (
+            "BlobGasLimitExceededError"
+        ),
+        TransactionException.INSUFFICIENT_MAX_FEE_PER_BLOB_GAS: (
+            "InsufficientMaxFeePerBlobGasError"
+        ),
+        TransactionException.TYPE_3_TX_INVALID_BLOB_VERSIONED_HASH: (
+            "InvalidBlobVersionedHashError"
+        ),
+        # This message is the same as TYPE_3_TX_MAX_BLOB_GAS_ALLOWANCE_EXCEEDED
+        TransactionException.TYPE_3_TX_BLOB_COUNT_EXCEEDED: "BlobCountExceededError",
+        TransactionException.TYPE_3_TX_ZERO_BLOBS: "NoBlobDataError",
+        TransactionException.INTRINSIC_GAS_TOO_LOW: "InsufficientTransactionGasError",
+        TransactionException.INTRINSIC_GAS_BELOW_FLOOR_GAS_COST: "InsufficientTransactionGasError",
+        TransactionException.INITCODE_SIZE_EXCEEDED: "InitCodeTooLargeError",
+        TransactionException.PRIORITY_GREATER_THAN_MAX_FEE_PER_GAS: (
+            "PriorityFeeGreaterThanMaxFeeError"
+        ),
+        TransactionException.NONCE_MISMATCH_TOO_HIGH: "NonceMismatchError('nonce too high')",
+        TransactionException.NONCE_MISMATCH_TOO_LOW: "NonceMismatchError('nonce too low')",
+        TransactionException.TYPE_3_TX_CONTRACT_CREATION: (
+            "TransactionTypeContractCreationError("
+            "'transaction type `BlobTransaction` not allowed to create contracts')"
+        ),
+        TransactionException.NONCE_IS_MAX: "NonceOverflowError",
+        TransactionException.GAS_ALLOWANCE_EXCEEDED: "GasUsedExceedsLimitError",
+        TransactionException.GAS_LIMIT_EXCEEDS_MAXIMUM: "TransactionGasLimitExceededError",
+        BlockException.SYSTEM_CONTRACT_EMPTY: "System contract address",
+        BlockException.SYSTEM_CONTRACT_CALL_FAILED: "call failed:",
+        BlockException.INVALID_DEPOSIT_EVENT_LAYOUT: "deposit",
+    }
+    mapping_regex: ClassVar[Dict[ExceptionBase, str]] = {
+        TransactionException.INSUFFICIENT_MAX_FEE_PER_GAS: (
+            r"InsufficientMaxFeePerGasError|InvalidBlock"  # Temporary solution for issue #1981.
+        ),
+        TransactionException.TYPE_3_TX_PRE_FORK: (
+            r"module '.*transactions' has no attribute 'BlobTransaction'"
+        ),
+        TransactionException.TYPE_4_TX_PRE_FORK: (
+            r"'.*transactions' has no attribute 'SetCodeTransaction'"
+        ),
+    }

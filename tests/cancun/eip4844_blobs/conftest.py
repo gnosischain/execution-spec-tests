@@ -27,6 +27,12 @@ def max_blobs_per_block(fork: Fork) -> int:
 
 
 @pytest.fixture
+def max_blobs_per_tx(fork: Fork) -> int:
+    """Return max number of blobs per transaction."""
+    return fork.max_blobs_per_tx()
+
+
+@pytest.fixture
 def blob_gas_per_blob(fork: Fork) -> int:
     """Return default blob gas cost per blob."""
     return fork.blob_gas_per_blob()
@@ -70,6 +76,7 @@ def excess_blob_gas(
     fork: Fork,
     parent_excess_blobs: int | None,
     parent_blobs: int | None,
+    block_base_fee_per_gas: int,
 ) -> int | None:
     """
     Calculate the excess blob gas of the block under test from the parent block.
@@ -78,10 +85,10 @@ def excess_blob_gas(
     """
     if parent_excess_blobs is None or parent_blobs is None:
         return None
-    excess_blob_gas = fork.excess_blob_gas_calculator()
-    return excess_blob_gas(
+    return fork.excess_blob_gas_calculator()(
         parent_excess_blobs=parent_excess_blobs,
         parent_blob_count=parent_blobs,
+        parent_base_fee_per_gas=block_base_fee_per_gas,
     )
 
 
@@ -90,6 +97,7 @@ def correct_excess_blob_gas(
     fork: Fork,
     parent_excess_blobs: int | None,
     parent_blobs: int | None,
+    block_base_fee_per_gas: int,
 ) -> int:
     """
     Calculate the correct excess blob gas of the block under test from the parent block.
@@ -98,18 +106,19 @@ def correct_excess_blob_gas(
     """
     if parent_excess_blobs is None or parent_blobs is None:
         return 0
-    excess_blob_gas = fork.excess_blob_gas_calculator()
-    return excess_blob_gas(
+    return fork.excess_blob_gas_calculator()(
         parent_excess_blobs=parent_excess_blobs,
         parent_blob_count=parent_blobs,
+        parent_base_fee_per_gas=block_base_fee_per_gas,
     )
 
 
 @pytest.fixture
-def block_fee_per_blob_gas(  # noqa: D103
+def block_fee_per_blob_gas(
     fork: Fork,
     correct_excess_blob_gas: int,
 ) -> int:
+    """Calculate the blob gas price for the current block."""
     get_blob_gas_price = fork.blob_gas_price_calculator()
     return get_blob_gas_price(excess_blob_gas=correct_excess_blob_gas)
 
@@ -251,7 +260,7 @@ def non_zero_blob_gas_used_genesis_block(
     genesis_excess_blob_gas: int,
     parent_excess_blob_gas: int,
     tx_max_fee_per_gas: int,
-    target_blobs_per_block: int,
+    block_base_fee_per_gas: int,
 ) -> Block | None:
     """
     For test cases with a non-zero blobGasUsed field in the
@@ -266,41 +275,63 @@ def non_zero_blob_gas_used_genesis_block(
     genesis value, expecting an appropriate drop to the intermediate block.
     Similarly, we must add parent_blobs to the intermediate block within
     a blob tx such that an equivalent blobGasUsed field is wrote.
+
+    For forks >= Osaka where the MAX_BLOBS_PER_TX is introduced, we
+    split the blobs across multiple transactions to respect the
+    MAX_BLOBS_PER_TX limit.
     """
     if parent_blobs == 0:
         return None
 
     excess_blob_gas_calculator = fork.excess_blob_gas_calculator(block_number=1)
-    assert parent_excess_blob_gas == excess_blob_gas_calculator(
+    calculated_excess_blob_gas = excess_blob_gas_calculator(
         parent_excess_blob_gas=genesis_excess_blob_gas,
         parent_blob_count=0,
-    ), "parent excess blob gas is not as expected for extra block"
+        parent_base_fee_per_gas=block_base_fee_per_gas,
+    )
+
+    assert parent_excess_blob_gas == calculated_excess_blob_gas, (
+        f"parent excess blob gas mismatch: expected {parent_excess_blob_gas}, "
+        f"got {calculated_excess_blob_gas} for {parent_blobs} blobs "
+        f"with base_fee_per_gas {block_base_fee_per_gas}"
+    )
 
     sender = pre.fund_eoa(10**27)
-
-    # Address that contains no code, nor balance and is not a contract.
     empty_account_destination = pre.fund_eoa(0)
-
     blob_gas_price_calculator = fork.blob_gas_price_calculator(block_number=1)
 
-    return Block(
-        txs=[
-            Transaction(
-                ty=Spec.BLOB_TX_TYPE,
-                sender=sender,
-                to=empty_account_destination,
-                value=1,
-                gas_limit=21_000,
-                max_fee_per_gas=tx_max_fee_per_gas,
-                max_priority_fee_per_gas=0,
-                max_fee_per_blob_gas=blob_gas_price_calculator(
-                    excess_blob_gas=parent_excess_blob_gas
-                ),
-                access_list=[],
-                blob_versioned_hashes=add_kzg_version(
-                    [Hash(x) for x in range(parent_blobs)],
-                    Spec.BLOB_COMMITMENT_VERSION_KZG,
-                ),
-            )
-        ]
+    # Split blobs into chunks when MAX_BLOBS_PER_TX < MAX_BLOBS_PER_BLOCK to respect per-tx limits.
+    # Allows us to keep single txs for forks where per-tx and per-block limits are equal, hitting
+    # coverage for block level blob gas validation when parent_blobs > MAX_BLOBS_PER_BLOCK.
+    max_blobs_per_tx = (
+        fork.max_blobs_per_tx()
+        if fork.max_blobs_per_tx() < fork.max_blobs_per_block()
+        else parent_blobs
     )
+    blob_chunks = [
+        range(i, min(i + max_blobs_per_tx, parent_blobs))
+        for i in range(0, parent_blobs, max_blobs_per_tx)
+    ]
+
+    def create_blob_transaction(blob_range):
+        return Transaction(
+            ty=Spec.BLOB_TX_TYPE,
+            sender=sender,
+            to=empty_account_destination,
+            value=1,
+            gas_limit=21_000,
+            max_fee_per_gas=tx_max_fee_per_gas,
+            max_priority_fee_per_gas=0,
+            max_fee_per_blob_gas=blob_gas_price_calculator(
+                excess_blob_gas=parent_excess_blob_gas,
+            ),
+            access_list=[],
+            blob_versioned_hashes=add_kzg_version(
+                [Hash(x) for x in blob_range],
+                Spec.BLOB_COMMITMENT_VERSION_KZG,
+            ),
+        )
+
+    txs = [create_blob_transaction(chunk) for chunk in blob_chunks]
+
+    return Block(txs=txs)

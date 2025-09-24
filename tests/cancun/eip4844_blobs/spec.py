@@ -17,7 +17,7 @@ class ReferenceSpec:
     version: str
 
 
-ref_spec_4844 = ReferenceSpec("EIPS/eip-4844.md", "f0eb6a364aaf5ccb43516fa2c269a54fb881ecfd")
+ref_spec_4844 = ReferenceSpec("EIPS/eip-4844.md", "de2e4a46ad93fc04e6fe3174dc6e90a3307bdb5f")
 
 
 # Constants
@@ -45,6 +45,7 @@ class Spec:
     # LIMIT_BLOBS_PER_TX = 2**12
     HASH_OPCODE_BYTE = 0x49
     HASH_GAS_COST = 3
+    GAS_PER_BLOB = 2**17
 
     @classmethod
     def kzg_to_versioned_hash(
@@ -119,6 +120,7 @@ class SpecHelpers:
     def get_blob_combinations(
         cls,
         blob_count: int,
+        max_blobs_per_tx: int,
     ) -> List[Tuple[int, ...]]:
         """Get all possible combinations of blobs that result in a given blob count."""
         combinations = [
@@ -127,10 +129,11 @@ class SpecHelpers:
                 blob_count + 1, 0, -1
             )  # We can have from 1 to at most MAX_BLOBS_PER_BLOCK blobs per block
             for seq in itertools.combinations_with_replacement(
-                range(1, blob_count + 2), i
+                range(1, min(blob_count + 1, max_blobs_per_tx) + 1), i
             )  # We iterate through all possible combinations
-            if sum(seq) == blob_count  # And we only keep the ones that match the
-            # expected invalid blob count
+            if sum(seq)
+            == blob_count  # And we only keep the ones that match the expected blob count
+            and all(tx_blobs <= max_blobs_per_tx for tx_blobs in seq)  # Validate each tx
         ]
 
         # We also add the reversed version of each combination, only if it's not
@@ -145,12 +148,14 @@ class SpecHelpers:
     def all_valid_blob_combinations(cls, fork: Fork) -> List[Tuple[int, ...]]:
         """
         Return all valid blob tx combinations for a given block,
-        assuming the given MAX_BLOBS_PER_BLOCK.
+        assuming the given MAX_BLOBS_PER_BLOCK, whilst respecting MAX_BLOBS_PER_TX.
         """
         max_blobs_per_block = fork.max_blobs_per_block()
+        max_blobs_per_tx = fork.max_blobs_per_tx()
+
         combinations: List[Tuple[int, ...]] = []
         for i in range(1, max_blobs_per_block + 1):
-            combinations += cls.get_blob_combinations(i)
+            combinations += cls.get_blob_combinations(i, max_blobs_per_tx)
         return combinations
 
     @classmethod
@@ -160,4 +165,10 @@ class SpecHelpers:
         MAX_BLOBS_PER_BLOCK+1 blobs.
         """
         max_blobs_per_block = fork.max_blobs_per_block()
-        return cls.get_blob_combinations(max_blobs_per_block + 1)
+        max_blobs_per_tx = fork.max_blobs_per_tx()
+        invalid_combinations = cls.get_blob_combinations(
+            max_blobs_per_block + 1,
+            max_blobs_per_tx,
+        )
+        invalid_combinations.append((max_blobs_per_block + 1,))
+        return invalid_combinations

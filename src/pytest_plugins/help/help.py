@@ -13,6 +13,13 @@ def pytest_addoption(parser):
     """Add command-line options to pytest for specific help commands."""
     help_group = parser.getgroup("help_options", "Help options for different commands")
     help_group.addoption(
+        "--check-eip-versions-help",
+        action="store_true",
+        dest="show_check_eip_versions_help",
+        default=False,
+        help="Show help options only for the check_eip_versions command and exit.",
+    )
+    help_group.addoption(
         "--fill-help",
         action="store_true",
         dest="show_fill_help",
@@ -27,7 +34,7 @@ def pytest_addoption(parser):
         help="Show help options specific to the consume command and exit.",
     )
     help_group.addoption(
-        "--execute-help",
+        "--execute-remote-help",
         action="store_true",
         dest="show_execute_help",
         default=False,
@@ -47,15 +54,31 @@ def pytest_addoption(parser):
         default=False,
         help="Show help options specific to the execute's command recover and exit.",
     )
+    help_group.addoption(
+        "--execute-eth-config-help",
+        action="store_true",
+        dest="show_execute_eth_config_help",
+        default=False,
+        help="Show help options specific to the execute's command eth_config and exit.",
+    )
 
 
 @pytest.hookimpl(tryfirst=True)
 def pytest_configure(config):
     """Handle specific help flags by displaying the corresponding help message."""
-    if config.getoption("show_fill_help"):
+    if config.getoption("show_check_eip_versions_help"):
         show_specific_help(
             config,
-            "pytest.ini",
+            "pytest-check-eip-versions.ini",
+            [
+                "spec_version_checker",
+                "EIP spec version",
+            ],
+        )
+    elif config.getoption("show_fill_help"):
+        show_specific_help(
+            config,
+            "pytest-fill.ini",
             [
                 "evm",
                 "solc",
@@ -63,6 +86,8 @@ def pytest_configure(config):
                 "filler location",
                 "defining debug",
                 "pre-allocation behavior during test filling",
+                "ported",
+                "witness",
             ],
         )
     elif config.getoption("show_consume_help"):
@@ -105,6 +130,14 @@ def pytest_configure(config):
                 "fund recovery",
                 "remote RPC configuration",
                 "remote seed sender",
+            ],
+        )
+    elif config.getoption("show_execute_eth_config_help"):
+        show_specific_help(
+            config,
+            "pytest-execute-eth-config.ini",
+            [
+                "eth_config",
             ],
         )
 

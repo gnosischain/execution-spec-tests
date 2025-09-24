@@ -37,8 +37,14 @@ ONE_GWEI = 10**9
 
 @pytest.mark.parametrize(
     "test_case",
-    ["tx_in_withdrawals_block", "tx_after_withdrawals_block"],
-    ids=lambda x: x,
+    [
+        pytest.param(
+            "tx_in_withdrawals_block",
+            id="tx_in_withdrawals_block",
+            marks=pytest.mark.exception_test,
+        ),
+        pytest.param("tx_after_withdrawals_block", id="tx_after_withdrawals_block"),
+    ],
 )
 class TestUseValueInTx:
     """
@@ -201,7 +207,7 @@ def test_balance_within_block(blockchain_test: BlockchainTestFiller, pre: Alloc)
                     sender=sender,
                     gas_limit=100000,
                     to=contract_address,
-                    data=Hash(recipient),
+                    data=Hash(recipient, left_padding=True),
                 )
             ],
             withdrawals=[
@@ -219,7 +225,7 @@ def test_balance_within_block(blockchain_test: BlockchainTestFiller, pre: Alloc)
                     sender=sender,
                     gas_limit=100000,
                     to=contract_address,
-                    data=Hash(recipient),
+                    data=Hash(recipient, left_padding=True),
                 )
             ]
         ),
@@ -373,7 +379,7 @@ def test_self_destructing_account(
         sender=sender,
         gas_limit=100000,
         to=self_destruct_contract_address,
-        data=Hash(recipient),
+        data=Hash(recipient, left_padding=True),
     )
 
     withdrawal = Withdrawal(
@@ -645,6 +651,7 @@ def test_zero_amount(
     )
 
 
+@pytest.mark.xdist_group(name="bigmem")
 def test_large_amount(
     blockchain_test: BlockchainTestFiller,
     pre: Alloc,
@@ -684,6 +691,7 @@ def test_large_amount(
     blockchain_test(pre=pre, post=post, blocks=blocks)
 
 
+@pytest.mark.xdist_group(name="bigmem")
 @pytest.mark.parametrize("amount", [0, 1])
 @pytest.mark.with_all_precompiles
 def test_withdrawing_to_precompiles(
