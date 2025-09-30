@@ -34,6 +34,10 @@ on:
         description: "Additional arguments appended to the execute command"
         required: false
         default: ""
+      seed_amount:
+        description: "Amount to seed"
+        required: true
+        default: "10000"
 
 jobs:
   run-remote-execution:
@@ -58,13 +62,13 @@ jobs:
         run: |
           mkdir -p "$(dirname "${{ inputs.html_report }}")"
 
-      - name: Send to addresses list
+      - name: Update seed account balance
         uses: dmitriy-b/ethereum-testing-tools/.github/actions/transfer-eth@main
         with:
           rpc_url: ${{ inputs.rpc_endpoint }}
           from_key: ${{ secrets.DEVNET_TREASURY_PRIVATE_KEY }}
           to: ${{ secrets.DEVNET_FROM_PUBLIC_KEY }}
-          amount: "10000"
+          amount: ${{ inputs.seed_amount }}
 
       - name: Execute remote
         env:
