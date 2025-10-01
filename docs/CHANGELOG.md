@@ -10,20 +10,29 @@ Test fixtures for use by clients are available for each release on the [Github r
 
 ### 🛠️ Framework
 
+- ✨ Add benchmark-specific test wrapper (`benchmark_test`) that supports **EIP-7825** and create a benchmark code generator for common test pattern ([#1945](https://github.com/ethereum/execution-spec-tests/pull/1945)).
+
 #### `fill`
 
-- Move pytest marker registration for `fill` and `execute-*` from their respective ini files to the shared `pytest_plugins.shared.execute_fill` pytest plugin ([#2110](https://github.com/ethereum/execution-spec-tests/pull/2110)).
 - ✨ Added `--optimize-gas`, `--optimize-gas-output` and `--optimize-gas-post-processing` flags that allow to binary search the minimum gas limit value for a transaction in a test that still yields the same test result ([#1979](https://github.com/ethereum/execution-spec-tests/pull/1979)).
+- ✨ Added `--watch` flag that monitors test files for changes and automatically re-runs the fill command when developing tests ([#2173](https://github.com/ethereum/execution-spec-tests/pull/2173)).
+- 🔀 Upgraded ckzg version to 2.1.3 or newer for correct handling of points at infinity ([#2171](https://github.com/ethereum/execution-spec-tests/pull/2171)).
+- 🔀 Move pytest marker registration for `fill` and `execute-*` from their respective ini files to the shared `pytest_plugins.shared.execute_fill` pytest plugin ([#2110](https://github.com/ethereum/execution-spec-tests/pull/2110)).
 
 #### `consume`
+
+- ✨ Add retry logic to RPC requests to fix flaky connection issues in Hive ([#2205](https://github.com/ethereum/execution-spec-tests/pull/2205)).
 
 ### 📋 Misc
 
 - ✨ Add tighter validation for EIP-7928 model coming from t8n when filling ([#2138](https://github.com/ethereum/execution-spec-tests/pull/2138)).
 - ✨ Add flexible API for absence checks for EIP-7928 (BAL) tests ([#2124](https://github.com/ethereum/execution-spec-tests/pull/2124)).
 - 🐞 Use ``engine_newPayloadV5`` for `>=Amsterdam` forks in `consume engine` ([#2170](https://github.com/ethereum/execution-spec-tests/pull/2170)).
+- 🔀 Refactor EIP-7928 (BAL) absence checks into a friendlier class-based DevEx ([#2175](https://github.com/ethereum/execution-spec-tests/pull/2175)).
 
 ### 🧪 Test Cases
+
+- ✨ Add an EIP-7928 test case targeting the `SELFDESTRUCT` opcode. ([#2159](https://github.com/ethereum/execution-spec-tests/pull/2159)).
 
 ## [v5.0.0](https://github.com/ethereum/execution-spec-tests/releases/tag/v5.0.0) - 2025-09-05
 

@@ -1,11 +1,13 @@
-"""Test ModExp gas cost transition from EIP-7883 before and after the Osaka hard fork."""
+"""
+Test ModExp gas cost transition from EIP-7883 before & after the Osaka fork.
+"""
 
 import pytest
 
 from ethereum_test_checklists import EIPChecklist
 from ethereum_test_forks import Fork
 from ethereum_test_tools import Account, Alloc, Block, BlockchainTestFiller, Transaction, keccak256
-from ethereum_test_tools.vm.opcode import Opcodes as Op
+from ethereum_test_vm import Opcodes as Op
 
 from ...byzantium.eip198_modexp_precompile.helpers import ModExpInput
 from .spec import Spec, ref_spec_7883
@@ -38,7 +40,10 @@ def test_modexp_fork_transition(
     modexp_input: ModExpInput,
     modexp_expected: bytes,
 ):
-    """Test ModExp gas cost transition from EIP-7883 before and after the Osaka hard fork."""
+    """
+    Test ModExp gas cost transition from EIP-7883 before and after the Osaka
+    hard fork.
+    """
     call_code = Op.CALL(
         address=Spec.MODEXP_ADDRESS,
         args_size=Op.CALLDATASIZE,
