@@ -50,6 +50,7 @@ pip-delete-this-directory.txt
 /doc/_autosummary
 
 .coverage
+.history/
 
 # misc
 *.code-workspace
