@@ -80,7 +80,7 @@ def test_transaction_gas_limit_cap(
     tx_gas_limit: int,
     error: TransactionException | None,
     tx_type: int,
-):
+) -> None:
     """
     Test the transaction gas limit cap behavior for all transaction types.
     """
@@ -144,7 +144,7 @@ def test_transaction_gas_limit_cap(
 @pytest.mark.valid_from("Osaka")
 def test_tx_gas_limit_cap_subcall_context(
     state_test: StateTestFiller, pre: Alloc, opcode: Op, fork: Fork, env: Environment
-):
+) -> None:
     """Test the transaction gas limit cap behavior for subcall context."""
     tx_gas_limit_cap = effective_tx_gas_limit_cap(fork)
     assert tx_gas_limit_cap is not None, "Fork does not have a transaction gas limit cap"
@@ -192,10 +192,11 @@ def test_tx_gas_larger_than_block_gas_limit(
     env: Environment,
     fork: Fork,
     exceed_block_gas_limit: bool,
-):
-    """Test multiple transactions with total gas larger than the block gas limit."""
-    tx_gas_limit_cap = effective_tx_gas_limit_cap(fork)
-
+) -> None:
+    """
+    Test multiple transactions with total gas larger than the block gas limit.
+    """
+    tx_gas_limit_cap = fork.transaction_gas_limit_cap()
     assert tx_gas_limit_cap is not None, "Fork does not have a transaction gas limit cap"
 
     tx_count = env.gas_limit // tx_gas_limit_cap
@@ -230,7 +231,7 @@ def test_maximum_gas_refund(
     pre: Alloc,
     fork: Fork,
     exceed_gas_refund_limit: bool,
-):
+) -> None:
     """Test the maximum gas refund behavior according to EIP-3529."""
     gas_costs = fork.gas_costs()
     tx_gas_limit_cap = fork.transaction_gas_limit_cap()
@@ -280,7 +281,7 @@ def test_maximum_gas_refund(
 
 
 @pytest.fixture
-def total_cost_floor_per_token(fork: Fork):
+def total_cost_floor_per_token(fork: Fork) -> int:
     """Total cost floor per token."""
     gas_costs = fork.gas_costs()
     return gas_costs.G_TX_DATA_FLOOR_TOKEN_COST
@@ -305,7 +306,7 @@ def test_tx_gas_limit_cap_full_calldata(
     exceed_tx_gas_limit: bool,
     correct_intrinsic_cost_in_transaction_gas_limit: bool,
     fork: Fork,
-):
+) -> None:
     """Test the transaction gas limit cap behavior for full calldata."""
     intrinsic_cost = fork.transaction_intrinsic_cost_calculator()
     tx_gas_limit_cap = effective_tx_gas_limit_cap(fork)
@@ -378,7 +379,7 @@ def test_tx_gas_limit_cap_contract_creation(
     total_cost_floor_per_token: int,
     exceed_tx_gas_limit: bool,
     fork: Fork,
-):
+) -> None:
     """Test the transaction gas limit cap behavior for contract creation."""
     intrinsic_cost = fork.transaction_intrinsic_cost_calculator()
     tx_gas_limit_cap = effective_tx_gas_limit_cap(fork)
@@ -439,7 +440,7 @@ def test_tx_gas_limit_cap_access_list_with_diff_keys(
     correct_intrinsic_cost_in_transaction_gas_limit: bool,
     pre: Alloc,
     fork: Fork,
-):
+) -> None:
     """
     Test the transaction gas limit cap behavior for access list with different
     storage keys.
@@ -518,7 +519,7 @@ def test_tx_gas_limit_cap_access_list_with_diff_addr(
     fork: Fork,
     exceed_tx_gas_limit: bool,
     correct_intrinsic_cost_in_transaction_gas_limit: bool,
-):
+) -> None:
     """
     Test the transaction gas limit cap behavior for access list with different
     addresses.
@@ -594,7 +595,7 @@ def test_tx_gas_limit_cap_authorized_tx(
     fork: Fork,
     exceed_tx_gas_limit: bool,
     correct_intrinsic_cost_in_transaction_gas_limit: bool,
-):
+) -> None:
     """Test a transaction limit cap with authorized tx."""
     intrinsic_cost = fork.transaction_intrinsic_cost_calculator()
     tx_gas_limit_cap = effective_tx_gas_limit_cap(fork)

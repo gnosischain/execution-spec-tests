@@ -2,7 +2,10 @@
 
 import pytest
 
-from ethereum_test_tools import Address, Alloc
+from ethereum_test_tools import (
+    Address,
+    Alloc,
+)
 from ethereum_test_types import Environment
 from ethereum_test_vm import Opcodes as Op
 
