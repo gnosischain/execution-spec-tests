@@ -54,6 +54,10 @@ class EthrexExceptionMapper(ExceptionMapper):
             r"unexpected length|Contract creation in type 4 transaction|"
             r"Error decoding field 'to' of type primitive_types::H160: InvalidLength"
         ),
+        TransactionException.TYPE_3_TX_CONTRACT_CREATION: (
+            r"unexpected length|Contract creation in type 3 transaction|"
+            r"Error decoding field 'to' of type primitive_types::H160: InvalidLength"
+        ),
         TransactionException.TYPE_4_TX_PRE_FORK: (
             r"eip 7702 transactions present in pre-prague payload|"
             r"Type 4 transactions are not supported before the Prague fork"
@@ -63,7 +67,10 @@ class EthrexExceptionMapper(ExceptionMapper):
         ),
         TransactionException.INTRINSIC_GAS_TOO_LOW: (
             r"gas floor exceeds the gas limit|call gas cost exceeds the gas limit|"
-            r"Intrinsic gas too low"
+            r"Transaction gas limit lower than the minimum gas cost to execute the transaction"
+        ),
+        TransactionException.INTRINSIC_GAS_BELOW_FLOOR_GAS_COST: (
+            r"Transaction gas limit lower than the gas cost floor for calldata tokens"
         ),
         TransactionException.INSUFFICIENT_MAX_FEE_PER_GAS: (
             r"gas price is less than basefee|Insufficient max fee per gas"
@@ -75,6 +82,7 @@ class EthrexExceptionMapper(ExceptionMapper):
         TransactionException.INITCODE_SIZE_EXCEEDED: (
             r"create initcode size limit|Initcode size exceeded.*"
         ),
+        TransactionException.NONCE_IS_MAX: (r"Nonce is max"),
         TransactionException.GAS_ALLOWANCE_EXCEEDED: (r"Gas allowance exceeded.*"),
         TransactionException.TYPE_3_TX_BLOB_COUNT_EXCEEDED: (r"Blob count exceeded.*"),
         BlockException.SYSTEM_CONTRACT_CALL_FAILED: (r"System call failed.*"),

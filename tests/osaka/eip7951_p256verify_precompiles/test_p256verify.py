@@ -43,7 +43,9 @@ pytestmark = [
 @EIPChecklist.Precompile.Test.CallContexts.Normal()
 @EIPChecklist.Precompile.Test.Inputs.Valid()
 @EIPChecklist.Precompile.Test.Inputs.MaxValues()
-def test_wycheproof_valid(state_test: StateTestFiller, pre: Alloc, post: dict, tx: Transaction):
+def test_wycheproof_valid(
+    state_test: StateTestFiller, pre: Alloc, post: dict, tx: Transaction
+) -> None:
     """Test P256Verify precompile with Wycheproof test suite (valid cases)."""
     state_test(env=Environment(), pre=pre, post=post, tx=tx)
 
@@ -61,7 +63,9 @@ def test_wycheproof_valid(state_test: StateTestFiller, pre: Alloc, post: dict, t
 @EIPChecklist.Precompile.Test.CallContexts.Normal()
 @EIPChecklist.Precompile.Test.Inputs.Invalid()
 @EIPChecklist.Precompile.Test.Inputs.MaxValues()
-def test_wycheproof_invalid(state_test: StateTestFiller, pre: Alloc, post: dict, tx: Transaction):
+def test_wycheproof_invalid(
+    state_test: StateTestFiller, pre: Alloc, post: dict, tx: Transaction
+) -> None:
     """
     Test P256Verify precompile with Wycheproof test suite
     (invalid cases).
@@ -81,7 +85,9 @@ def test_wycheproof_invalid(state_test: StateTestFiller, pre: Alloc, post: dict,
 @pytest.mark.parametrize("precompile_address", [Spec.P256VERIFY], ids=[""])
 @EIPChecklist.Precompile.Test.CallContexts.Normal()
 @EIPChecklist.Precompile.Test.Inputs.MaxValues()
-def test_wycheproof_extra(state_test: StateTestFiller, pre: Alloc, post: dict, tx: Transaction):
+def test_wycheproof_extra(
+    state_test: StateTestFiller, pre: Alloc, post: dict, tx: Transaction
+) -> None:
     """
     Test P256Verify precompile with Wycheproof test suite
     (mixed valid/invalid cases).
@@ -156,6 +162,38 @@ def test_wycheproof_extra(state_test: StateTestFiller, pre: Alloc, post: dict, t
             + Y(0x99B7A386F1D07C29DBCC42A27B5F9449ABE3D50DE25178E8D7407A95E8B06C0B),
             id="x_0_y_negative",
         ),
+        pytest.param(
+            H(0x5F95DCD6E41662D1E0AEFCCDB7877877C1FD88C9E67FC3CDA0D1D520FA8A3AC2)
+            + R(0xAF5DFDDB7EDC789D7C9C42A44AFBBF13C8F1D77D576B6EE5F11FEA4F33E2CB39)
+            + S(0xA28F8C5625AD622950F2FCE9672784B287EF9E032ADE8C23BA218413A1CF6522)
+            + X(5)
+            + Y(0x459243B9AA581806FE913BCE99817ADE11CA503C64D9A3C533415C083248FBCC),
+            id="x_5_y_positive",
+        ),
+        pytest.param(
+            H(0x31CE0B00FA8DD61EF28C7DC5F839C78CF70D60E625E0670BF9C9FCE25E89D99F)
+            + R(0x0FA19CBE154513BA348F2DB951AFB6E135BAC5BD8891282781A032103C3F1289)
+            + S(0xD9ABF5C4E61098A6E653F265770BDBA36ECC8073CEF99548D89FE2C39A7AFA9B)
+            + X(5)
+            + Y(0xBA6DBC4555A7E7FA016EC431667E8521EE35AFC49B265C3ACCBEA3F7CDB70433),
+            id="x_5_y_negative",
+        ),
+        pytest.param(
+            H(0x65B0E03E7A27E6F9F4989C72486FCAF0A3ECF3EF60D14F1C11FB5BF071A8FD1B)
+            + R(0x0B0CC9E314E4180FE18D205010DD1C4410632D472CC4E7AB56CBC04091ABE006)
+            + S(0x8D12C4F19AC41D7877705453A247AB96394E7C093F57EC073A9D150CDE6B68C6)
+            + X(0x09E78D4EF60D05F750F6636209092BC43CBDD6B47E11A9DE20A9FEB2A50BB96C)
+            + Y(1),
+            id="y_1",
+        ),
+        pytest.param(
+            H(0x744084AD41EE67ED1802A6868ACE7815FD6FC0585A3479FF68E69ADB8DD2B420)
+            + R(0xB481C7650CBE85BCD15565811966DA2DA4E4E2931F0892D911520B6A06C340D8)
+            + S(0xE4C2D9FB9A4E3E29B7414F0408B2EBC4421D5BC8ADDCCF864AFF9E7E10DA31BB)
+            + X(0x09E78D4EF60D05F750F6636209092BC43CBDD6B47E11A9DE20A9FEB2A50BB96C)
+            + Y(Spec.P - 1),
+            id="y_P_minus_1",
+        ),
         # Test case for u1==u2 and Q==G.
         # This test case is important because u1*G + u2*Q is point doubling.
         pytest.param(
@@ -179,7 +217,7 @@ def test_wycheproof_extra(state_test: StateTestFiller, pre: Alloc, post: dict, t
 )
 @pytest.mark.parametrize("expected_output", [Spec.SUCCESS_RETURN_VALUE], ids=[""])
 @pytest.mark.parametrize("precompile_address", [Spec.P256VERIFY], ids=[""])
-def test_valid(state_test: StateTestFiller, pre: Alloc, post: dict, tx: Transaction):
+def test_valid(state_test: StateTestFiller, pre: Alloc, post: dict, tx: Transaction) -> None:
     """Positive tests for the P256VERIFY precompile."""
     state_test(env=Environment(), pre=pre, post=post, tx=tx)
 
@@ -312,7 +350,17 @@ def test_valid(state_test: StateTestFiller, pre: Alloc, post: dict, tx: Transact
         ),
         pytest.param(
             Spec.H0 + Spec.R0 + Spec.S0 + X(0) + Y(0),
-            id="point_on_infinity",
+            id="point_at_infinity",
+        ),
+        # Test case with Q at infinity. If the implementation misses the check
+        # that Q is not the point at infinity, the signature should verify.
+        pytest.param(
+            Spec.H0
+            + R(0x2DD5CBB0E37BAEC8D1460909B206CA2C87E50CA43B8F31E46168027A7F0AEEC6)
+            + Spec.S0
+            + X(0)
+            + Y(0),
+            id="point_at_infinity_v2",
         ),
         pytest.param(
             Spec.H0 + Spec.R0 + Spec.S0 + X(Spec.X0.value + 1) + Spec.Y0,
@@ -333,6 +381,56 @@ def test_valid(state_test: StateTestFiller, pre: Alloc, post: dict, tx: Transact
         pytest.param(
             Spec.H0 + Spec.R0 + Spec.S0 + X(Spec.P + 1) + Spec.Y0,
             id="x_greater_than_p",
+        ),
+        pytest.param(
+            H(0xC3D3BE9EB3577F217AE0AB360529A30B18ADC751AEC886328593D7D6FE042809)
+            + R(0x3A4E97B44CBF88B90E6205A45BA957E520F63F3C6072B53C244653278A1819D8)
+            + S(0x6A184AA037688A5EBD25081FD2C0B10BB64FA558B671BD81955CA86E09D9D722)
+            + X(Spec.P)  # Valid for X(0)
+            + Y(0x66485C780E2F83D72433BD5D84A06BB6541C2AF31DAE871728BF856A174F93F4),
+            id="x_P_y_positive",
+        ),
+        pytest.param(
+            H(0xF98A88895CB0866C5BAD58CF03000DDF9D21CB9407892FF54D637E6A046AFBB3)
+            + R(0x81DC074973D3222F3930981AD98D022517C91063FFB83CFD620E29B86DC30A8F)
+            + S(0x365E4CD085617A265765062A2D9954ED86309DFA33CF5AE1464FE119419FC34A)
+            + X(Spec.P)  # Valid for X(0)
+            + Y(0x99B7A386F1D07C29DBCC42A27B5F9449ABE3D50DE25178E8D7407A95E8B06C0B),
+            id="x_P_y_negative",
+        ),
+        pytest.param(
+            H(0x5F95DCD6E41662D1E0AEFCCDB7877877C1FD88C9E67FC3CDA0D1D520FA8A3AC2)
+            + R(0xAF5DFDDB7EDC789D7C9C42A44AFBBF13C8F1D77D576B6EE5F11FEA4F33E2CB39)
+            + S(0xA28F8C5625AD622950F2FCE9672784B287EF9E032ADE8C23BA218413A1CF6522)
+            + X(Spec.P + 5)  # Valid for X(5)
+            + Y(0x459243B9AA581806FE913BCE99817ADE11CA503C64D9A3C533415C083248FBCC),
+            id="x_P_plus_5_y_positive",
+        ),
+        pytest.param(
+            H(0x31CE0B00FA8DD61EF28C7DC5F839C78CF70D60E625E0670BF9C9FCE25E89D99F)
+            + R(0x0FA19CBE154513BA348F2DB951AFB6E135BAC5BD8891282781A032103C3F1289)
+            + S(0xD9ABF5C4E61098A6E653F265770BDBA36ECC8073CEF99548D89FE2C39A7AFA9B)
+            + X(Spec.P + 5)  # Valid for X(5)
+            + Y(0xBA6DBC4555A7E7FA016EC431667E8521EE35AFC49B265C3ACCBEA3F7CDB70433),
+            id="x_P_plus_5_y_negative",
+        ),
+        pytest.param(
+            H(0x65B0E03E7A27E6F9F4989C72486FCAF0A3ECF3EF60D14F1C11FB5BF071A8FD1B)
+            + R(0x0B0CC9E314E4180FE18D205010DD1C4410632D472CC4E7AB56CBC04091ABE006)
+            + S(0x8D12C4F19AC41D7877705453A247AB96394E7C093F57EC073A9D150CDE6B68C6)
+            + X(0x09E78D4EF60D05F750F6636209092BC43CBDD6B47E11A9DE20A9FEB2A50BB96C)
+            + Y(Spec.P + 1),  # Valid for Y(1)
+            id="y_P_plus_1",
+        ),
+        # Test case produces the point R at infinity: (R0/S0)*G + (R0/S0)*(-G).
+        pytest.param(
+            H(Spec.R0.value) + Spec.R0 + Spec.S0 + X(Spec.Gx) + Y(Spec.P - Spec.Gy),
+            id="R_at_infinity_v1",
+        ),
+        # Test case produces the point R at infinity: (1/1)*G + (1/1)*(-G).
+        pytest.param(
+            H(1) + R(1) + S(1) + X(Spec.Gx) + Y(Spec.P - Spec.Gy),
+            id="R_at_infinity_v2",
         ),
         pytest.param(
             Spec.H0
@@ -586,7 +684,7 @@ def test_valid(state_test: StateTestFiller, pre: Alloc, post: dict, tx: Transact
 @EIPChecklist.Precompile.Test.InputLengths.Static.TooLong()
 @EIPChecklist.Precompile.Test.OutOfBounds.Max()
 @EIPChecklist.Precompile.Test.OutOfBounds.MaxPlusOne()
-def test_invalid(state_test: StateTestFiller, pre: Alloc, post: dict, tx: Transaction):
+def test_invalid(state_test: StateTestFiller, pre: Alloc, post: dict, tx: Transaction) -> None:
     """Negative tests for the P256VERIFY precompile."""
     state_test(env=Environment(), pre=pre, post=post, tx=tx)
 
@@ -627,7 +725,7 @@ def test_invalid(state_test: StateTestFiller, pre: Alloc, post: dict, tx: Transa
 @pytest.mark.parametrize("precompile_address", [Spec.P256VERIFY], ids=[""])
 @EIPChecklist.Precompile.Test.GasUsage.Constant.Exact()
 @EIPChecklist.Precompile.Test.GasUsage.Constant.Oog()
-def test_gas(state_test: StateTestFiller, pre: Alloc, post: dict, tx: Transaction):
+def test_gas(state_test: StateTestFiller, pre: Alloc, post: dict, tx: Transaction) -> None:
     """Test P256Verify precompile gas requirements."""
     state_test(env=Environment(), pre=pre, post=post, tx=tx)
 
@@ -659,7 +757,7 @@ def test_call_types(
     pre: Alloc,
     post: dict,
     tx: Transaction,
-):
+) -> None:
     """Test P256Verify precompile using different call types."""
     state_test(env=Environment(), pre=pre, post=post, tx=tx)
 
@@ -681,7 +779,7 @@ def test_precompile_as_tx_entry_point(
     pre: Alloc,
     post: dict,
     tx: Transaction,
-):
+) -> None:
     """Test P256Verify precompile entry point."""
     state_test(env=Environment(), pre=pre, post=post, tx=tx)
 
@@ -704,7 +802,7 @@ def test_precompile_will_return_success_with_tx_value(
     input_data: bytes,
     expected_output: bytes,
     precompile_address: Address,
-):
+) -> None:
     """Test P256Verify precompile will not fail if value is sent."""
     sender = pre.fund_eoa()
     storage = Storage()
@@ -799,7 +897,9 @@ def test_precompile_will_return_success_with_tx_value(
 @pytest.mark.parametrize("precompile_address", [Spec.P256VERIFY], ids=[""])
 @EIPChecklist.Precompile.Test.Inputs.Valid()
 @EIPChecklist.Precompile.Test.Inputs.Invalid.Crypto()
-def test_modular_comparison(state_test: StateTestFiller, pre: Alloc, post: dict, tx: Transaction):
+def test_modular_comparison(
+    state_test: StateTestFiller, pre: Alloc, post: dict, tx: Transaction
+) -> None:
     """
     Test the modular comparison condition for secp256r1 precompile.
 
@@ -833,7 +933,7 @@ def test_contract_creation_transaction(
     tx: Transaction,
     input_data: bytes,
     expected_output: bytes,
-):
+) -> None:
     """Test the contract creation for the P256VERIFY precompile."""
     sender = pre.fund_eoa()
 
@@ -897,7 +997,7 @@ def test_contract_initcode(
     input_data: bytes,
     expected_output: bytes,
     opcode: Op,
-):
+) -> None:
     """Test P256VERIFY behavior from contract creation."""
     sender = pre.fund_eoa()
 
