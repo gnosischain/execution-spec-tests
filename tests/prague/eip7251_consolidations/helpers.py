@@ -5,17 +5,9 @@ from functools import cached_property
 from itertools import count
 from typing import Callable, ClassVar, List
 
-from execution_testing import (
-    EOA,
-    Address,
-    Alloc,
-    Bytecode,
-    Op,
-    Transaction,
-)
-from execution_testing import (
-    ConsolidationRequest as ConsolidationRequestBase,
-)
+from ethereum_test_tools import EOA, Address, Alloc, Bytecode, Transaction
+from ethereum_test_tools import ConsolidationRequest as ConsolidationRequestBase
+from ethereum_test_tools import Opcodes as Op
 
 from .spec import Spec
 
@@ -232,9 +224,7 @@ def get_n_fee_increments(n: int) -> List[int]:
     return excess_consolidation_requests_counts
 
 
-def get_n_fee_increment_blocks(
-    n: int,
-) -> List[List[ConsolidationRequestContract]]:
+def get_n_fee_increment_blocks(n: int) -> List[List[ConsolidationRequestContract]]:
     """
     Return N blocks that should be included in the test such that each
     subsequent block has an increasing fee for the consolidation requests.
@@ -266,8 +256,7 @@ def get_n_fee_increment_blocks(
                             fee=fee,
                         )
                         for i in range(
-                            consolidation_index,
-                            consolidation_index + consolidations_required,
+                            consolidation_index, consolidation_index + consolidations_required
                         )
                     ],
                 )

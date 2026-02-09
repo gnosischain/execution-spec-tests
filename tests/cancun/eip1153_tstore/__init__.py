@@ -7,7 +7,8 @@ from pprint import pprint
 from typing import Any, List
 
 import pytest
-from execution_testing import Op
+
+from ethereum_test_tools import Opcodes as Op
 
 
 class PytestParameterEnum(Enum):

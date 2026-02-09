@@ -8,19 +8,19 @@ Tests for ModExp gas cost increase in
 from typing import Dict, Generator
 
 import pytest
-from execution_testing import (
+
+from ethereum_test_checklists import EIPChecklist
+from ethereum_test_forks import Fork, Osaka
+from ethereum_test_tools import (
     Alloc,
-    EIPChecklist,
     Environment,
-    Fork,
-    Op,
     StateTestFiller,
     Storage,
     Transaction,
-    compute_create_address,
     keccak256,
 )
-from execution_testing.forks import Osaka
+from ethereum_test_types.helpers import compute_create_address
+from ethereum_test_vm import Opcodes as Op
 
 from ...byzantium.eip198_modexp_precompile.helpers import ModExpInput
 from .helpers import vectors_from_file
@@ -353,11 +353,7 @@ def test_contract_creation_transaction(
 
     contract_address = compute_create_address(address=sender, nonce=0)
     contract_bytecode = (
-        Op.CODECOPY(
-            0,
-            Op.SUB(Op.CODESIZE, len(bytes(modexp_input))),
-            len(bytes(modexp_input)),
-        )
+        Op.CODECOPY(0, Op.SUB(Op.CODESIZE, len(bytes(modexp_input))), len(bytes(modexp_input)))
         + Op.CALL(
             gas=1_000_000,
             address=Spec.MODEXP_ADDRESS,
@@ -369,13 +365,9 @@ def test_contract_creation_transaction(
         )
         + Op.SSTORE(storage.store_next(True), Op.DUP1())
         + Op.SSTORE(
-            storage.store_next(keccak256(bytes(modexp_expected))),
-            Op.SHA3(0, Op.RETURNDATASIZE()),
+            storage.store_next(keccak256(bytes(modexp_expected))), Op.SHA3(0, Op.RETURNDATASIZE())
         )
-        + Op.SSTORE(
-            storage.store_next(len(bytes(modexp_expected))),
-            Op.RETURNDATASIZE(),
-        )
+        + Op.SSTORE(storage.store_next(len(bytes(modexp_expected))), Op.RETURNDATASIZE())
         + Op.STOP
     )
 
@@ -424,11 +416,7 @@ def test_contract_initcode(
     storage = Storage()
 
     call_modexp_bytecode = (
-        Op.CODECOPY(
-            0,
-            Op.SUB(Op.CODESIZE, len(bytes(modexp_input))),
-            len(bytes(modexp_input)),
-        )
+        Op.CODECOPY(0, Op.SUB(Op.CODESIZE, len(bytes(modexp_input))), len(bytes(modexp_input)))
         + Op.CALL(
             gas=200_000,
             address=Spec.MODEXP_ADDRESS,
@@ -440,13 +428,9 @@ def test_contract_initcode(
         )
         + Op.SSTORE(storage.store_next(True), Op.DUP1())
         + Op.SSTORE(
-            storage.store_next(keccak256(bytes(modexp_expected))),
-            Op.SHA3(0, Op.RETURNDATASIZE()),
+            storage.store_next(keccak256(bytes(modexp_expected))), Op.SHA3(0, Op.RETURNDATASIZE())
         )
-        + Op.SSTORE(
-            storage.store_next(len(bytes(modexp_expected))),
-            Op.RETURNDATASIZE(),
-        )
+        + Op.SSTORE(storage.store_next(len(bytes(modexp_expected))), Op.RETURNDATASIZE())
         + Op.STOP
     )
     full_initcode = call_modexp_bytecode + bytes(modexp_input)
@@ -460,10 +444,7 @@ def test_contract_initcode(
 
     factory_contract_address = pre.deploy_contract(code=create_contract)
     contract_address = compute_create_address(
-        address=factory_contract_address,
-        nonce=1,
-        initcode=full_initcode,
-        opcode=opcode,
+        address=factory_contract_address, nonce=1, initcode=full_initcode, opcode=opcode
     )
 
     tx = Transaction(
@@ -558,14 +539,7 @@ def create_modexp_variable_gas_test_cases() -> Generator:
         # IC6: Native library even byte optimization
         ("01" * 31 + "00", "01", "01" * 31 + "00", "00" * 32, 500, "IC6"),
         # IC7: Vector optimization 128-bit boundary
-        (
-            "00" * 15 + "01" * 17,
-            "01",
-            "00" * 15 + "01" * 17,
-            "00" * 32,
-            500,
-            "IC7",
-        ),
+        ("00" * 15 + "01" * 17, "01", "00" * 15 + "01" * 17, "00" * 32, 500, "IC7"),
         # IC9: Zero modulus with large inputs
         ("FF" * 32, "FF" * 32, "", "", None, "IC9"),  # N/A case
         # IC10: Power-of-2 boundary with high bit
@@ -657,15 +631,8 @@ def create_modexp_variable_gas_test_cases() -> Generator:
     │ IC9 │  S   │  =  │  B   │  N/A  │   N/A   │ Zero modulus handling                         │
     │ IC10│  S   │  =  │  B   │ False │  4080   │ Power-of-2 boundary with high bit             │
     └─────┴──────┴─────┴──────┴───────┴─────────┴───────────────────────────────────────────────┘
-    """  # noqa: W505, E501
-    for (
-        base,
-        exponent,
-        modulus,
-        expected_result,
-        gas_usage,
-        test_id,
-    ) in test_cases:
+    """  # noqa: W505
+    for base, exponent, modulus, expected_result, gas_usage, test_id in test_cases:
         yield pytest.param(
             ModExpInput(base=base, exponent=exponent, modulus=modulus),
             bytes.fromhex(expected_result),
@@ -721,5 +688,5 @@ def test_modexp_variable_gas_cost_exceed_tx_gas_cap(
     ├─────┼──────┼─────┼──────┼───────┼─────────┼───────────────────────────────────────────────┤
     │ Z16 │  L   │  <  │  C   │ False │520060928│ Zero base, zero exp, large modulus (gas cap)  |
     └─────┴──────┴─────┴──────┴───────┴─────────┴───────────────────────────────────────────────┘
-    """  # noqa: W505, E501
+    """  # noqa: W505
     state_test(pre=pre, tx=tx, post=post)

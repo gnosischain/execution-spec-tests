@@ -6,7 +6,8 @@ Tests ported from:
 """
 
 import pytest
-from execution_testing import (
+
+from ethereum_test_tools import (
     EOA,
     Account,
     Address,
@@ -14,10 +15,10 @@ from execution_testing import (
     Bytecode,
     CodeGasMeasure,
     Environment,
-    Op,
     StateTestFiller,
     Transaction,
 )
+from ethereum_test_vm import Opcodes as Op
 
 from .spec import ref_spec_3855
 

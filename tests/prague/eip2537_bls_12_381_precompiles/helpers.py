@@ -7,13 +7,7 @@ from typing import Annotated, Any, List, Optional
 import pytest
 from joblib import Memory
 from py_ecc.bls12_381 import FQ, FQ2, add, field_modulus, multiply
-from pydantic import (
-    BaseModel,
-    BeforeValidator,
-    ConfigDict,
-    RootModel,
-    TypeAdapter,
-)
+from pydantic import BaseModel, BeforeValidator, ConfigDict, RootModel, TypeAdapter
 from pydantic.alias_generators import to_pascal
 
 from .spec import FP, FP2, PointG1, PointG2, Spec
@@ -409,10 +403,7 @@ class BLSPointGenerator:
                     else:
                         point2 = PointG2(
                             (int(x.coeffs[0]), int(x.coeffs[1])),
-                            (
-                                Spec.P - int(y.coeffs[0]),
-                                Spec.P - int(y.coeffs[1]),
-                            ),
+                            (Spec.P - int(y.coeffs[0]), Spec.P - int(y.coeffs[1])),
                         )
 
                     # Verify points have the required properties

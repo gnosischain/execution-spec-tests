@@ -8,18 +8,19 @@ from itertools import cycle, islice
 from typing import Mapping
 
 import pytest
-from execution_testing import (
+
+from ethereum_test_tools import (
     Account,
     Address,
     Alloc,
     Bytecode,
     Environment,
-    Op,
     StateTestFiller,
     Storage,
     Transaction,
     ceiling_division,
 )
+from ethereum_test_tools import Opcodes as Op
 
 from .common import REFERENCE_SPEC_GIT_PATH, REFERENCE_SPEC_VERSION
 
@@ -53,7 +54,7 @@ def callee_bytecode(
     bytecode += Op.MCOPY(0x00, initial_memory_length * 2, 1)
     bytecode += Op.MCOPY(initial_memory_length * 2, 0x00, 1)
 
-    if call_opcode != Op.STATICCALL:
+    if call_opcode != Op.STATICCALL and call_opcode != Op.EXTSTATICCALL:
         # Simple sstore to make sure we actually ran the code
         bytecode += Op.SSTORE(200_000, 1)
 
@@ -152,9 +153,9 @@ def post(  # noqa: D103
     call_opcode: Op,
 ) -> Mapping:
     callee_storage: Storage.StorageDictType = {}
-    if call_opcode in [Op.DELEGATECALL, Op.CALLCODE]:
+    if call_opcode in [Op.DELEGATECALL, Op.CALLCODE, Op.EXTDELEGATECALL]:
         caller_storage[200_000] = 1
-    elif call_opcode == Op.CALL:
+    elif call_opcode in [Op.CALL, Op.EXTCALL]:
         callee_storage[200_000] = 1
     return {
         caller_address: Account(storage=caller_storage),
@@ -201,6 +202,8 @@ def test_no_memory_corruption_on_upper_create_stack_levels(
     during its execution, and verify that the caller's memory is unaffected:
       - `CREATE`
       - `CREATE2`.
+
+    TODO: [EOF] Add EOFCREATE opcode
     """
     state_test(
         env=Environment(),

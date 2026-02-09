@@ -5,25 +5,24 @@ Test [EIP-7823: Set upper bounds for MODEXP](https://eips.ethereum.org/EIPS/eip-
 from typing import Dict
 
 import pytest
-from execution_testing import (
+
+from ethereum_test_checklists import EIPChecklist
+from ethereum_test_forks import Fork
+from ethereum_test_tools import (
     Account,
     Alloc,
     Block,
     BlockchainTestFiller,
     Bytes,
-    EIPChecklist,
-    Fork,
-    Op,
     StateTestFiller,
     Transaction,
     keccak256,
 )
-from execution_testing.base_types import HexNumber
+from ethereum_test_vm import Opcodes as Op
 
 from ...byzantium.eip198_modexp_precompile.helpers import ModExpInput
 from ..eip7883_modexp_gas_increase.spec import Spec
-from .spec import Spec as Spec7823
-from .spec import ref_spec_7823
+from .spec import ref_spec_7823, Spec as Spec7823
 
 REFERENCE_SPEC_GIT_PATH = ref_spec_7823.git_path
 REFERENCE_SPEC_VERSION = ref_spec_7823.version
@@ -268,7 +267,7 @@ def test_modexp_upper_bounds(
     pre: Alloc,
 ) -> None:
     """Test the MODEXP precompile input bounds."""
-    tx.gas_limit = HexNumber(Spec7823.tx_gas_limit_cap)
+    tx.gas_limit = Spec7823.tx_gas_limit_cap
     state_test(pre=pre, tx=tx, post=post)
 
 
@@ -286,7 +285,7 @@ def test_modexp_upper_bounds(
         ),
     ],
 )
-@pytest.mark.valid_at_transition_to("Osaka")
+@pytest.mark.valid_at_transition_to("Osaka", subsequent_forks=True)
 def test_modexp_upper_bounds_fork_transition(
     blockchain_test: BlockchainTestFiller,
     pre: Alloc,

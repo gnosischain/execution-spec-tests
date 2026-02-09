@@ -8,15 +8,16 @@ Tests the validator deposit functionality implementation from
 from typing import List
 
 import pytest
-from execution_testing import (
+
+from ethereum_test_tools import (
     Alloc,
     Block,
     BlockchainTestFiller,
     BlockException,
     Environment,
     Macros,
-    Op,
 )
+from ethereum_test_tools import Opcodes as Op
 
 from .helpers import DepositContract, DepositRequest, DepositTransaction
 from .spec import ref_spec_6110
@@ -186,9 +187,9 @@ pytestmark = pytest.mark.valid_from("Prague")
                             amount=32_000_000_000,
                             signature=0x03,
                             index=0x0,
-                            # From traces, gas used by the first tx is 82,498
+                            # From traces, gas used by the first tx is 82,718
                             # so reduce by one here
-                            gas_limit=0x14241,
+                            gas_limit=0x1431D,
                             valid=False,
                         ),
                         DepositRequest(
@@ -220,9 +221,9 @@ pytestmark = pytest.mark.valid_from("Prague")
                             amount=32_000_000_000,
                             signature=0x03,
                             index=0x0,
-                            # From traces, gas used by the second tx is 68,283,
+                            # From traces, gas used by the second tx is 68,594,
                             # reduce by one here
-                            gas_limit=0x10ABA,
+                            gas_limit=0x10BF1,
                             valid=False,
                         ),
                     ],
@@ -317,7 +318,7 @@ pytestmark = pytest.mark.valid_from("Prague")
                             signature=0x03,
                             index=i,
                         )
-                        for i in range(400)
+                        for i in range(450)
                     ],
                     tx_gas_limit=16_777_216,
                 ),
@@ -489,7 +490,7 @@ pytestmark = pytest.mark.valid_from("Prague")
                             index=i,
                             valid=False,
                         )
-                        for i in range(400)
+                        for i in range(450)
                     ],
                     tx_gas_limit=10_000_000,
                 ),
@@ -914,10 +915,8 @@ pytestmark = pytest.mark.valid_from("Prague")
         ),
     ],
 )
-@pytest.mark.slow()
 @pytest.mark.pre_alloc_group(
-    "deposit_requests",
-    reason="Tests standard deposit request functionality with system contract",
+    "deposit_requests", reason="Tests standard deposit request functionality using system contract"
 )
 def test_deposit(
     blockchain_test: BlockchainTestFiller,
@@ -1179,8 +1178,7 @@ def test_deposit(
 )
 @pytest.mark.exception_test
 @pytest.mark.pre_alloc_group(
-    "deposit_requests",
-    reason="Tests standard deposit request functionality with system contract",
+    "deposit_requests", reason="Tests standard deposit request functionality using system contract"
 )
 def test_deposit_negative(
     blockchain_test: BlockchainTestFiller,

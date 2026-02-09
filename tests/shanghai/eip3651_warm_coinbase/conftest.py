@@ -1,7 +1,8 @@
 """Fixtures for the EIP-3651 warm coinbase tests."""
 
 import pytest
-from execution_testing import Alloc, Environment
+
+from ethereum_test_tools import Alloc, Environment
 
 
 @pytest.fixture

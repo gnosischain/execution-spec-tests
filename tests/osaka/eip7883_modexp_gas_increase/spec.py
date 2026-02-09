@@ -92,10 +92,7 @@ class Spec:
             base_length, modulus_length
         )
         iteration_count = cls.calculate_iteration_count(modexp_input)
-        return max(
-            cls.MIN_GAS,
-            (multiplication_complexity * iteration_count // cls.GAS_DIVISOR),
-        )
+        return max(cls.MIN_GAS, (multiplication_complexity * iteration_count // cls.GAS_DIVISOR))
 
 
 @dataclass(frozen=True)

@@ -5,21 +5,22 @@ Tests [EIP-7002: Execution layer triggerable withdrawals](https://eips.ethereum.
 from typing import List
 
 import pytest
-from execution_testing import (
+
+from ethereum_test_forks import Fork
+from ethereum_test_tools import (
     Address,
     Alloc,
     Block,
     BlockchainTestFiller,
     BlockException,
     Environment,
-    Fork,
     Header,
     Macros,
-    Op,
     Requests,
     TestAddress,
     TestAddress2,
 )
+from ethereum_test_tools import Opcodes as Op
 
 from .helpers import (
     WithdrawalRequest,
@@ -626,8 +627,7 @@ pytestmark = pytest.mark.valid_from("Prague")
     ],
 )
 @pytest.mark.pre_alloc_group(
-    "withdrawal_requests",
-    reason="Tests standard withdrawal request functionality",
+    "withdrawal_requests", reason="Tests standard withdrawal request functionality"
 )
 def test_withdrawal_requests(
     blockchain_test: BlockchainTestFiller,
@@ -803,8 +803,7 @@ def test_withdrawal_requests(
 )
 @pytest.mark.exception_test
 @pytest.mark.pre_alloc_group(
-    "withdrawal_requests",
-    reason="Tests standard withdrawal request functionality",
+    "withdrawal_requests", reason="Tests standard withdrawal request functionality"
 )
 def test_withdrawal_requests_negative(
     pre: Alloc,

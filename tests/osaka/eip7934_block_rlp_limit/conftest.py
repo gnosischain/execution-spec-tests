@@ -1,12 +1,13 @@
 """Fixtures for the EIP-7934 RLP block size limit tests."""
 
 import pytest
-from execution_testing import (
+
+from ethereum_test_tools import (
     Address,
     Alloc,
-    Environment,
-    Op,
 )
+from ethereum_test_types import Environment
+from ethereum_test_vm import Opcodes as Op
 
 
 @pytest.fixture
@@ -18,7 +19,7 @@ def post() -> Alloc:
 @pytest.fixture
 def env() -> Environment:
     """Environment fixture with a specified gas limit."""
-    return Environment(gas_limit=100_000_000)
+    return Environment(gas_limit=17_000_000)  # Gnosis gas limit
 
 
 @pytest.fixture

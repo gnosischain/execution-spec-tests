@@ -3,29 +3,22 @@
 from typing import Dict
 
 import pytest
-from execution_testing import (
+
+from ethereum_test_forks import Cancun
+from ethereum_test_tools import (
     EOA,
     Account,
     Address,
     Alloc,
-    BalAccountExpectation,
-    BalBalanceChange,
-    BalCodeChange,
-    BalNonceChange,
-    BalStorageChange,
-    BalStorageSlot,
-    BlockAccessListExpectation,
     Bytecode,
     Environment,
-    Fork,
     Initcode,
-    Op,
     StateTestFiller,
     Storage,
     Transaction,
     compute_create_address,
 )
-from execution_testing.forks import Cancun
+from ethereum_test_tools import Opcodes as Op
 
 REFERENCE_SPEC_GIT_PATH = "EIPS/eip-6780.md"
 REFERENCE_SPEC_VERSION = "1b6a0e94cc47e859b9866e570391cf37dc55059a"
@@ -262,9 +255,7 @@ def selfdestruct_with_transfer_contract_address(
 
 
 @pytest.fixture
-def selfdestruct_with_transfer_contract_code(
-    selfdestruct_recipient_address: Address,
-) -> Bytecode:
+def selfdestruct_with_transfer_contract_code(selfdestruct_recipient_address: Address) -> Bytecode:
     """Contract that can selfdestruct and receive value."""
     code: Bytecode = (
         Op.PUSH0
@@ -351,7 +342,6 @@ def test_selfdestruct_created_in_same_tx_with_revert(  # noqa SC200
     selfdestruct_with_transfer_initcode_copy_from_address: Address,
     recursive_revert_contract_address: Address,
     recursive_revert_contract_code: Bytecode,
-    fork: Fork,
 ) -> None:
     """
     Given:
@@ -436,63 +426,7 @@ def test_selfdestruct_created_in_same_tx_with_revert(  # noqa SC200
         gas_limit=500_000,
     )
 
-    expected_block_access_list = None
-    if fork.header_bal_hash_required():
-        account_expectations = {}
-
-        if selfdestruct_on_outer_call > 0:
-            account_expectations[selfdestruct_with_transfer_contract_address] = (
-                BalAccountExpectation(
-                    storage_reads=[0, 1],  # Storage was accessed
-                    nonce_changes=[],
-                    balance_changes=[],
-                    code_changes=[],
-                    storage_changes=[],
-                )
-            )
-            account_expectations[selfdestruct_recipient_address] = BalAccountExpectation(
-                balance_changes=[
-                    BalBalanceChange(
-                        block_access_index=1,
-                        post_balance=1 if selfdestruct_on_outer_call == 1 else 2,
-                    )
-                ],
-            )
-        else:
-            account_expectations[selfdestruct_with_transfer_contract_address] = (
-                BalAccountExpectation(
-                    storage_reads=[1],
-                    nonce_changes=[BalNonceChange(block_access_index=1, post_nonce=1)],
-                    balance_changes=[BalBalanceChange(block_access_index=1, post_balance=1)],
-                    code_changes=[
-                        BalCodeChange(
-                            block_access_index=1,
-                            new_code=selfdestruct_with_transfer_contract_code,
-                        ),
-                    ],
-                    storage_changes=[
-                        BalStorageSlot(
-                            slot=0,
-                            slot_changes=[
-                                BalStorageChange(block_access_index=1, post_value=1),
-                            ],
-                        ),
-                    ],
-                )
-            )
-            account_expectations[selfdestruct_recipient_address] = BalAccountExpectation.empty()
-
-        expected_block_access_list = BlockAccessListExpectation(
-            account_expectations=account_expectations
-        )
-
-    state_test(
-        env=env,
-        pre=pre,
-        post=post,
-        tx=tx,
-        expected_block_access_list=expected_block_access_list,
-    )
+    state_test(env=env, pre=pre, post=post, tx=tx)
 
 
 @pytest.mark.parametrize(

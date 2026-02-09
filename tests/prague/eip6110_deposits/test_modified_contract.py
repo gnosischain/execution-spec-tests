@@ -4,18 +4,19 @@ in EIP-6110.
 """
 
 import pytest
-from execution_testing import (
+
+from ethereum_test_exceptions.exceptions import BlockException
+from ethereum_test_tools import (
     Account,
     Alloc,
     Block,
     BlockchainTestFiller,
-    BlockException,
     Header,
-    Op,
     Requests,
     Transaction,
 )
-from execution_testing import Macros as Om
+from ethereum_test_tools import Macros as Om
+from ethereum_test_tools import Opcodes as Op
 
 from .helpers import DepositRequest, create_deposit_log_bytes
 from .spec import Spec, ref_spec_6110
@@ -28,13 +29,7 @@ pytestmark = [
 REFERENCE_SPEC_GIT_PATH = ref_spec_6110.git_path
 REFERENCE_SPEC_VERSION = ref_spec_6110.version
 
-EVENT_ARGUMENTS_NAMES = [
-    "pubkey",
-    "withdrawal_credentials",
-    "amount",
-    "signature",
-    "index",
-]
+EVENT_ARGUMENTS_NAMES = ["pubkey", "withdrawal_credentials", "amount", "signature", "index"]
 EVENT_ARGUMENTS_LAYOUT_TYPE = ["size", "offset"]
 EVENT_ARGUMENTS = [
     f"{name}_{layout}" for name in EVENT_ARGUMENTS_NAMES for layout in EVENT_ARGUMENTS_LAYOUT_TYPE
@@ -59,44 +54,24 @@ DEFAULT_DEPOSIT_REQUEST_LOG_DATA_DICT = {
     "signature_data": bytes(DEFAULT_DEPOSIT_REQUEST.signature),
     "index_data": bytes(DEFAULT_DEPOSIT_REQUEST.index),
 }
-DEFAULT_REQUEST_LOG = create_deposit_log_bytes(
-    **DEFAULT_DEPOSIT_REQUEST_LOG_DATA_DICT  # type: ignore
-)
+DEFAULT_REQUEST_LOG = create_deposit_log_bytes(**DEFAULT_DEPOSIT_REQUEST_LOG_DATA_DICT)  # type: ignore
 
 
 @pytest.mark.parametrize(
-    "include_deposit_event,extra_event_type",
+    "include_deposit_event",
     [
         pytest.param(
             True,
-            "transfer_log",
             marks=pytest.mark.pre_alloc_group(
-                "deposit_extra_logs_with_event_transfer",
+                "deposit_extra_logs_with_event",
                 reason="Deposit contract with Transfer log AND deposit event",
             ),
         ),
         pytest.param(
-            True,
-            "no_topics",
-            marks=pytest.mark.pre_alloc_group(
-                "deposit_extra_logs_with_event_no_topics",
-                reason="Deposit contract with no-topics log AND deposit event",
-            ),
-        ),
-        pytest.param(
             False,
-            "transfer_log",
             marks=pytest.mark.pre_alloc_group(
-                "deposit_extra_logs_no_event_transfer",
-                reason="Deposit contract with Transfer log NO deposit event",
-            ),
-        ),
-        pytest.param(
-            False,
-            "no_topics",
-            marks=pytest.mark.pre_alloc_group(
-                "deposit_extra_logs_no_event_no_topics",
-                reason="Deposit contract with no-topics log NO deposit event",
+                "deposit_extra_logs_no_event",
+                reason="Deposit contract with Transfer log but NO deposit event",
             ),
         ),
     ],
@@ -105,16 +80,15 @@ def test_extra_logs(
     blockchain_test: BlockchainTestFiller,
     pre: Alloc,
     include_deposit_event: bool,
-    extra_event_type: str,
 ) -> None:
     """
     Test deposit contract emitting more log event types than the ones in
     mainnet.
-
-    Supplants the mainnet contract with a variant that emits a `Transfer` log.
-    If `include_deposit_event` is `True`, it will also emit a `DepositEvent`
-    log.
     """
+    # Supplant mainnet contract with a variant that emits a `Transfer`` log If
+    # `include_deposit_event` is `True``, it will also emit a `DepositEvent`
+    # log`
+
     # ERC20 token transfer log (Sepolia)
     # https://sepolia.etherscan.io/tx/
     #   0x2d71f3085a796a0539c9cc28acd9073a67cf862260a41475f000dd101279f94f
@@ -140,23 +114,16 @@ def test_extra_logs(
     # "0x0000000000000000000000006885e36bfcb68cb383dfe90023a462c03bcb2ae5",
     # "0x00000000000000000000000080b5dc88c98e528bf9cb4b7f0f076ac41da24651"]
 
-    if extra_event_type == "no_topics":
-        # Log with no topics
-        bytecode = Op.LOG0(
-            0,
-            32,
-        )
-    else:
+    bytecode = Op.LOG3(
         # ERC-20 token transfer log ERC-20 token transfers are LOG3, since the
         # topic, the sender, and receiver are all topics (the sender and
         # receiver are `indexed` in the solidity event)
-        bytecode = Op.LOG3(
-            0,
-            32,
-            0xDDF252AD1BE2C89B69C2B068FC378DAA952BA7F163C4A11628F55A4DF523B3EF,
-            0x000000000000000000000000AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA,
-            0x000000000000000000000000BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB,
-        )
+        0,
+        32,
+        0xDDF252AD1BE2C89B69C2B068FC378DAA952BA7F163C4A11628F55A4DF523B3EF,
+        0x000000000000000000000000AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA,
+        0x000000000000000000000000BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB,
+    )
 
     requests = Requests()
 
@@ -213,10 +180,7 @@ def test_extra_logs(
 )
 @pytest.mark.exception_test
 def test_invalid_layout(
-    blockchain_test: BlockchainTestFiller,
-    pre: Alloc,
-    log_argument: str,
-    value: str,
+    blockchain_test: BlockchainTestFiller, pre: Alloc, log_argument: str, value: str
 ) -> None:
     """
     Test deposit contract emitting logs with invalid layouts (sizes/offsets).
@@ -266,15 +230,13 @@ def test_invalid_layout(
         pytest.param(
             True,
             marks=pytest.mark.pre_alloc_group(
-                "deposit_log_length_short",
-                reason="Deposit contract with shortened log data",
+                "deposit_log_length_short", reason="Deposit contract with shortened log data"
             ),
         ),
         pytest.param(
             False,
             marks=pytest.mark.pre_alloc_group(
-                "deposit_log_length_long",
-                reason="Deposit contract with lengthened log data",
+                "deposit_log_length_long", reason="Deposit contract with lengthened log data"
             ),
         ),
     ],

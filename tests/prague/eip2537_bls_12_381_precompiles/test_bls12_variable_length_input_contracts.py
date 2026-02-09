@@ -10,26 +10,13 @@ for BLS12-381 curve operations]
 from typing import Callable, List, SupportsBytes
 
 import pytest
-from execution_testing import (
-    Alloc,
-    Bytecode,
-    Environment,
-    Fork,
-    Op,
-    ParameterSet,
-    StateTestFiller,
-    Storage,
-    Transaction,
-)
 
-from .spec import (
-    GAS_CALCULATION_FUNCTION_MAP,
-    PointG1,
-    PointG2,
-    Scalar,
-    Spec,
-    ref_spec_2537,
-)
+from ethereum_test_forks import Fork
+from ethereum_test_tools import Alloc, Bytecode, Environment, StateTestFiller, Storage, Transaction
+from ethereum_test_tools import Opcodes as Op
+from ethereum_test_tools.utility.pytest import ParameterSet
+
+from .spec import GAS_CALCULATION_FUNCTION_MAP, PointG1, PointG2, Scalar, Spec, ref_spec_2537
 
 REFERENCE_SPEC_GIT_PATH = ref_spec_2537.git_path
 REFERENCE_SPEC_VERSION = ref_spec_2537.version
@@ -127,12 +114,7 @@ def call_contract_code(
 
     assert len(precompile_gas_list) == len(precompile_data_length_list)
 
-    assert call_opcode in [
-        Op.CALL,
-        Op.CALLCODE,
-        Op.DELEGATECALL,
-        Op.STATICCALL,
-    ]
+    assert call_opcode in [Op.CALL, Op.CALLCODE, Op.DELEGATECALL, Op.STATICCALL]
     value = [0] if call_opcode in [Op.CALL, Op.CALLCODE] else []
 
     code = Bytecode()
@@ -159,9 +141,7 @@ def call_contract_code(
 
 
 def tx_gas_limit_calculator(
-    fork: Fork,
-    precompile_gas_list: List[int],
-    max_precompile_input_length: int,
+    fork: Fork, precompile_gas_list: List[int], max_precompile_input_length: int
 ) -> int:
     """
     Calculate the gas used to execute the transaction with the given precompile

@@ -6,16 +6,17 @@ Tests the BLS12_PAIRING precompile implementation from
 """
 
 import pytest
-from execution_testing import (
+
+from ethereum_test_forks import Fork
+from ethereum_test_tools import (
     EOA,
     Address,
     Alloc,
     Environment,
-    Fork,
-    Op,
     StateTestFiller,
     Transaction,
 )
+from ethereum_test_tools import Opcodes as Op
 
 from .conftest import (
     G1_POINTS_NOT_IN_SUBGROUP,
@@ -64,7 +65,7 @@ pytestmark = [
             None,
             id="g1_g2_and_inverse",
         ),
-        pytest.param(  # e(P,Q) · e(P,−Q) · e(−P,Q) · e(−P,−Q) == 1
+        pytest.param(  # e(P,Q) · e(P,−Q) · e(−P,Q) · e(−P,−Q) == 1 (full sign cancellation)
             Spec.G1
             + Spec.G2
             + Spec.G1

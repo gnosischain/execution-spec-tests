@@ -9,7 +9,9 @@ Tests ported from:
 from typing import List
 
 import pytest
-from execution_testing import (
+
+from ethereum_test_forks import Fork
+from ethereum_test_tools import (
     EOA,
     AccessList,
     Account,
@@ -17,9 +19,7 @@ from execution_testing import (
     Alloc,
     Bytecode,
     Environment,
-    Fork,
     Initcode,
-    Op,
     StateTestFiller,
     Transaction,
     TransactionException,
@@ -27,12 +27,9 @@ from execution_testing import (
     ceiling_division,
     compute_create_address,
 )
+from ethereum_test_vm import Opcodes as Op
 
-from .helpers import (
-    INITCODE_RESULTING_DEPLOYED_CODE,
-    get_create_id,
-    get_initcode_name,
-)
+from .helpers import INITCODE_RESULTING_DEPLOYED_CODE, get_create_id, get_initcode_name
 from .spec import Spec, ref_spec_3860
 
 REFERENCE_SPEC_GIT_PATH = ref_spec_3860.git_path
@@ -315,7 +312,7 @@ class TestContractCreationGasUsage:
             error=tx_error,
             sender=sender,
             # The entire gas limit is expected to be consumed.
-            expected_receipt=TransactionReceipt(cumulative_gas_used=gas_limit),
+            expected_receipt=TransactionReceipt(gas_used=gas_limit),
         )
 
     @pytest.fixture
@@ -450,8 +447,7 @@ class TestCreateInitcode:
         Generate code for the caller contract that calls the creator contract.
         """
         return Op.CALLDATACOPY(0, 0, Op.CALLDATASIZE) + Op.SSTORE(
-            Op.CALL(5000000, creator_contract_address, 0, 0, Op.CALLDATASIZE, 0, 0),
-            1,
+            Op.CALL(5000000, creator_contract_address, 0, 0, Op.CALLDATASIZE, 0, 0), 1
         )
 
     @pytest.fixture

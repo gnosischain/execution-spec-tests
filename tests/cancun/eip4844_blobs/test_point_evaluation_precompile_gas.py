@@ -8,19 +8,20 @@ Tests gas usage on point evaluation precompile for
 from typing import Dict, Literal
 
 import pytest
-from execution_testing import (
+
+from ethereum_test_forks import Fork
+from ethereum_test_tools import (
     Account,
     Address,
     Alloc,
     Bytecode,
     CodeGasMeasure,
     Environment,
-    Fork,
-    Op,
     StateTestFiller,
     Transaction,
     ceiling_division,
 )
+from ethereum_test_vm import Opcodes as Op
 
 from .common import INF_POINT, Z
 from .spec import Spec, ref_spec_4844

@@ -7,16 +7,17 @@ from pathlib import Path
 from typing import Any, Generator
 
 import pytest
-from execution_testing import (
+
+from ethereum_test_forks import Fork, Prague
+from ethereum_test_tools import (
     Address,
     Alloc,
     Block,
-    Fork,
+    Header,
     Requests,
     Transaction,
     generate_system_contract_deploy_test,
 )
-from execution_testing.forks import Prague
 
 from .helpers import WithdrawalRequest
 from .spec import Spec, ref_spec_7002
@@ -26,8 +27,7 @@ REFERENCE_SPEC_VERSION = ref_spec_7002.version
 
 
 @pytest.mark.pre_alloc_group(
-    "separate",
-    reason="Deploys withdrawal system contract at hardcoded predeploy address",
+    "separate", reason="Deploys withdrawal system contract at hardcoded predeploy address"
 )
 @generate_system_contract_deploy_test(
     fork=Prague,
@@ -63,5 +63,7 @@ def test_system_contract_deployment(
 
     yield Block(
         txs=[test_transaction],
-        requests_hash=Requests(withdrawal_request),
+        header=Header(
+            requests_hash=Requests(withdrawal_request),
+        ),
     )

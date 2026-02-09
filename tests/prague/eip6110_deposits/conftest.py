@@ -3,15 +3,9 @@
 from typing import List
 
 import pytest
-from execution_testing import (
-    Alloc,
-    Block,
-    BlockException,
-    Fork,
-    Header,
-    Requests,
-    Transaction,
-)
+
+from ethereum_test_forks import Fork
+from ethereum_test_tools import Alloc, Block, BlockException, Header, Requests, Transaction
 
 from .helpers import DepositInteractionBase, DepositRequest
 

@@ -3,7 +3,7 @@ Tests `excessBlobGas` and `blobGasUsed` block fields for EIP-4844.
 
 Tests `excessBlobGas` and `blobGasUsed` block fields for
 [EIP-4844: Shard Blob Transactions](https://eips.ethereum.org/EIPS/eip-4844)
-Note: To add a new test, add a function that is named `test_<test_name>` and
+Note: Adding a new test Add a function that is named `test_<test_name>` and
 takes at least the following arguments.
 
 Required arguments:
@@ -29,7 +29,9 @@ import itertools
 from typing import Callable, Dict, Iterator, List, Mapping, Optional, Tuple
 
 import pytest
-from execution_testing import (
+
+from ethereum_test_forks import Fork
+from ethereum_test_tools import (
     EOA,
     Account,
     Address,
@@ -39,13 +41,12 @@ from execution_testing import (
     BlockException,
     Bytecode,
     Environment,
-    Fork,
     Hash,
     Header,
-    Op,
     Transaction,
     add_kzg_version,
 )
+from ethereum_test_tools import Opcodes as Op
 
 from .spec import Spec, SpecHelpers, ref_spec_4844
 
@@ -326,9 +327,7 @@ def test_correct_excess_blob_gas_calculation(
     )
 
 
-def generate_blob_gas_cost_increases_tests(
-    delta: int,
-) -> Callable[[Fork], List[int]]:
+def generate_blob_gas_cost_increases_tests(delta: int) -> Callable[[Fork], List[int]]:
     """
     Generate a list of block excess blob gas values where the blob gas price
     increases based on fork properties.
@@ -465,9 +464,7 @@ def test_invalid_zero_excess_blob_gas_in_header(
     )
 
 
-def all_invalid_blob_gas_used_combinations(
-    fork: Fork,
-) -> Iterator[Tuple[int, int]]:
+def all_invalid_blob_gas_used_combinations(fork: Fork) -> Iterator[Tuple[int, int]]:
     """Return all invalid blob gas used combinations."""
     gas_per_blob = fork.blob_gas_per_blob()
     for new_blobs in range(0, fork.max_blobs_per_block() + 1):
@@ -516,17 +513,11 @@ def test_invalid_blob_gas_used_in_header(
     )
 
 
-def generate_invalid_excess_blob_gas_above_target_change_tests(
-    fork: Fork,
-) -> List:
+def generate_invalid_excess_blob_gas_above_target_change_tests(fork: Fork) -> List:
     """Return all invalid excess blob gas above target change tests."""
     return [
         pytest.param(-1, 0, id="zero_blobs_decrease_more_than_expected"),
-        pytest.param(
-            +1,
-            fork.max_blobs_per_block(),
-            id="max_blobs_increase_more_than_expected",
-        ),
+        pytest.param(+1, fork.max_blobs_per_block(), id="max_blobs_increase_more_than_expected"),
     ]
 
 
@@ -710,10 +701,7 @@ def test_invalid_static_excess_blob_gas_from_zero_on_blobs_above_target(
         # header_excess_blobs_delta (from correct value)
         [
             x
-            for x in range(
-                -fork.target_blobs_per_block(),
-                fork.target_blobs_per_block() + 1,
-            )
+            for x in range(-fork.target_blobs_per_block(), fork.target_blobs_per_block() + 1)
             if x != 0
         ],
     ),

@@ -8,17 +8,18 @@ Ports and extends some tests from
 from enum import unique
 
 import pytest
-from execution_testing import (
+
+from ethereum_test_forks import Fork
+from ethereum_test_tools import (
     Account,
     Alloc,
     Bytecode,
     CodeGasMeasure,
     Environment,
-    Fork,
-    Op,
     StateTestFiller,
     Transaction,
 )
+from ethereum_test_tools import Opcodes as Op
 
 from . import PytestParameterEnum
 from .spec import Spec, ref_spec_1153
@@ -242,9 +243,7 @@ def test_gas_usage(
 ) -> None:
     """Test that tstore and tload consume the expected gas."""
     gas_measure_bytecode = CodeGasMeasure(
-        code=bytecode,
-        overhead_cost=overhead_cost,
-        extra_stack_items=extra_stack_items,
+        code=bytecode, overhead_cost=overhead_cost, extra_stack_items=extra_stack_items
     )
 
     env = Environment()

@@ -9,10 +9,11 @@ from itertools import permutations
 from typing import Callable, Dict, Generator, List, Tuple
 
 import pytest
-from execution_testing import (
-    EOA,
+
+from ethereum_test_base_types.base_types import Address
+from ethereum_test_forks import Fork
+from ethereum_test_tools import (
     Account,
-    Address,
     Alloc,
     Block,
     BlockchainTestFiller,
@@ -20,21 +21,17 @@ from execution_testing import (
     Bytecode,
     Bytes,
     Environment,
-    Fork,
     Header,
-    Op,
-    ParameterSet,
     Requests,
     Storage,
     TestAddress,
     Transaction,
 )
+from ethereum_test_tools import Opcodes as Op
+from ethereum_test_tools.utility.pytest import ParameterSet
+from ethereum_test_types import EOA
 
-from ..eip6110_deposits.helpers import (
-    DepositContract,
-    DepositRequest,
-    DepositTransaction,
-)
+from ..eip6110_deposits.helpers import DepositContract, DepositRequest, DepositTransaction
 from ..eip6110_deposits.spec import Spec as Spec_EIP6110
 from ..eip7002_el_triggerable_withdrawals.helpers import (
     WithdrawalRequest,
@@ -146,9 +143,7 @@ def get_eoa_permutations(n: int = 3) -> Generator[ParameterSet, None, None]:
         yield pytest.param([p[1] for p in perm], id="+".join([p[0] for p in perm]))
 
 
-def get_contract_permutations(
-    n: int = 3,
-) -> Generator[ParameterSet, None, None]:
+def get_contract_permutations(n: int = 3) -> Generator[ParameterSet, None, None]:
     """Return possible permutations of the requests from a contract."""
     requests: list = [
         (
@@ -331,8 +326,7 @@ def get_contract_permutations(
     ],
 )
 @pytest.mark.pre_alloc_group(
-    "multi_type_requests",
-    reason="Tests combinations of multiple request types",
+    "multi_type_requests", reason="Tests combinations of multiple request types"
 )
 def test_valid_multi_type_requests(
     blockchain_test: BlockchainTestFiller,
@@ -353,8 +347,7 @@ def test_valid_multi_type_requests(
 
 @pytest.mark.parametrize("requests", [*get_permutations()])
 @pytest.mark.pre_alloc_group(
-    "multi_type_requests",
-    reason="Tests combinations of multiple request types",
+    "multi_type_requests", reason="Tests combinations of multiple request types"
 )
 def test_valid_multi_type_request_from_same_tx(
     blockchain_test: BlockchainTestFiller,
@@ -516,10 +509,7 @@ def invalid_requests_block_combinations(
         ]
 
         # - Missing request or request type byte tests
-        for request_type, (
-            eoa_request,
-            block_request,
-        ) in all_request_types.items():
+        for request_type, (eoa_request, block_request) in all_request_types.items():
             combinations.extend(
                 [
                     pytest.param(
@@ -579,10 +569,7 @@ def invalid_requests_block_combinations(
         )
 
         # - Duplicate request tests
-        for request_type, (
-            eoa_request,
-            block_request,
-        ) in all_request_types.items():
+        for request_type, (eoa_request, block_request) in all_request_types.items():
             combinations.append(
                 pytest.param(
                     [eoa_request],
@@ -645,8 +632,7 @@ def invalid_requests_block_combinations(
 )
 @pytest.mark.exception_test
 @pytest.mark.pre_alloc_group(
-    "multi_type_requests",
-    reason="Tests combinations of multiple request types",
+    "multi_type_requests", reason="Tests combinations of multiple request types"
 )
 def test_invalid_multi_type_requests(
     blockchain_test: BlockchainTestFiller,
@@ -678,8 +664,7 @@ def test_invalid_multi_type_requests(
 @pytest.mark.blockchain_test_engine_only
 @pytest.mark.exception_test
 @pytest.mark.pre_alloc_group(
-    "multi_type_requests",
-    reason="Tests combinations of multiple request types",
+    "multi_type_requests", reason="Tests combinations of multiple request types"
 )
 def test_invalid_multi_type_requests_engine(
     blockchain_test: BlockchainTestFiller,

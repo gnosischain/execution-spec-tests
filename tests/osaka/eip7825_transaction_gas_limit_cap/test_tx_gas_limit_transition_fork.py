@@ -6,17 +6,18 @@ Cap](https://eips.ethereum.org/EIPS/eip-7825).
 """
 
 import pytest
-from execution_testing import (
+
+from ethereum_test_checklists import EIPChecklist
+from ethereum_test_forks import Fork
+from ethereum_test_tools import (
     Account,
     Alloc,
     Block,
     BlockchainTestFiller,
-    EIPChecklist,
-    Fork,
-    Op,
     Transaction,
     TransactionException,
 )
+from ethereum_test_vm import Opcodes as Op
 
 from .spec import ref_spec_7825
 
@@ -28,7 +29,7 @@ REFERENCE_SPEC_VERSION = ref_spec_7825.version
 @EIPChecklist.ModifiedTransactionValidityConstraint.Test.ForkTransition.RejectedBeforeFork()
 @EIPChecklist.ModifiedTransactionValidityConstraint.Test.ForkTransition.AcceptedAfterFork()
 @EIPChecklist.ModifiedTransactionValidityConstraint.Test.ForkTransition.RejectedAfterFork()
-@pytest.mark.valid_at_transition_to("Osaka")
+@pytest.mark.valid_at_transition_to("Osaka", subsequent_forks=True)
 @pytest.mark.parametrize(
     "transaction_at_cap",
     [

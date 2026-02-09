@@ -3,28 +3,26 @@
 from typing import SupportsBytes
 
 import pytest
-from execution_testing import (
+
+from ethereum_test_forks import Cancun, Fork
+from ethereum_test_tools import (
     EOA,
     Account,
     Address,
     Alloc,
     Bytecode,
     Environment,
-    Fork,
-    Op,
     StateTestFiller,
     Transaction,
 )
-from execution_testing.forks import Cancun
+from ethereum_test_vm import Opcodes as Op
 
 REFERENCE_SPEC_GIT_PATH = "EIPS/eip-6780.md"
 REFERENCE_SPEC_VERSION = "1b6a0e94cc47e859b9866e570391cf37dc55059a"
 
 
 @pytest.fixture
-def selfdestruct_contract_bytecode(
-    selfdestruct_recipient_address: Address,
-) -> Bytecode:
+def selfdestruct_contract_bytecode(selfdestruct_recipient_address: Address) -> Bytecode:
     """Contract code that performs a SELFDESTRUCT operation."""
     return Op.SELFDESTRUCT(selfdestruct_recipient_address)
 
@@ -36,14 +34,11 @@ def selfdestruct_contract_init_balance() -> int:  # noqa: D103
 
 @pytest.fixture
 def selfdestruct_contract_address(
-    pre: Alloc,
-    selfdestruct_contract_bytecode: Bytecode,
-    selfdestruct_contract_init_balance: int,
+    pre: Alloc, selfdestruct_contract_bytecode: Bytecode, selfdestruct_contract_init_balance: int
 ) -> Address:
     """Address of the selfdestruct contract."""
     return pre.deploy_contract(
-        code=selfdestruct_contract_bytecode,
-        balance=selfdestruct_contract_init_balance,
+        code=selfdestruct_contract_bytecode, balance=selfdestruct_contract_init_balance
     )
 
 

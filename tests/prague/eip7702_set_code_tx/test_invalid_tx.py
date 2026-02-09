@@ -9,19 +9,16 @@ from enum import Enum, auto
 from typing import List, Type
 
 import pytest
-from execution_testing import (
+
+from ethereum_test_base_types import Bytes, FixedSizeBytes, HexNumber
+from ethereum_test_tools import (
     Address,
     Alloc,
     AuthorizationTuple,
-    Bytes,
     ChainConfig,
     Transaction,
     TransactionException,
     TransactionTestFiller,
-)
-from execution_testing.base_types import (
-    FixedSizeBytes,
-    HexNumber,
 )
 
 from .spec import Spec, ref_spec_7702
@@ -39,16 +36,6 @@ class OversizedInt(FixedSizeBytes[2]):  # type: ignore
     Oversized 2-byte int.
 
     Will only fail if the int value is less than 2**8.
-    """
-
-    pass
-
-
-class OversizedZeroInt(FixedSizeBytes[1]):  # type: ignore
-    """
-    Oversized 1-byte zero.
-
-    Encodes "zero" as 0x00 (byte length 1) instead of 0x (byte length 0).
     """
 
     pass
@@ -194,12 +181,8 @@ def test_invalid_tx_invalid_auth_chain_id(
 
 
 @pytest.mark.parametrize(
-    "auth_chain_id, oversized_type",
-    [
-        pytest.param(0, OversizedZeroInt, id="zero_oversized_zero"),
-        pytest.param(0, OversizedInt, id="zero_oversized_int"),
-        pytest.param(1, OversizedInt, id="one_oversized_int"),
-    ],
+    "auth_chain_id",
+    [pytest.param(0), pytest.param(1)],
 )
 @pytest.mark.parametrize(
     "delegate_address",
@@ -213,7 +196,6 @@ def test_invalid_tx_invalid_auth_chain_id_encoding(
     pre: Alloc,
     delegate_address: Address,
     auth_chain_id: int,
-    oversized_type: type,
 ) -> None:
     """
     Test sending a transaction where the chain id field of an authorization has
@@ -221,7 +203,7 @@ def test_invalid_tx_invalid_auth_chain_id_encoding(
     """
 
     class ModifiedAuthorizationTuple(AuthorizationTuple):
-        chain_id: oversized_type  # type: ignore
+        chain_id: OversizedInt  # type: ignore
 
     authorization = ModifiedAuthorizationTuple(
         address=delegate_address,

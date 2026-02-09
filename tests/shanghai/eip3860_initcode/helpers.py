@@ -1,6 +1,7 @@
 """Helpers for the EIP-3860 initcode tests."""
 
-from execution_testing import Initcode, Op
+from ethereum_test_tools import Initcode
+from ethereum_test_vm import Opcodes as Op
 
 INITCODE_RESULTING_DEPLOYED_CODE = Op.STOP
 

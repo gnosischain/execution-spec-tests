@@ -1,7 +1,8 @@
 """Pytest (plugin) definitions local to EIP-6780 tests."""
 
 import pytest
-from execution_testing import Address, Alloc, Environment
+
+from ethereum_test_tools import Address, Alloc, Environment
 
 
 @pytest.fixture

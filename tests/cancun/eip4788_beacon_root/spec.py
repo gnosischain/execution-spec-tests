@@ -2,7 +2,7 @@
 
 from dataclasses import dataclass
 
-from execution_testing import Storage
+from ethereum_test_tools import Storage
 
 
 @dataclass(frozen=True)

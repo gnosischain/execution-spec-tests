@@ -5,16 +5,9 @@ from functools import cached_property
 from hashlib import sha256 as sha256_hashlib
 from typing import Callable, ClassVar, List
 
-from execution_testing import (
-    EOA,
-    Address,
-    Alloc,
-    Bytecode,
-    Hash,
-    Op,
-    Transaction,
-)
-from execution_testing import DepositRequest as DepositRequestBase
+from ethereum_test_tools import EOA, Address, Alloc, Bytecode, Hash, Transaction
+from ethereum_test_tools import DepositRequest as DepositRequestBase
+from ethereum_test_tools import Opcodes as Op
 
 from .spec import Spec
 
@@ -114,8 +107,7 @@ class DepositRequest(DepositRequestBase):
         """Return the deposit data root of the deposit."""
         pubkey_root = sha256(self.pubkey, b"\x00" * 16)
         signature_root = sha256(
-            sha256(self.signature[:64]),
-            sha256(self.signature[64:], b"\x00" * 32),
+            sha256(self.signature[:64]), sha256(self.signature[64:], b"\x00" * 32)
         )
         pubkey_withdrawal_root = sha256(pubkey_root, self.withdrawal_credentials)
         amount_bytes = (self.amount).to_bytes(32, byteorder="little")

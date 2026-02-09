@@ -9,20 +9,19 @@ from hashlib import sha256
 from typing import List, Optional
 
 import pytest
-from execution_testing import (
+
+from ethereum_test_base_types.base_types import Hash
+from ethereum_test_forks import Fork
+from ethereum_test_tools import (
     Address,
     Alloc,
     Blob,
     BlobsTestFiller,
-    Fork,
-    Hash,
     NetworkWrappedTransaction,
     Transaction,
     TransactionException,
 )
-from execution_testing.logging import (  # noqa: E501
-    get_logger,
-)
+from pytest_plugins.custom_logging import get_logger
 
 from .spec import ref_spec_7594
 

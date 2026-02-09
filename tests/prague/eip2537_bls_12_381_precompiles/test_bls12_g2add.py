@@ -7,13 +7,9 @@ Precompile for BLS12-381 curve operations]
 """
 
 import pytest
-from execution_testing import (
-    Alloc,
-    Environment,
-    Op,
-    StateTestFiller,
-    Transaction,
-)
+
+from ethereum_test_tools import Alloc, Environment, StateTestFiller, Transaction
+from ethereum_test_tools import Opcodes as Op
 
 from .conftest import G2_POINTS_NOT_IN_SUBGROUP, G2_POINTS_NOT_ON_CURVE
 from .helpers import add_points_g2, vectors_from_file
@@ -105,19 +101,13 @@ pytestmark = [
         ),
         pytest.param(
             add_points_g2(Spec.G2, Spec.G2) + add_points_g2(Spec.P2, Spec.P2),
-            add_points_g2(
-                add_points_g2(Spec.G2, Spec.G2),
-                add_points_g2(Spec.P2, Spec.P2),
-            ),
+            add_points_g2(add_points_g2(Spec.G2, Spec.G2), add_points_g2(Spec.P2, Spec.P2)),
             None,
             id="double_generator_plus_double_point",
         ),
         pytest.param(
             add_points_g2(Spec.G2, Spec.G2) + add_points_g2(Spec.G2, Spec.G2),
-            add_points_g2(
-                add_points_g2(Spec.G2, Spec.G2),
-                add_points_g2(Spec.G2, Spec.G2),
-            ),
+            add_points_g2(add_points_g2(Spec.G2, Spec.G2), add_points_g2(Spec.G2, Spec.G2)),
             None,
             id="double_generator_plus_double_generator",
         ),

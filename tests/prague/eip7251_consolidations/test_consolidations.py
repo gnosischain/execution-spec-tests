@@ -5,21 +5,22 @@ Tests [EIP-7251: Increase the MAX_EFFECTIVE_BALANCE](https://eips.ethereum.org/E
 from typing import List
 
 import pytest
-from execution_testing import (
+
+from ethereum_test_forks import Fork
+from ethereum_test_tools import (
     Address,
     Alloc,
     Block,
     BlockchainTestFiller,
     BlockException,
     Environment,
-    Fork,
     Header,
     Macros,
-    Op,
     Requests,
     TestAddress,
     TestAddress2,
 )
+from ethereum_test_tools import Opcodes as Op
 
 from .helpers import (
     ConsolidationRequest,
@@ -395,10 +396,7 @@ pytestmark = pytest.mark.valid_from("Prague")
                                 target_pubkey=i * 2 + 1,
                                 fee=Spec.get_fee(0),
                             )
-                            for i in range(
-                                1,
-                                Spec.MAX_CONSOLIDATION_REQUESTS_PER_BLOCK * 5,
-                            )
+                            for i in range(1, Spec.MAX_CONSOLIDATION_REQUESTS_PER_BLOCK * 5)
                         ],
                     ),
                 ],
@@ -450,10 +448,7 @@ pytestmark = pytest.mark.valid_from("Prague")
                                 fee=Spec.get_fee(0),
                                 valid=True,
                             )
-                            for i in range(
-                                1,
-                                Spec.MAX_CONSOLIDATION_REQUESTS_PER_BLOCK * 5,
-                            )
+                            for i in range(1, Spec.MAX_CONSOLIDATION_REQUESTS_PER_BLOCK * 5)
                         ],
                     ),
                 ],
@@ -660,8 +655,7 @@ pytestmark = pytest.mark.valid_from("Prague")
     ],
 )
 @pytest.mark.pre_alloc_group(
-    "consolidation_requests",
-    reason="Tests standard consolidation request functionality",
+    "consolidation_requests", reason="Tests standard consolidation request functionality"
 )
 def test_consolidation_requests(
     blockchain_test: BlockchainTestFiller,
@@ -859,8 +853,7 @@ def test_consolidation_requests(
 )
 @pytest.mark.exception_test
 @pytest.mark.pre_alloc_group(
-    "consolidation_requests",
-    reason="Tests standard consolidation request functionality",
+    "consolidation_requests", reason="Tests standard consolidation request functionality"
 )
 def test_consolidation_requests_negative(
     pre: Alloc,

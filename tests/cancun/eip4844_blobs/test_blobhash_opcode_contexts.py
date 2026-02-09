@@ -6,20 +6,21 @@ from enum import Enum
 from typing import Iterable, List
 
 import pytest
-from execution_testing import (
+
+from ethereum_test_forks import Fork
+from ethereum_test_tools import (
     Account,
     Address,
     Alloc,
     AuthorizationTuple,
     Bytecode,
-    Fork,
     Hash,
-    Op,
     StateTestFiller,
     Transaction,
     add_kzg_version,
     compute_create_address,
 )
+from ethereum_test_tools import Opcodes as Op
 
 from .spec import Spec, ref_spec_4844
 
@@ -58,8 +59,7 @@ class BlobhashContext(Enum):
                 )
             case BlobhashContext.BLOBHASH_RETURN:
                 return Op.MSTORE(
-                    offset=0,
-                    value=Op.BLOBHASH(index=Op.CALLDATALOAD(offset=0)),
+                    offset=0, value=Op.BLOBHASH(index=Op.CALLDATALOAD(offset=0))
                 ) + Op.RETURN(offset=0, size=32)
             case BlobhashContext.INITCODE:
                 return (
@@ -118,9 +118,7 @@ class BlobhashContext(Enum):
                 )
                 bytecode = Op.POP(
                     Op.DELEGATECALL(
-                        address=blobhash_sstore_address,
-                        args_offset=0,
-                        args_size=Op.CALLDATASIZE(),
+                        address=blobhash_sstore_address, args_offset=0, args_size=Op.CALLDATASIZE()
                     )
                 )
                 return pre.deploy_contract(bytecode)
@@ -129,10 +127,7 @@ class BlobhashContext(Enum):
                 initcode_address = pre.deploy_contract(initcode)
                 create_opcode = Op.CREATE if self == BlobhashContext.CREATE else Op.CREATE2
                 create_bytecode = Op.EXTCODECOPY(
-                    address=initcode_address,
-                    dest_offset=0,
-                    offset=0,
-                    size=len(initcode),
+                    address=initcode_address, dest_offset=0, offset=0, size=len(initcode)
                 ) + Op.POP(
                     create_opcode(value=0, offset=0, size=len(initcode), salt=0)
                     if create_opcode == Op.CREATE2
@@ -260,8 +255,7 @@ def test_blobhash_opcode_contexts(
             )
             created_contract_address = compute_create_address(
                 address=factory_address,
-                # the create contract will have nonce 1 for its first create
-                nonce=1,
+                nonce=1,  # the create contract will have nonce 1 for its first create
                 salt=0,
                 initcode=BlobhashContext.INITCODE.code(indexes=range(max_blobs_per_tx + 1)),
                 opcode=opcode,
@@ -270,11 +264,7 @@ def test_blobhash_opcode_contexts(
             post = {
                 created_contract_address: Account(
                     storage=dict(
-                        zip(
-                            range(len(simple_blob_hashes)),
-                            simple_blob_hashes,
-                            strict=False,
-                        )
+                        zip(range(len(simple_blob_hashes)), simple_blob_hashes, strict=False)
                     )
                 ),
             }

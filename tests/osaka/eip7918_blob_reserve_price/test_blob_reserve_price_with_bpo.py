@@ -1,10 +1,11 @@
 """
-[EIP-7918: Blob base fee bounded by execution
+ [EIP-7918: Blob base fee bounded by execution
 cost](https://eips.ethereum.org/EIPS/eip-7918).
 """
 
 import pytest
-from execution_testing import (
+
+from ethereum_test_tools import (
     Alloc,
     Block,
     BlockchainTestFiller,
@@ -21,7 +22,6 @@ REFERENCE_SPEC_VERSION = ref_spec_7918.version
 @pytest.mark.valid_for_bpo_forks()
 @pytest.mark.parametrize("parent_excess_blobs", [27])
 @pytest.mark.parametrize("block_base_fee_per_gas", [17])
-@pytest.mark.slow
 def test_blob_base_fee_with_bpo_transition(
     blockchain_test: BlockchainTestFiller,
     pre: Alloc,

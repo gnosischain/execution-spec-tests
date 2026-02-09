@@ -17,7 +17,9 @@ combinations and test cases.
 from typing import List, Optional, Tuple
 
 import pytest
-from execution_testing import (
+
+from ethereum_test_forks import Fork
+from ethereum_test_tools import (
     EOA,
     AccessList,
     Account,
@@ -29,10 +31,8 @@ from execution_testing import (
     Bytecode,
     EngineAPIError,
     Environment,
-    Fork,
     Hash,
     Header,
-    Op,
     Removable,
     StateTestFiller,
     Storage,
@@ -40,6 +40,7 @@ from execution_testing import (
     TransactionException,
     add_kzg_version,
 )
+from ethereum_test_tools import Opcodes as Op
 
 from .spec import Spec, SpecHelpers, ref_spec_4844
 
@@ -61,9 +62,7 @@ def destination_account_balance() -> int:
 
 @pytest.fixture
 def destination_account(
-    pre: Alloc,
-    destination_account_code: Bytecode | None,
-    destination_account_balance: int,
+    pre: Alloc, destination_account_code: Bytecode | None, destination_account_balance: int
 ) -> Address:
     """Destination account for the blob transactions."""
     if destination_account_code is not None:
@@ -950,9 +949,7 @@ def test_invalid_tx_blob_count(
     ],
 )
 @pytest.mark.parametrize(
-    "tx_error",
-    [TransactionException.TYPE_3_TX_INVALID_BLOB_VERSIONED_HASH],
-    ids=[""],
+    "tx_error", [TransactionException.TYPE_3_TX_INVALID_BLOB_VERSIONED_HASH], ids=[""]
 )
 @pytest.mark.exception_test
 @pytest.mark.valid_from("Cancun")
@@ -986,16 +983,21 @@ def test_invalid_blob_hash_versioning_single_tx(
     "blob_hashes_per_tx",
     [
         [
-            [Hash(1)],
+            add_kzg_version([Hash(1)], Spec.BLOB_COMMITMENT_VERSION_KZG),
+            [Hash(2)],
         ],
         [
-            [Hash(x) for x in range(2)],
+            add_kzg_version([Hash(1)], Spec.BLOB_COMMITMENT_VERSION_KZG),
+            [Hash(x) for x in range(1, 3)],
         ],
         [
-            [Hash(1)] + add_kzg_version([Hash(2)], Spec.BLOB_COMMITMENT_VERSION_KZG),  # noqa: E501
+            add_kzg_version([Hash(1)], Spec.BLOB_COMMITMENT_VERSION_KZG),
+            [Hash(2)] + add_kzg_version([Hash(3)], Spec.BLOB_COMMITMENT_VERSION_KZG),
         ],
         [
-            add_kzg_version([Hash(1)], Spec.BLOB_COMMITMENT_VERSION_KZG) + [Hash(2)],  # noqa: E501
+            add_kzg_version([Hash(1)], Spec.BLOB_COMMITMENT_VERSION_KZG),
+            add_kzg_version([Hash(2)], Spec.BLOB_COMMITMENT_VERSION_KZG),
+            [Hash(3)],
         ],
     ],
     ids=[
@@ -1006,9 +1008,7 @@ def test_invalid_blob_hash_versioning_single_tx(
     ],
 )
 @pytest.mark.parametrize(
-    "tx_error",
-    [TransactionException.TYPE_3_TX_INVALID_BLOB_VERSIONED_HASH],
-    ids=[""],
+    "tx_error", [TransactionException.TYPE_3_TX_INVALID_BLOB_VERSIONED_HASH], ids=[""]
 )
 @pytest.mark.exception_test
 @pytest.mark.valid_from("Cancun")
@@ -1132,10 +1132,7 @@ def opcode(
         return (
             Op.SSTORE(0, Op.GASPRICE),
             {
-                0: min(
-                    tx_max_priority_fee_per_gas,
-                    tx_max_fee_per_gas - block_base_fee_per_gas,
-                )
+                0: min(tx_max_priority_fee_per_gas, tx_max_fee_per_gas - block_base_fee_per_gas)
                 + block_base_fee_per_gas
             },
         )
@@ -1394,24 +1391,15 @@ def test_blob_tx_attribute_gasprice_opcode(
             [0],
             None,
             1,
-            [
-                TransactionException.TYPE_3_TX_PRE_FORK,
-                TransactionException.TYPE_3_TX_ZERO_BLOBS,
-            ],
-            [
-                TransactionException.TYPE_3_TX_PRE_FORK,
-                TransactionException.TYPE_3_TX_ZERO_BLOBS,
-            ],
+            [TransactionException.TYPE_3_TX_PRE_FORK, TransactionException.TYPE_3_TX_ZERO_BLOBS],
+            [TransactionException.TYPE_3_TX_PRE_FORK, TransactionException.TYPE_3_TX_ZERO_BLOBS],
         ),
         (
             [1],
             None,
             1,
             TransactionException.TYPE_3_TX_PRE_FORK,
-            [
-                TransactionException.TYPE_3_TX_PRE_FORK,
-                BlockException.INVALID_VERSIONED_HASHES,
-            ],
+            [TransactionException.TYPE_3_TX_PRE_FORK, BlockException.INVALID_VERSIONED_HASHES],
         ),
     ],
     ids=["no_blob_tx", "one_blob_tx"],
