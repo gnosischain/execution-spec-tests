@@ -6,18 +6,18 @@ from enum import Enum, Flag, auto
 from typing import Dict, List
 
 import pytest
-
-from ethereum_test_forks import Fork, Prague
-from ethereum_test_tools import (
+from execution_testing import (
     Address,
     Alloc,
     AuthorizationTuple,
     Bytecode,
+    Fork,
+    Op,
     StateTestFiller,
     Transaction,
     TransactionReceipt,
 )
-from ethereum_test_tools import Opcodes as Op
+from execution_testing.forks import Prague
 
 from .helpers import DataTestType
 from .spec import ref_spec_7623
@@ -182,8 +182,9 @@ def execution_gas_used(
     execution_gas = prefix_code_gas
 
     assert execution_gas_cost(execution_gas) < tx_floor_data_cost, (
-        "tx_floor_data_cost is too low, there might have been a gas cost change that caused this "
-        "test to fail. Try increasing the intrinsic_gas_data_floor_minimum_delta fixture."
+        "tx_floor_data_cost is too low, there might have been a gas cost "
+        "change that caused this test to fail. Try increasing the "
+        "intrinsic_gas_data_floor_minimum_delta fixture."
     )
 
     # Dumb for-loop to find the execution gas cost that will result in the
@@ -297,7 +298,7 @@ def test_gas_refunds_from_data_floor(
     #     (t8n) is verified against the expected receipt.
     #   - During test consumption, this is reflected in the balance difference
     #     and the state root.
-    tx.expected_receipt = TransactionReceipt(gas_used=gas_used)
+    tx.expected_receipt = TransactionReceipt(cumulative_gas_used=gas_used)
     state_test(
         pre=pre,
         post={

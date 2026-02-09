@@ -3,11 +3,17 @@ Test ModExp gas cost transition from EIP-7883 before & after the Osaka fork.
 """
 
 import pytest
-
-from ethereum_test_checklists import EIPChecklist
-from ethereum_test_forks import Fork
-from ethereum_test_tools import Account, Alloc, Block, BlockchainTestFiller, Transaction, keccak256
-from ethereum_test_vm import Opcodes as Op
+from execution_testing import (
+    Account,
+    Alloc,
+    Block,
+    BlockchainTestFiller,
+    EIPChecklist,
+    Fork,
+    Op,
+    Transaction,
+    keccak256,
+)
 
 from ...byzantium.eip198_modexp_precompile.helpers import ModExpInput
 from .spec import Spec, ref_spec_7883
@@ -15,7 +21,7 @@ from .spec import Spec, ref_spec_7883
 REFERENCE_SPEC_GIT_PATH = ref_spec_7883.git_path
 REFERENCE_SPEC_VERSION = ref_spec_7883.version
 
-pytestmark = pytest.mark.valid_at_transition_to("Osaka", subsequent_forks=True)
+pytestmark = pytest.mark.valid_at_transition_to("Osaka")
 
 
 @pytest.mark.parametrize(

@@ -5,20 +5,19 @@ Tests [EIP-7002: Execution layer triggerable withdrawals](https://eips.ethereum.
 from typing import List
 
 import pytest
-
-from ethereum_test_tools import (
+from execution_testing import (
     Account,
     Address,
     Alloc,
     Block,
     BlockchainTestFiller,
     Bytecode,
+    Op,
+    Requests,
     Transaction,
     generate_system_contract_error_test,
 )
-from ethereum_test_tools import Macros as Om
-from ethereum_test_tools import Opcodes as Op
-from ethereum_test_types import Requests
+from execution_testing import Macros as Om
 
 from .helpers import (
     WithdrawalRequest,
@@ -138,7 +137,8 @@ def test_extra_withdrawals(
 
 
 @pytest.mark.parametrize(
-    "system_contract", [Address(Spec_EIP7002.WITHDRAWAL_REQUEST_PREDEPLOY_ADDRESS)]
+    "system_contract",
+    [Address(Spec_EIP7002.WITHDRAWAL_REQUEST_PREDEPLOY_ADDRESS)],
 )
 @pytest.mark.pre_alloc_group("separate", reason="Deploys custom withdrawal contract bytecode")
 @generate_system_contract_error_test(  # type: ignore[arg-type]

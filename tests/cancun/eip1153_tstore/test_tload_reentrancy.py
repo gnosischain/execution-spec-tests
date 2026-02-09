@@ -5,21 +5,20 @@
 from enum import Enum
 
 import pytest
-
-from ethereum_test_tools import (
+from execution_testing import (
     Account,
     Address,
     Alloc,
+    Bytecode,
     Case,
     Environment,
     Hash,
+    Op,
     StateTestFiller,
     Switch,
     Transaction,
 )
-from ethereum_test_vm import Bytecode
-from ethereum_test_vm import Macros as Om
-from ethereum_test_vm import Opcodes as Op
+from execution_testing import Macros as Om
 
 REFERENCE_SPEC_GIT_PATH = "EIPS/eip-1153.md"
 REFERENCE_SPEC_VERSION = "1eb863b534a5a3e19e9c196ab2a7f3db4bb9da17"

@@ -1,7 +1,7 @@
 """
 Tests point evaluation precompile for [EIP-4844: Shard Blob Transactions](https://eips.ethereum.org/EIPS/eip-4844).
 
-Note: Adding a new test Add a function that is named `test_<test_name>` and
+Note: To add a new test, add a function that is named `test_<test_name>` and
 takes at least the following arguments.
 
 Required arguments:
@@ -35,9 +35,7 @@ from itertools import count
 from typing import Any, Dict, List, Optional
 
 import pytest
-
-from ethereum_test_forks import Fork
-from ethereum_test_tools import (
+from execution_testing import (
     EOA,
     AccessList,
     Account,
@@ -47,13 +45,14 @@ from ethereum_test_tools import (
     BlockchainTestFiller,
     Bytecode,
     Environment,
+    Fork,
+    Op,
     StateTestFiller,
     Storage,
     Transaction,
     TransactionReceipt,
     call_return_code,
 )
-from ethereum_test_vm import Opcodes as Op
 
 from .common import INF_POINT, Z_Y_VALID_ENDIANNESS, Z
 from .spec import Spec, ref_spec_4844
@@ -211,11 +210,6 @@ def success(
     call_opcode: Op,
 ) -> bool:
     """Prepare expected success or failure for each test."""
-    if call_opcode == Op.EXTDELEGATECALL:
-        return False
-    if result == Result.OUT_OF_GAS and call_opcode in [Op.EXTCALL, Op.EXTSTATICCALL]:
-        return True
-
     return result == Result.SUCCESS
 
 
@@ -232,9 +226,7 @@ def post(
     """
     expected_storage: Storage.StorageDictType = {}
     # CALL operation return code
-    expected_storage[key_call_return_code] = call_return_code(
-        call_opcode, success, revert=call_opcode == Op.EXTDELEGATECALL
-    )
+    expected_storage[key_call_return_code] = call_return_code(call_opcode, success)
     if success:
         # Success return values
         expected_storage[key_return_1] = Spec.FIELD_ELEMENTS_PER_BLOB
@@ -254,10 +246,6 @@ def post(
         expected_storage[key_return_2] = precompile_input[32:64]
         expected_storage[key_return_copy_1] = expected_storage[1]
         expected_storage[key_return_copy_2] = expected_storage[2]
-    if call_opcode in [Op.EXTCALL, Op.EXTSTATICCALL, Op.EXTDELEGATECALL]:
-        # Input parameters were not overwritten
-        expected_storage[key_return_1] = precompile_input[0:32]
-        expected_storage[key_return_2] = precompile_input[32:64]
     return {
         precompile_caller_address: Account(
             storage=expected_storage,
@@ -268,7 +256,14 @@ def post(
 @pytest.mark.parametrize(
     "z,y,kzg_commitment,kzg_proof,versioned_hash",
     [
-        pytest.param(Spec.BLS_MODULUS - 1, 0, INF_POINT, INF_POINT, None, id="in_bounds_z"),
+        pytest.param(
+            Spec.BLS_MODULUS - 1,
+            0,
+            INF_POINT,
+            INF_POINT,
+            None,
+            id="in_bounds_z",
+        ),
         pytest.param(
             # Example valid input from a Mainnet transaction
             # https://etherscan.io/tx/0xcb3dc8f3b14f1cda0c16a619a112102a8ec70dce1b3f1b28272227cf8d5fbb0e
@@ -316,9 +311,27 @@ def test_valid_inputs(
         (bytes(), bytes(), bytes(), bytes(), bytes()),
         (0, 0, 0, 0, 0),
         (0, 0, 0, 0, None),
-        (Z, 0, INF_POINT, INF_POINT, Spec.kzg_to_versioned_hash(0xC0 << 376, 0x00)),
-        (Z, 0, INF_POINT, INF_POINT, Spec.kzg_to_versioned_hash(0xC0 << 376, 0x02)),
-        (Z, 0, INF_POINT, INF_POINT, Spec.kzg_to_versioned_hash(0xC0 << 376, 0xFF)),
+        (
+            Z,
+            0,
+            INF_POINT,
+            INF_POINT,
+            Spec.kzg_to_versioned_hash(0xC0 << 376, 0x00),
+        ),
+        (
+            Z,
+            0,
+            INF_POINT,
+            INF_POINT,
+            Spec.kzg_to_versioned_hash(0xC0 << 376, 0x02),
+        ),
+        (
+            Z,
+            0,
+            INF_POINT,
+            INF_POINT,
+            Spec.kzg_to_versioned_hash(0xC0 << 376, 0xFF),
+        ),
     ],
     ids=[
         "out_of_bounds_z",
@@ -574,7 +587,7 @@ def test_tx_entry_point(
         access_list=access_list,
         to=Address(Spec.POINT_EVALUATION_PRECOMPILE_ADDRESS),
         gas_limit=call_gas + intrinsic_gas_cost,
-        expected_receipt=TransactionReceipt(gas_used=consumed_gas),
+        expected_receipt=TransactionReceipt(cumulative_gas_used=consumed_gas),
     )
 
     post = {

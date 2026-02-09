@@ -5,19 +5,18 @@ Test transient storage in contract creation contexts.
 from enum import unique
 
 import pytest
-
-from ethereum_test_tools import (
+from execution_testing import (
     Account,
     Address,
     Alloc,
     Bytecode,
     Environment,
     Initcode,
+    Op,
     StateTestFiller,
     Transaction,
     compute_create_address,
 )
-from ethereum_test_tools import Opcodes as Op
 
 from . import CreateOpcodeParams, PytestParameterEnum
 from .spec import ref_spec_1153
@@ -111,7 +110,13 @@ class InitcodeTestCases(PytestParameterEnum):
             + Op.TSTORE(2, 1)
             + Op.SSTORE(4, Op.TLOAD(2))
         ),
-        "expected_storage": {0: 0x0000, 1: 0x0001, 2: 0x0000, 3: 0x0001, 4: 0x0001},
+        "expected_storage": {
+            0: 0x0000,
+            1: 0x0001,
+            2: 0x0000,
+            3: 0x0001,
+            4: 0x0001,
+        },
     }
     NO_CONSTRUCTOR_CODE = {
         "description": (
@@ -194,7 +199,11 @@ class TestTransientStorageInContractCreation:
 
     @pytest.fixture()
     def created_contract_address(  # noqa: D102
-        self, creator_address: Address, opcode: Op, create2_salt: int, initcode: Initcode
+        self,
+        creator_address: Address,
+        opcode: Op,
+        create2_salt: int,
+        initcode: Initcode,
     ) -> Address:
         return compute_create_address(
             address=creator_address,

@@ -5,21 +5,20 @@ Tests [EIP-5656: MCOPY - Memory copying instruction](https://eips.ethereum.org/E
 from typing import Mapping
 
 import pytest
-
-from ethereum_test_tools import (
+from execution_testing import (
     Account,
     Address,
     Alloc,
     Bytecode,
     Environment,
     Hash,
+    Op,
     StateTestFiller,
     Storage,
     Transaction,
     ceiling_division,
     keccak256,
 )
-from ethereum_test_tools import Opcodes as Op
 
 from .common import REFERENCE_SPEC_GIT_PATH, REFERENCE_SPEC_VERSION, mcopy
 
@@ -176,7 +175,6 @@ def post(code_address: Address, code_storage: Storage) -> Mapping:  # noqa: D103
         "out_of_bounds_memory_extension",
     ],
 )
-@pytest.mark.with_all_evm_code_types
 @pytest.mark.valid_from("Cancun")
 def test_valid_mcopy_operations(
     state_test: StateTestFiller,
@@ -205,7 +203,6 @@ def test_valid_mcopy_operations(
 @pytest.mark.parametrize("src", [0x00, 0x20])
 @pytest.mark.parametrize("length", [0x00, 0x01])
 @pytest.mark.parametrize("initial_memory", [bytes()], ids=["empty_memory"])
-@pytest.mark.with_all_evm_code_types
 @pytest.mark.valid_from("Cancun")
 def test_mcopy_on_empty_memory(
     state_test: StateTestFiller,

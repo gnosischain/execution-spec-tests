@@ -6,19 +6,19 @@ Tests ported from:
 """
 
 import pytest
-
-from ethereum_test_forks import Fork, Shanghai
-from ethereum_test_tools import (
+from execution_testing import (
     Account,
     Address,
     Alloc,
     Bytecode,
     CodeGasMeasure,
     Environment,
+    Fork,
+    Op,
     StateTestFiller,
     Transaction,
 )
-from ethereum_test_vm import Opcodes as Op
+from execution_testing.forks import Shanghai
 
 from .spec import ref_spec_3651
 
@@ -229,8 +229,8 @@ def test_warm_coinbase_gas_usage(
         code=code_gas_measure,
     )
 
-    if fork >= Shanghai:
-        expected_gas = GAS_REQUIRED_CALL_WARM_ACCOUNT  # Warm account access cost after EIP-3651
+    if fork >= Shanghai:  # Warm account access cost after EIP-3651
+        expected_gas = GAS_REQUIRED_CALL_WARM_ACCOUNT
     else:
         expected_gas = 2600  # Cold account access cost before EIP-3651
 

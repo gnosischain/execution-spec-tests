@@ -7,17 +7,16 @@ from pathlib import Path
 from typing import Any, Generator
 
 import pytest
-
-from ethereum_test_forks import Fork, Prague
-from ethereum_test_tools import (
+from execution_testing import (
     Address,
     Alloc,
     Block,
-    Header,
+    Fork,
     Requests,
     Transaction,
     generate_system_contract_deploy_test,
 )
+from execution_testing.forks import Prague
 
 from .helpers import ConsolidationRequest
 from .spec import Spec, ref_spec_7251
@@ -27,7 +26,8 @@ REFERENCE_SPEC_VERSION = ref_spec_7251.version
 
 
 @pytest.mark.pre_alloc_group(
-    "separate", reason="Deploys consolidation system contract at hardcoded predeploy address"
+    "separate",
+    reason="Deploys consolidation system contract at hardcoded address",
 )
 @generate_system_contract_deploy_test(
     fork=Prague,
@@ -63,7 +63,5 @@ def test_system_contract_deployment(
 
     yield Block(
         txs=[test_transaction],
-        header=Header(
-            requests_hash=Requests(consolidation_request),
-        ),
+        requests_hash=Requests(consolidation_request),
     )

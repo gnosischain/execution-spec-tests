@@ -1,13 +1,21 @@
-"""Helpers for the EIP-7002 deposit tests."""
+"""Helpers for the EIP-7002 withdrawal tests."""
 
 from dataclasses import dataclass, field
 from functools import cached_property
 from itertools import count
 from typing import Callable, ClassVar, List
 
-from ethereum_test_tools import EOA, Address, Alloc, Bytecode, Transaction
-from ethereum_test_tools import Opcodes as Op
-from ethereum_test_tools import WithdrawalRequest as WithdrawalRequestBase
+from execution_testing import (
+    EOA,
+    Address,
+    Alloc,
+    Bytecode,
+    Op,
+    Transaction,
+)
+from execution_testing import (
+    WithdrawalRequest as WithdrawalRequestBase,
+)
 
 from .spec import Spec
 
@@ -229,7 +237,9 @@ def get_n_fee_increments(n: int) -> List[int]:
     return excess_withdrawal_requests_counts
 
 
-def get_n_fee_increment_blocks(n: int) -> List[List[WithdrawalRequestContract]]:
+def get_n_fee_increment_blocks(
+    n: int,
+) -> List[List[WithdrawalRequestContract]]:
     """
     Return N blocks that should be included in the test such that each
     subsequent block has an increasing fee for the withdrawal requests.
@@ -259,7 +269,10 @@ def get_n_fee_increment_blocks(n: int) -> List[List[WithdrawalRequestContract]]:
                             amount=0,
                             fee=fee,
                         )
-                        for i in range(withdrawal_index, withdrawal_index + withdrawals_required)
+                        for i in range(
+                            withdrawal_index,
+                            withdrawal_index + withdrawals_required,
+                        )
                     ],
                 )
             ],

@@ -8,9 +8,7 @@ from itertools import cycle
 from typing import Dict, List
 
 import pytest
-
-from ethereum_test_forks import Cancun, Fork
-from ethereum_test_tools import (
+from execution_testing import (
     EOA,
     Account,
     Address,
@@ -19,14 +17,16 @@ from ethereum_test_tools import (
     BlockchainTestFiller,
     Bytecode,
     Conditional,
+    Fork,
     Hash,
     Initcode,
+    Op,
     StateTestFiller,
     Storage,
     Transaction,
     compute_create_address,
 )
-from ethereum_test_vm import Opcodes as Op
+from execution_testing.forks import Cancun
 
 REFERENCE_SPEC_GIT_PATH = "EIPS/eip-6780.md"
 REFERENCE_SPEC_VERSION = "1b6a0e94cc47e859b9866e570391cf37dc55059a"
@@ -154,7 +154,11 @@ def selfdestruct_code(
         ),
         pytest.param(
             3,
-            [PRE_DEPLOY_CONTRACT_1, PRE_DEPLOY_CONTRACT_2, PRE_DEPLOY_CONTRACT_3],
+            [
+                PRE_DEPLOY_CONTRACT_1,
+                PRE_DEPLOY_CONTRACT_2,
+                PRE_DEPLOY_CONTRACT_3,
+            ],
             id="multiple_calls_multiple_sendall_recipients",
         ),
         pytest.param(
@@ -222,11 +226,18 @@ def test_create_selfdestruct_same_tx(
         if sendall_recipient_addresses[i] == SELF_ADDRESS:
             sendall_recipient_addresses[i] = selfdestruct_contract_address
     if selfdestruct_contract_initial_balance > 0:
-        pre.fund_address(selfdestruct_contract_address, selfdestruct_contract_initial_balance)
+        pre.fund_address(
+            selfdestruct_contract_address,
+            selfdestruct_contract_initial_balance,
+        )
 
     # Create a dict to record the expected final balances
     sendall_final_balances = dict(
-        zip(sendall_recipient_addresses, [0] * len(sendall_recipient_addresses), strict=False)
+        zip(
+            sendall_recipient_addresses,
+            [0] * len(sendall_recipient_addresses),
+            strict=False,
+        )
     )
     selfdestruct_contract_current_balance = selfdestruct_contract_initial_balance
 
@@ -435,7 +446,10 @@ def test_self_destructing_initcode(
         # Address where the contract is created already had some balance,
         # which must be included in the send-all operation
         sendall_amount += selfdestruct_contract_initial_balance
-        pre.fund_address(selfdestruct_contract_address, selfdestruct_contract_initial_balance)
+        pre.fund_address(
+            selfdestruct_contract_address,
+            selfdestruct_contract_initial_balance,
+        )
 
     tx = Transaction(
         value=entry_code_balance,
@@ -586,7 +600,9 @@ def test_recreate_self_destructed_contract_different_txs(
 
     entry_code_address = pre.deploy_contract(code=entry_code)
     selfdestruct_contract_address = compute_create_address(
-        address=entry_code_address, initcode=selfdestruct_contract_initcode, opcode=create_opcode
+        address=entry_code_address,
+        initcode=selfdestruct_contract_initcode,
+        opcode=create_opcode,
     )
     pre.fund_address(selfdestruct_contract_address, selfdestruct_contract_initial_balance)
     for i in range(len(sendall_recipient_addresses)):
@@ -642,7 +658,11 @@ def test_recreate_self_destructed_contract_different_txs(
         ),
         pytest.param(
             3,
-            [PRE_DEPLOY_CONTRACT_1, PRE_DEPLOY_CONTRACT_2, PRE_DEPLOY_CONTRACT_3],
+            [
+                PRE_DEPLOY_CONTRACT_1,
+                PRE_DEPLOY_CONTRACT_2,
+                PRE_DEPLOY_CONTRACT_3,
+            ],
             id="multiple_calls_multiple_sendall_recipients",
         ),
         pytest.param(
@@ -704,7 +724,11 @@ def test_selfdestruct_pre_existing(
 
     # Create a dict to record the expected final balances
     sendall_final_balances = dict(
-        zip(sendall_recipient_addresses, [0] * len(sendall_recipient_addresses), strict=False)
+        zip(
+            sendall_recipient_addresses,
+            [0] * len(sendall_recipient_addresses),
+            strict=False,
+        )
     )
     selfdestruct_contract_current_balance = selfdestruct_contract_initial_balance
 
@@ -1226,14 +1250,21 @@ def test_create_selfdestruct_same_tx_increased_nonce(
         opcode=create_opcode,
     )
     if selfdestruct_contract_initial_balance > 0:
-        pre.fund_address(selfdestruct_contract_address, selfdestruct_contract_initial_balance)
+        pre.fund_address(
+            selfdestruct_contract_address,
+            selfdestruct_contract_initial_balance,
+        )
     # Our entry point is an initcode that in turn creates a self-destructing
     # contract
     entry_code_storage = Storage()
 
     # Create a dict to record the expected final balances
     sendall_final_balances = dict(
-        zip(sendall_recipient_addresses, [0] * len(sendall_recipient_addresses), strict=False)
+        zip(
+            sendall_recipient_addresses,
+            [0] * len(sendall_recipient_addresses),
+            strict=False,
+        )
     )
     selfdestruct_contract_current_balance = selfdestruct_contract_initial_balance
 

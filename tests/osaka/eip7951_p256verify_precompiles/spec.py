@@ -1,9 +1,8 @@
 """Defines EIP-7951 specification constants and functions."""
 
 from dataclasses import dataclass
-from typing import Sized, SupportsBytes
 
-from ethereum_test_tools import Address, Bytes
+from execution_testing import Address, Bytes, BytesConcatenation
 
 
 @dataclass(frozen=True)
@@ -15,22 +14,6 @@ class ReferenceSpec:
 
 
 ref_spec_7951 = ReferenceSpec("EIPS/eip-7951.md", "06aadd458ee04ede80498db55927b052eb5bef38")
-
-
-class BytesConcatenation(SupportsBytes, Sized):
-    """A class that can be concatenated with bytes."""
-
-    def __len__(self) -> int:
-        """Return length of the object when converted to bytes."""
-        return len(bytes(self))
-
-    def __add__(self, other: bytes | SupportsBytes) -> bytes:
-        """Concatenates the object with another bytes object."""
-        return bytes(self) + bytes(other)
-
-    def __radd__(self, other: bytes | SupportsBytes) -> bytes:
-        """Concatenates the object with another bytes object."""
-        return bytes(other) + bytes(self)
 
 
 @dataclass(frozen=True)
@@ -94,13 +77,18 @@ class Spec:
     P256VERIFY_GAS = 6900
 
     # Curve Parameters
-    P = 0xFFFFFFFF00000001000000000000000000000000FFFFFFFFFFFFFFFFFFFFFFFF  ## Base field modulus
-    A = 0xFFFFFFFF00000001000000000000000000000000FFFFFFFFFFFFFFFFFFFFFFFC  ## Curve Coefficient
-    B = 0x5AC635D8AA3A93E7B3EBBD55769886BC651D06B0CC53B0F63BCE3C3E27D2604B  ## Curve Coefficient
-    N = 0xFFFFFFFF00000000FFFFFFFFFFFFFFFFBCE6FAADA7179E84F3B9CAC2FC632551  ## Subgroup Order
-
-    Gx = 0x6B17D1F2E12C4247F8BCE6E563A440F277037D812DEB33A0F4A13945D898C296  ## Generator Point X
-    Gy = 0x4FE342E2FE1A7F9B8EE7EB4A7C0F9E162BCE33576B315ECECBB6406837BF51F5  ## Generator Point Y
+    ## Base field modulus
+    P = 0xFFFFFFFF00000001000000000000000000000000FFFFFFFFFFFFFFFFFFFFFFFF
+    ## Curve Coefficient
+    A = 0xFFFFFFFF00000001000000000000000000000000FFFFFFFFFFFFFFFFFFFFFFFC
+    ## Curve Coefficient
+    B = 0x5AC635D8AA3A93E7B3EBBD55769886BC651D06B0CC53B0F63BCE3C3E27D2604B
+    ## Subgroup Order
+    N = 0xFFFFFFFF00000000FFFFFFFFFFFFFFFFBCE6FAADA7179E84F3B9CAC2FC632551
+    ## Generator Point X
+    Gx = 0x6B17D1F2E12C4247F8BCE6E563A440F277037D812DEB33A0F4A13945D898C296
+    ## Generator Point Y
+    Gy = 0x4FE342E2FE1A7F9B8EE7EB4A7C0F9E162BCE33576B315ECECBB6406837BF51F5
 
     # Other constants
     SUCCESS_RETURN_VALUE = b"\x01".rjust(32, b"\x00")

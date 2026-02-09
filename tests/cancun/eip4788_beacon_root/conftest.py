@@ -4,9 +4,7 @@ from itertools import count
 from typing import Dict, Iterator, List
 
 import pytest
-
-from ethereum_test_forks import Fork
-from ethereum_test_tools import (
+from execution_testing import (
     AccessList,
     Account,
     Address,
@@ -14,13 +12,14 @@ from ethereum_test_tools import (
     AuthorizationTuple,
     Bytecode,
     Environment,
+    Fork,
     Hash,
+    Op,
     Storage,
     Transaction,
     add_kzg_version,
     keccak256,
 )
-from ethereum_test_tools import Opcodes as Op
 
 from .spec import Spec, SpecHelpers
 
@@ -54,7 +53,9 @@ def beacon_roots() -> Iterator[bytes]:
 
 
 @pytest.fixture
-def beacon_root(request: pytest.FixtureRequest, beacon_roots: Iterator[bytes]) -> bytes:  # noqa: D103
+def beacon_root(  # noqa: D103
+    request: pytest.FixtureRequest, beacon_roots: Iterator[bytes]
+) -> bytes:
     return Hash(request.param) if hasattr(request, "param") else next(beacon_roots)
 
 
@@ -95,7 +96,12 @@ def caller_address(pre: Alloc, contract_call_code: Bytecode) -> Address:  # noqa
 @pytest.fixture
 def contract_call_code(call_type: Op, call_value: int, call_gas: int) -> Bytecode:
     """Code to call the beacon root contract."""
-    args_start, args_length, return_start, return_length = 0x20, Op.CALLDATASIZE, 0x00, 0x20
+    args_start, args_length, return_start, return_length = (
+        0x20,
+        Op.CALLDATASIZE,
+        0x00,
+        0x20,
+    )
     contract_call_code = Op.CALLDATACOPY(args_start, 0x00, args_length)
     if call_type == Op.CALL or call_type == Op.CALLCODE:
         contract_call_code += Op.SSTORE(
@@ -130,7 +136,8 @@ def contract_call_code(call_type: Op, call_value: int, call_gas: int) -> Bytecod
             0x01,
             Op.MLOAD(return_start),
         )
-        + Op.SSTORE(  # Save the length of the return value of the contract call
+        # Save the length of the return value of the contract call
+        + Op.SSTORE(
             0x02,
             Op.RETURNDATASIZE,
         )

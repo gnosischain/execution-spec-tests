@@ -3,18 +3,17 @@ Test [EIP-7623: Increase calldata cost](https://eips.ethereum.org/EIPS/eip-7623)
 """
 
 import pytest
-
-from ethereum_test_forks import Prague
-from ethereum_test_tools import (
+from execution_testing import (
     AccessList,
     Address,
     Alloc,
     Hash,
+    Op,
     StateTestFiller,
     Transaction,
     add_kzg_version,
 )
-from ethereum_test_tools import Opcodes as Op
+from execution_testing.forks import Prague
 
 from ...cancun.eip4844_blobs.spec import Spec as EIP_4844_Spec
 from .helpers import DataTestType
@@ -117,7 +116,12 @@ def test_transaction_validity_type_0(
             id="single_access_list_single_storage_key",
         ),
         pytest.param(
-            [AccessList(address=Address(1), storage_keys=[Hash(k) for k in range(10)])],
+            [
+                AccessList(
+                    address=Address(1),
+                    storage_keys=[Hash(k) for k in range(10)],
+                )
+            ],
             id="single_access_list_multiple_storage_keys",
         ),
         pytest.param(
@@ -130,7 +134,10 @@ def test_transaction_validity_type_0(
         ),
         pytest.param(
             [
-                AccessList(address=Address(a), storage_keys=[Hash(k) for k in range(10)])
+                AccessList(
+                    address=Address(a),
+                    storage_keys=[Hash(k) for k in range(10)],
+                )
                 for a in range(10)
             ],
             id="multiple_access_lists_multiple_storage_keys",
@@ -173,7 +180,12 @@ def test_transaction_validity_type_1_type_2(
             id="single_access_list_single_storage_key",
         ),
         pytest.param(
-            [AccessList(address=Address(1), storage_keys=[Hash(k) for k in range(10)])],
+            [
+                AccessList(
+                    address=Address(1),
+                    storage_keys=[Hash(k) for k in range(10)],
+                )
+            ],
             id="single_access_list_multiple_storage_keys",
         ),
         pytest.param(
@@ -186,7 +198,10 @@ def test_transaction_validity_type_1_type_2(
         ),
         pytest.param(
             [
-                AccessList(address=Address(a), storage_keys=[Hash(k) for k in range(10)])
+                AccessList(
+                    address=Address(a),
+                    storage_keys=[Hash(k) for k in range(10)],
+                )
                 for a in range(10)
             ],
             id="multiple_access_lists_multiple_storage_keys",
@@ -208,7 +223,7 @@ def test_transaction_validity_type_1_type_2(
         ),
         pytest.param(
             add_kzg_version(
-                [Hash(x) for x in range(6)],
+                [Hash(x) for x in range(2)],
                 EIP_4844_Spec.BLOB_COMMITMENT_VERSION_KZG,
             ),
             id="multiple_blobs",
@@ -251,7 +266,12 @@ def test_transaction_validity_type_3(
             id="single_access_list_single_storage_key",
         ),
         pytest.param(
-            [AccessList(address=Address(1), storage_keys=[Hash(k) for k in range(10)])],
+            [
+                AccessList(
+                    address=Address(1),
+                    storage_keys=[Hash(k) for k in range(10)],
+                )
+            ],
             id="single_access_list_multiple_storage_keys",
         ),
         pytest.param(
@@ -264,7 +284,10 @@ def test_transaction_validity_type_3(
         ),
         pytest.param(
             [
-                AccessList(address=Address(a), storage_keys=[Hash(k) for k in range(10)])
+                AccessList(
+                    address=Address(a),
+                    storage_keys=[Hash(k) for k in range(10)],
+                )
                 for a in range(10)
             ],
             id="multiple_access_lists_multiple_storage_keys",

@@ -1,7 +1,7 @@
 """
 Tests `BLOBHASH` opcode in [EIP-4844: Shard Blob Transactions](https://eips.ethereum.org/EIPS/eip-4844).
 
-Note: Adding a new test Add a function that is named `test_<test_name>` and
+Note: To add a new test, add a function that is named `test_<test_name>` and
 takes at least the following arguments.
 
 Required arguments:
@@ -20,9 +20,7 @@ There is no specific structure to follow within this test module.
 from typing import List
 
 import pytest
-
-from ethereum_test_forks import Fork
-from ethereum_test_tools import (
+from execution_testing import (
     Account,
     Address,
     Alloc,
@@ -32,12 +30,13 @@ from ethereum_test_tools import (
     Bytecode,
     CodeGasMeasure,
     Environment,
+    Fork,
     Hash,
+    Op,
     StateTestFiller,
     Transaction,
     add_kzg_version,
 )
-from ethereum_test_tools import Opcodes as Op
 
 from .spec import Spec, ref_spec_4844
 
@@ -122,7 +121,10 @@ class BlobhashScenario:
             ),
             "repeated_valid": sum(
                 (
-                    sum((cls.blobhash_sstore(i, max_blobs_per_tx) for _ in range(10)), Bytecode())
+                    sum(
+                        (cls.blobhash_sstore(i, max_blobs_per_tx) for _ in range(10)),
+                        Bytecode(),
+                    )
                     for i in range(max_blobs_per_tx)
                 ),
                 Bytecode(),

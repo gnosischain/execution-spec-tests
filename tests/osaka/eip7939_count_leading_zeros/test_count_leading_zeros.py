@@ -3,11 +3,7 @@ Tests [EIP-7939: Count leading zeros (CLZ)](https://eips.ethereum.org/EIPS/eip-7
 """
 
 import pytest
-
-from ethereum_test_base_types import Storage
-from ethereum_test_checklists import EIPChecklist
-from ethereum_test_forks import Fork
-from ethereum_test_tools import (
+from execution_testing import (
     Account,
     Alloc,
     AuthorizationTuple,
@@ -15,12 +11,15 @@ from ethereum_test_tools import (
     BlockchainTestFiller,
     Bytecode,
     CodeGasMeasure,
+    EIPChecklist,
     Environment,
+    Fork,
+    Op,
     StateTestFiller,
+    Storage,
     Transaction,
     compute_create_address,
 )
-from ethereum_test_vm import Opcodes as Op
 
 from ...prague.eip7702_set_code_tx.spec import Spec as Spec7702
 from .spec import Spec, ref_spec_7939
@@ -42,7 +41,8 @@ def clz_parameters() -> list:
         expected_clz = bits
         assert expected_clz == Spec.calculate_clz(value), (
             f"CLZ calculation mismatch for leading_zeros_{bits}: "
-            f"manual={expected_clz}, spec={Spec.calculate_clz(value)}, value={hex(value)}"
+            f"manual={expected_clz}, spec={Spec.calculate_clz(value)}, "
+            f"value={hex(value)}"
         )
         test_cases.append((f"leading_zeros_{bits}", value, expected_clz))
 
@@ -57,7 +57,8 @@ def clz_parameters() -> list:
             expected_clz = 255 - bits
         assert expected_clz == Spec.calculate_clz(value), (
             f"CLZ calculation mismatch for single_bit_{bits}: "
-            f"manual={expected_clz}, spec={Spec.calculate_clz(value)}, value={hex(value)}"
+            f"manual={expected_clz}, spec={Spec.calculate_clz(value)}, "
+            f"value={hex(value)}"
         )
         test_cases.append((f"single_bit_{bits}", value, expected_clz))
 
@@ -130,7 +131,7 @@ def test_clz_gas_cost(state_test: StateTestFiller, pre: Alloc, fork: Fork) -> No
             CodeGasMeasure(
                 code=Op.CLZ(Op.PUSH1(1)),
                 extra_stack_items=1,
-                overhead_cost=fork.gas_costs().G_VERY_LOW,
+                overhead_cost=Op.PUSH1.gas_cost(fork),
             ),
         ),
         storage={"0x00": "0xdeadbeef"},
@@ -139,7 +140,7 @@ def test_clz_gas_cost(state_test: StateTestFiller, pre: Alloc, fork: Fork) -> No
     tx = Transaction(to=contract_address, sender=sender, gas_limit=200_000)
     post = {
         contract_address: Account(  # Cost measured is CLZ + PUSH1
-            storage={"0x00": fork.gas_costs().G_LOW}
+            storage={"0x00": Op.CLZ.gas_cost(fork)}
         ),
     }
     state_test(pre=pre, post=post, tx=tx)
@@ -166,7 +167,7 @@ def test_clz_gas_cost_boundary(
     call_code = Op.SSTORE(
         0,
         Op.CALL(
-            gas=fork.gas_costs().G_VERY_LOW + Spec.CLZ_GAS_COST + gas_cost_delta,
+            gas=code.gas_cost(fork) + gas_cost_delta,
             address=contract_address,
         ),
     )
@@ -272,7 +273,7 @@ def test_clz_push_operation_same_value(state_test: StateTestFiller, pre: Alloc) 
 
 @EIPChecklist.Opcode.Test.ForkTransition.Invalid()
 @EIPChecklist.Opcode.Test.ForkTransition.At()
-@pytest.mark.valid_at_transition_to("Osaka", subsequent_forks=True)
+@pytest.mark.valid_at_transition_to("Osaka")
 def test_clz_fork_transition(blockchain_test: BlockchainTestFiller, pre: Alloc) -> None:
     """Test CLZ opcode behavior at fork transition."""
     sender = pre.fund_eoa()
@@ -472,7 +473,10 @@ def test_clz_code_copy_operation(
                 Op.CODECOPY(dest_offset=0, offset=clz_code_offset, size=1)
                 if opcode == Op.CODECOPY
                 else Op.EXTCODECOPY(
-                    address=target_address, dest_offset=0, offset=clz_code_offset, size=1
+                    address=target_address,
+                    dest_offset=0,
+                    offset=clz_code_offset,
+                    size=1,
                 )
             )
             # Store loaded CLZ byte
@@ -531,7 +535,10 @@ def test_clz_with_memory_operation(
                 Op.CODECOPY(dest_offset=0, offset=offset, size=0x20)
                 if opcode == Op.CODECOPY
                 else Op.EXTCODECOPY(
-                    address=target_address, dest_offset=0, offset=offset, size=0x20
+                    address=target_address,
+                    dest_offset=0,
+                    offset=offset,
+                    size=0x20,
                 )
             )
             + Op.SSTORE(storage.store_next(expected_value), Op.CLZ(Op.MLOAD(0)))
@@ -606,7 +613,10 @@ def test_clz_initcode_create(state_test: StateTestFiller, pre: Alloc, opcode: Op
     factory_contract_address = pre.deploy_contract(code=create_contract)
 
     created_contract_address = compute_create_address(
-        address=factory_contract_address, nonce=1, initcode=ext_code, opcode=opcode
+        address=factory_contract_address,
+        nonce=1,
+        initcode=ext_code,
+        opcode=opcode,
     )
 
     tx = Transaction(
@@ -648,7 +658,10 @@ class CallingContext:
     ],
 )
 def test_clz_call_operation(
-    state_test: StateTestFiller, pre: Alloc, opcode: Op, context: CallingContext
+    state_test: StateTestFiller,
+    pre: Alloc,
+    opcode: Op,
+    context: CallingContext,
 ) -> None:
     """Test CLZ opcode with call operation."""
     test_cases = [0, 64, 255]
@@ -674,7 +687,10 @@ def test_clz_call_operation(
     callee_address = pre.deploy_contract(code=callee_code)
 
     caller_code = opcode(
-        gas=0xFFFF, address=callee_address, ret_offset=0, ret_size=len(test_cases) * 0x20
+        gas=0xFFFF,
+        address=callee_address,
+        ret_offset=0,
+        ret_size=len(test_cases) * 0x20,
     )
 
     for i, bits in enumerate(test_cases):

@@ -4,29 +4,29 @@ from dataclasses import dataclass
 from typing import Iterator, List
 
 import pytest
-
-from ethereum_test_forks import BPO2ToBPO3AtTime15k, Fork
-from ethereum_test_tools import (
+from execution_testing import (
     EOA,
     Address,
     Alloc,
     Block,
     BlockchainTestFiller,
     Environment,
+    Fork,
     Hash,
     Header,
+    Op,
+    ParameterSet,
     Transaction,
     add_kzg_version,
 )
-from ethereum_test_tools import Opcodes as Op
-from ethereum_test_tools.utility.pytest import ParameterSet
+from execution_testing.forks import BPO2ToBPO3AtTime15k
 
 from .spec import Spec, ref_spec_7918
 
 REFERENCE_SPEC_GIT_PATH = ref_spec_7918.git_path
 REFERENCE_SPEC_VERSION = ref_spec_7918.version
 
-MIN_BLOB_GASPRICE = 1
+MIN_BLOB_GASPRICE = 1000000000
 
 
 @pytest.fixture
@@ -427,16 +427,13 @@ def get_fork_scenarios(fork: Fork) -> Iterator[ParameterSet]:
     for parent_excess_blobs in excess_blobs_combinations:
         parent_excess_blob_gas = parent_excess_blobs * source_blob_schedule.blob_gas_per_blob
 
-        source_execution_threshold = (
-            source_blob_schedule.execution_base_fee_threshold_from_excess_blob_gas(
-                parent_excess_blob_gas
-            )
-        )
-        transition_execution_threshold = (
-            transition_blob_schedule.execution_base_fee_threshold_from_excess_blob_gas(
-                parent_excess_blob_gas
-            )
-        )
+        source_method = source_blob_schedule.execution_base_fee_threshold_from_excess_blob_gas  # noqa: E501
+        transition_method = (
+            transition_blob_schedule.execution_base_fee_threshold_from_excess_blob_gas
+        )  # noqa: E501
+        source_execution_threshold = source_method(parent_excess_blob_gas)
+        transition_execution_threshold = transition_method(parent_excess_blob_gas)
+
         if (
             source_execution_threshold != transition_execution_threshold
             and transition_execution_threshold is not None
@@ -445,7 +442,11 @@ def get_fork_scenarios(fork: Fork) -> Iterator[ParameterSet]:
             # transition one given the excess blob gas. We can verify that the
             # BPO is activated correctly by using the a setup block with
             # transition_execution_threshold to trigger the reserve.
-            for source_blob_count in [0, source_blob_schedule.target, source_blob_schedule.max]:
+            for source_blob_count in [
+                0,
+                source_blob_schedule.target,
+                source_blob_schedule.max,
+            ]:
                 # Scenario 1: Parent base fee per gas is below the threshold at
                 # the parent of the transition block, so even though the base
                 # fee increases on the transition block to reach the value
@@ -537,6 +538,7 @@ def get_fork_scenarios(fork: Fork) -> Iterator[ParameterSet]:
 )
 @pytest.mark.valid_at_transition_to("Osaka", subsequent_forks=True)
 @pytest.mark.valid_for_bpo_forks()
+@pytest.mark.slow()
 def test_reserve_price_at_transition(
     blockchain_test: BlockchainTestFiller,
     pre: Alloc,

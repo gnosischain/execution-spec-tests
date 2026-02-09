@@ -9,9 +9,13 @@ active.
 """
 
 import pytest
-
-from ethereum_test_checklists import EIPChecklist
-from ethereum_test_tools import Alloc, Block, BlockchainTestFiller, Transaction
+from execution_testing import (
+    Alloc,
+    Block,
+    BlockchainTestFiller,
+    EIPChecklist,
+    Transaction,
+)
 
 from .spec import Spec, ref_spec_7951
 

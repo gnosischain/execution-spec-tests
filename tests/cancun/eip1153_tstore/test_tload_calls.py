@@ -3,10 +3,16 @@
 """
 
 import pytest
-
-from ethereum_test_tools import Account, Address, Alloc, Environment, StateTestFiller, Transaction
-from ethereum_test_vm import Bytecode
-from ethereum_test_vm import Opcodes as Op
+from execution_testing import (
+    Account,
+    Address,
+    Alloc,
+    Bytecode,
+    Environment,
+    Op,
+    StateTestFiller,
+    Transaction,
+)
 
 REFERENCE_SPEC_GIT_PATH = "EIPS/eip-1153.md"
 REFERENCE_SPEC_VERSION = "1eb863b534a5a3e19e9c196ab2a7f3db4bb9da17"
@@ -70,7 +76,7 @@ def test_tload_calls(state_test: StateTestFiller, pre: Alloc, call_type: Op) -> 
     post = {
         address_to: Account(
             storage={
-                # other calls don't change context, there for tload updated in
+                # other calls don't change context, therefore tload updated in
                 # this account
                 slot_a_tload_after_subcall_result: 10 if call_type == Op.CALL else 20,
                 slot_a_subcall_result: 1,

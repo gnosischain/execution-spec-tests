@@ -6,18 +6,17 @@ from enum import EnumMeta, unique
 from typing import Any, Dict, Mapping
 
 import pytest
-
-from ethereum_test_tools import (
+from execution_testing import (
     Account,
     Address,
     Alloc,
     Bytecode,
     Environment,
     Hash,
+    Op,
     StateTestFiller,
     Transaction,
 )
-from ethereum_test_tools import Opcodes as Op
 
 from . import PytestParameterEnum
 from .spec import Spec, ref_spec_1153
@@ -37,13 +36,15 @@ class DynamicCallContextTestCases(EnumMeta):
     cases).
     """
 
-    def __new__(cls, name: str, bases: tuple[type, ...], classdict: Any) -> Any:  # noqa: D102
+    def __new__(  # noqa: D102
+        cls, name: str, bases: tuple[type, ...], classdict: Any
+    ) -> Any:
         for call_opcode in [Op.CALLCODE, Op.DELEGATECALL]:
             contract_call = call_opcode(address=Op.CALLDATALOAD(0))
             classdict[call_opcode._name_] = {
                 "description": (
-                    "Caller and callee contracts share transient storage when callee is "
-                    f"called via {call_opcode._name_}."
+                    "Caller and callee contracts share transient storage when"
+                    f"callee is called via {call_opcode._name_}."
                 ),
                 "caller_bytecode": (
                     Op.TSTORE(0, 420)
@@ -58,7 +59,13 @@ class DynamicCallContextTestCases(EnumMeta):
                     + Op.SSTORE(3, Op.TLOAD(1))
                     + Op.STOP
                 ),
-                "expected_caller_storage": {0: 1, 1: 420, 2: 420, 3: 69, 4: 69},
+                "expected_caller_storage": {
+                    0: 1,
+                    1: 420,
+                    2: 420,
+                    3: 69,
+                    4: 69,
+                },
                 "expected_callee_storage": {},
             }
 
@@ -86,7 +93,8 @@ class DynamicCallContextTestCases(EnumMeta):
             classdict[f"{call_opcode._name_}_WITH_INVALID"] = {
                 "description": (
                     "Transient storage usage is discarded from sub-call with "
-                    f"{call_opcode._name_} upon REVERT. Note: Gas passed to sub-call is capped."
+                    f"{call_opcode._name_} upon REVERT. Note: Gas passed to "
+                    "sub-call is capped."
                 ),
                 "caller_bytecode": (
                     Op.TSTORE(0, 420)
@@ -122,7 +130,8 @@ class DynamicCallContextTestCases(EnumMeta):
             classdict[f"{call_opcode._name_}_WITH_TSTORE_STACK_UNDERFLOW"] = {
                 "description": (
                     "Transient storage usage is discarded from sub-call with "
-                    f"{call_opcode._name_} upon stack underflow because of TSTORE parameters (1)."
+                    f"{call_opcode._name_} upon stack underflow because of "
+                    "TSTORE parameters (1)."
                 ),
                 "caller_bytecode": (
                     Op.TSTORE(0, 420)
@@ -139,7 +148,8 @@ class DynamicCallContextTestCases(EnumMeta):
             classdict[f"{call_opcode._name_}_WITH_TSTORE_STACK_UNDERFLOW_2"] = {
                 "description": (
                     "Transient storage usage is discarded from sub-call with "
-                    f"{call_opcode._name_} upon stack underflow because of TSTORE parameters (0)."
+                    f"{call_opcode._name_} upon stack underflow because of "
+                    "TSTORE parameters (0)."
                 ),
                 "caller_bytecode": (
                     Op.TSTORE(0, 420)
@@ -156,7 +166,8 @@ class DynamicCallContextTestCases(EnumMeta):
             classdict[f"{call_opcode._name_}_WITH_TLOAD_STACK_UNDERFLOW"] = {
                 "description": (
                     "Transient storage usage is discarded from sub-call with "
-                    f"{call_opcode._name_} upon stack underflow because of TLOAD parameters (0)."
+                    f"{call_opcode._name_} upon stack underflow because of "
+                    "TLOAD parameters (0)."
                 ),
                 "caller_bytecode": (
                     Op.TSTORE(0, 420)
@@ -221,8 +232,8 @@ class CallContextTestCases(PytestParameterEnum, metaclass=DynamicCallContextTest
 
     CALL = {
         "description": (
-            "Caller and callee contracts use their own transient storage when callee "
-            "is called via CALL."
+            "Caller and callee contracts use their own transient storage when "
+            "callee is called via CALL."
         ),
         "caller_bytecode": (
             Op.TSTORE(0, 420)
@@ -304,7 +315,9 @@ def callee_address(pre: Alloc, callee_bytecode: Bytecode) -> Address:
 
 
 @pytest.fixture()
-def tx(pre: Alloc, caller_address: Address, callee_address: Address) -> Transaction:  # noqa: D103
+def tx(  # noqa: D103
+    pre: Alloc, caller_address: Address, callee_address: Address
+) -> Transaction:
     return Transaction(
         sender=pre.fund_eoa(),
         to=caller_address,

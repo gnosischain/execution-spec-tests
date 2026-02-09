@@ -20,21 +20,20 @@ from itertools import count
 from typing import Callable, Dict, Iterator, List
 
 import pytest
-
-from ethereum_test_forks import Fork
-from ethereum_test_tools import (
+from execution_testing import (
     Account,
     Address,
     Alloc,
     Block,
     BlockchainTestFiller,
     Bytecode,
+    Fork,
     Hash,
+    Op,
     Storage,
     Transaction,
     Withdrawal,
 )
-from ethereum_test_vm import Opcodes as Op
 
 from .spec import Spec, ref_spec_4788
 
@@ -51,7 +50,8 @@ def count_factory(start: int, step: int = 1) -> Callable[[], Iterator[int]]:
 
 
 pytestmark = pytest.mark.pre_alloc_group(
-    "beacon_root_tests", reason="Tests beacon root contract functionality using system contract"
+    "beacon_root_tests",
+    reason="Tests beacon root contract functionality using system contract",
 )
 
 
@@ -101,7 +101,13 @@ def test_beacon_root_contract_calls(
     """
     blockchain_test(
         pre=pre,
-        blocks=[Block(txs=[tx], parent_beacon_block_root=beacon_root, timestamp=timestamp)],
+        blocks=[
+            Block(
+                txs=[tx],
+                parent_beacon_block_root=beacon_root,
+                timestamp=timestamp,
+            )
+        ],
         post=post,
     )
 
@@ -128,21 +134,24 @@ def test_beacon_root_contract_calls(
             0,
             id="empty_system_address",
             marks=pytest.mark.pre_alloc_group(
-                "beacon_root_empty_system", reason="Tests with empty system address balance"
+                "beacon_root_empty_system",
+                reason="Tests with empty system address balance",
             ),
         ),
         pytest.param(
             1,
             id="one_wei_system_address",
             marks=pytest.mark.pre_alloc_group(
-                "beacon_root_one_wei_system", reason="Tests with 1 wei system address balance"
+                "beacon_root_one_wei_system",
+                reason="Tests with 1 wei system address balance",
             ),
         ),
         pytest.param(
             int(1e18),
             id="one_eth_system_address",
             marks=pytest.mark.pre_alloc_group(
-                "beacon_root_one_eth_system", reason="Tests with 1 ETH system address balance"
+                "beacon_root_one_eth_system",
+                reason="Tests with 1 ETH system address balance",
             ),
         ),
     ],
@@ -166,7 +175,13 @@ def test_beacon_root_contract_timestamps(
     """
     blockchain_test(
         pre=pre,
-        blocks=[Block(txs=[tx], parent_beacon_block_root=beacon_root, timestamp=timestamp)],
+        blocks=[
+            Block(
+                txs=[tx],
+                parent_beacon_block_root=beacon_root,
+                timestamp=timestamp,
+            )
+        ],
         post=post,
     )
 
@@ -197,7 +212,13 @@ def test_calldata_lengths(
     """
     blockchain_test(
         pre=pre,
-        blocks=[Block(txs=[tx], parent_beacon_block_root=beacon_root, timestamp=timestamp)],
+        blocks=[
+            Block(
+                txs=[tx],
+                parent_beacon_block_root=beacon_root,
+                timestamp=timestamp,
+            )
+        ],
         post=post,
     )
 
@@ -231,7 +252,13 @@ def test_beacon_root_equal_to_timestamp(
     """
     blockchain_test(
         pre=pre,
-        blocks=[Block(txs=[tx], parent_beacon_block_root=beacon_root, timestamp=timestamp)],
+        blocks=[
+            Block(
+                txs=[tx],
+                parent_beacon_block_root=beacon_root,
+                timestamp=timestamp,
+            )
+        ],
         post=post,
     )
 
@@ -254,7 +281,13 @@ def test_tx_to_beacon_root_contract(
     """
     blockchain_test(
         pre=pre,
-        blocks=[Block(txs=[tx], parent_beacon_block_root=beacon_root, timestamp=timestamp)],
+        blocks=[
+            Block(
+                txs=[tx],
+                parent_beacon_block_root=beacon_root,
+                timestamp=timestamp,
+            )
+        ],
         post=post,
     )
 
@@ -284,7 +317,13 @@ def test_invalid_beacon_root_calldata_value(
     """
     blockchain_test(
         pre=pre,
-        blocks=[Block(txs=[tx], parent_beacon_block_root=beacon_root, timestamp=timestamp)],
+        blocks=[
+            Block(
+                txs=[tx],
+                parent_beacon_block_root=beacon_root,
+                timestamp=timestamp,
+            )
+        ],
         post=post,
     )
 
@@ -635,7 +674,8 @@ def test_beacon_root_transition(
 @pytest.mark.parametrize("timestamp", [15_000])
 @pytest.mark.valid_at_transition_to("Cancun")
 @pytest.mark.pre_alloc_group(
-    "beacon_root_no_contract", reason="This test removes the beacon root system contract"
+    "beacon_root_no_contract",
+    reason="This test removes the beacon root system contract",
 )
 def test_no_beacon_root_contract_at_transition(
     blockchain_test: BlockchainTestFiller,
@@ -681,15 +721,6 @@ def test_no_beacon_root_contract_at_transition(
         balance=0,
     )
     post = {
-        Spec.BEACON_ROOTS_ADDRESS: Account(
-            storage={
-                timestamp % Spec.HISTORY_BUFFER_LENGTH: 0,
-                (timestamp % Spec.HISTORY_BUFFER_LENGTH) + Spec.HISTORY_BUFFER_LENGTH: 0,
-            },
-            code=b"",
-            nonce=0,
-            balance=int(1e9),
-        ),
         caller_address: Account(
             storage={0: 1},  # Successful call because the contract is not there, but
             # nothing else is stored
@@ -713,8 +744,9 @@ def test_no_beacon_root_contract_at_transition(
 @pytest.mark.pre_alloc_group(
     "beacon_root_deploy_contract",
     reason=(
-        "This test is parametrized with a hard-coded address (the beacon root contract deployer "
-        "address); they can't be in the same pre alloc group."
+        "This test is parametrized with a hard-coded address (the beacon root "
+        "contract deployer address); they can't be in the same pre alloc "
+        "group."
     ),
 )
 def test_beacon_root_contract_deploy(
@@ -836,17 +868,19 @@ def test_beacon_root_contract_deploy(
         balance=deployer_required_balance,
     )
 
+    # Withdrawals are system calls to withdrawal contract, not direct
+    # balance credits, so balance remains 0
     post[Spec.BEACON_ROOTS_ADDRESS] = Account(
         storage=beacon_root_contract_storage,
         code=expected_code,
         nonce=1,
-        balance=int(2e9),
+        balance=0,
     )
     post[Spec.SYSTEM_ADDRESS] = Account(
         storage={},
         code=b"",
         nonce=0,
-        balance=int(2e9),
+        balance=0,
     )
     post[deployer_address] = Account(
         balance=175916000000000000,  # It doesn't consume all the balance :(

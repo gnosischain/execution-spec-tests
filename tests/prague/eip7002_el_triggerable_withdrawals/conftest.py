@@ -1,12 +1,10 @@
-"""Fixtures for the EIP-7002 deposit tests."""
+"""Fixtures for the EIP-7002 withdrawal tests."""
 
 from itertools import zip_longest
 from typing import List
 
 import pytest
-
-from ethereum_test_forks import Fork
-from ethereum_test_tools import Alloc, Block, Header, Requests
+from execution_testing import Alloc, Block, Fork, Header, Requests
 
 from .helpers import WithdrawalRequest, WithdrawalRequestInteractionBase
 from .spec import Spec

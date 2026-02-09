@@ -6,7 +6,7 @@ withdrawals](https://eips.ethereum.org/EIPS/eip-7002).
 
 from dataclasses import dataclass
 
-from ethereum_test_tools import Address
+from execution_testing import Address
 
 
 @dataclass(frozen=True)
@@ -45,12 +45,10 @@ class Spec:
     WITHDRAWAL_REQUEST_QUEUE_TAIL_STORAGE_SLOT = (
         3  # Pointer to the tail of the withdrawal request message queue
     )
-    WITHDRAWAL_REQUEST_QUEUE_STORAGE_OFFSET = (
-        4  # The start memory slot of the in-state withdrawal request message queue
-    )
-    MAX_WITHDRAWAL_REQUESTS_PER_BLOCK = (
-        16  # Maximum number of withdrawal requests that can be de-queued into a block
-    )
+    # The start memory slot of the in-state withdrawal request message queue
+    WITHDRAWAL_REQUEST_QUEUE_STORAGE_OFFSET = 4
+    # Maximum number of withdrawal requests that can be de-queued into a block
+    MAX_WITHDRAWAL_REQUESTS_PER_BLOCK = 16
     TARGET_WITHDRAWAL_REQUESTS_PER_BLOCK = 2
     MIN_WITHDRAWAL_REQUEST_FEE = 1
     WITHDRAWAL_REQUEST_FEE_UPDATE_FRACTION = 17

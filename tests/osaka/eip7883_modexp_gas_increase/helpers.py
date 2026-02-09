@@ -4,10 +4,16 @@ import os
 from typing import Annotated, Any, List
 
 import pytest
-from pydantic import BaseModel, ConfigDict, Field, PlainValidator, RootModel, TypeAdapter
+from execution_testing import Bytes
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    PlainValidator,
+    RootModel,
+    TypeAdapter,
+)
 from pydantic.alias_generators import to_pascal
-
-from ethereum_test_tools import Bytes
 
 from ...byzantium.eip198_modexp_precompile.helpers import ModExpInput
 
@@ -36,7 +42,11 @@ class Vector(BaseModel):
         pytest test.
         """
         return pytest.param(
-            self.modexp_input, self.modexp_expected, self.gas_old, self.gas_new, id=self.name
+            self.modexp_input,
+            self.modexp_expected,
+            self.gas_old,
+            self.gas_new,
+            id=self.name,
         )
 
 

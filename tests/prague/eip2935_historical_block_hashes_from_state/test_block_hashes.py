@@ -5,18 +5,17 @@ Tests [EIP-2935: Serve historical block hashes from state](https://eips.ethereum
 from typing import Dict, List
 
 import pytest
-
-from ethereum_test_tools import (
+from execution_testing import (
     Account,
     Address,
     Alloc,
     Block,
     BlockchainTestFiller,
     Bytecode,
+    Op,
     Storage,
     Transaction,
 )
-from ethereum_test_tools import Opcodes as Op
 
 from .spec import Spec, ref_spec_2935
 
@@ -67,7 +66,17 @@ def generate_block_check_code(
     check_blockhash = Op.SSTORE(blockhash_key, Op.ISZERO(Op.BLOCKHASH(check_block_number)))
     check_contract = (
         Op.MSTORE(0, check_block_number)
-        + Op.POP(Op.CALL(Op.GAS, Spec.HISTORY_STORAGE_ADDRESS, 0, 0, 32, contract_ret_offset, 32))
+        + Op.POP(
+            Op.CALL(
+                Op.GAS,
+                Spec.HISTORY_STORAGE_ADDRESS,
+                0,
+                0,
+                32,
+                contract_ret_offset,
+                32,
+            )
+        )
         + Op.SSTORE(contract_key, Op.ISZERO(Op.MLOAD(contract_ret_offset)))
     )
 
@@ -80,7 +89,8 @@ def generate_block_check_code(
         # Both values must be equal
         store_equal_key = storage.store_next(True)
         code += Op.SSTORE(
-            store_equal_key, Op.EQ(Op.MLOAD(contract_ret_offset), Op.BLOCKHASH(check_block_number))
+            store_equal_key,
+            Op.EQ(Op.MLOAD(contract_ret_offset), Op.BLOCKHASH(check_block_number)),
         )
 
     # Reset the contract return value
@@ -217,7 +227,10 @@ def test_block_hashes_history_at_transition(
         pytest.param(
             Spec.HISTORY_SERVE_WINDOW + 1,
             False,
-            marks=[pytest.mark.skip("Slow test not relevant anymore"), pytest.mark.slow],
+            marks=[
+                pytest.mark.skip("Slow test not relevant anymore"),
+                pytest.mark.slow,
+            ],
             id="full_history_plus_one_check_blockhash_first",
         ),
     ],

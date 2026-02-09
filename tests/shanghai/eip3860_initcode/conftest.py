@@ -1,8 +1,7 @@
 """Fixtures for the EIP-3860 initcode tests."""
 
 import pytest
-
-from ethereum_test_tools import Alloc, Environment
+from execution_testing import Alloc, Environment
 
 
 @pytest.fixture

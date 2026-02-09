@@ -4,9 +4,7 @@ from itertools import zip_longest
 from typing import List
 
 import pytest
-
-from ethereum_test_forks import Fork
-from ethereum_test_tools import Alloc, Block, Header, Requests
+from execution_testing import Alloc, Block, Fork, Header, Requests
 
 from .helpers import ConsolidationRequest, ConsolidationRequestInteractionBase
 from .spec import Spec
@@ -18,7 +16,7 @@ def update_pre(
     blocks_consolidation_requests: List[List[ConsolidationRequestInteractionBase]],
 ) -> None:
     """
-    Init state of the accounts. Every deposit transaction defines their own
+    Init state of the accounts. Every consolidation request defines its own
     pre-state requirements, and this fixture aggregates them all.
     """
     for requests in blocks_consolidation_requests:

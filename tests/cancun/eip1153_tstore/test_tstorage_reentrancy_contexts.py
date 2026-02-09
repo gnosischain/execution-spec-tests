@@ -6,8 +6,7 @@ from enum import EnumMeta, unique
 from typing import Any, Dict
 
 import pytest
-
-from ethereum_test_tools import (
+from execution_testing import (
     Account,
     Alloc,
     Bytecode,
@@ -15,11 +14,11 @@ from ethereum_test_tools import (
     Conditional,
     Environment,
     Hash,
+    Op,
     StateTestFiller,
     Switch,
     Transaction,
 )
-from ethereum_test_tools import Opcodes as Op
 
 from . import PytestParameterEnum
 from .spec import ref_spec_1153
@@ -41,7 +40,9 @@ class DynamicReentrancyTestCases(EnumMeta):
     (these opcodes should share the same behavior).
     """
 
-    def __new__(cls, name: str, bases: tuple[type, ...], classdict: Any) -> Any:  # noqa: D102
+    def __new__(  # noqa: D102
+        cls, name: str, bases: tuple[type, ...], classdict: Any
+    ) -> Any:
         for opcode in [Op.REVERT, Op.INVALID]:
             if opcode == Op.REVERT:
                 opcode_call = Op.REVERT(0, 0)
@@ -172,7 +173,10 @@ class DynamicReentrancyTestCases(EnumMeta):
                             value=2,
                             action=(
                                 Op.MSTORE(0, 3)
-                                + Op.MSTORE(0, Op.CALL(address=Op.ADDRESS, args_size=32))
+                                + Op.MSTORE(
+                                    0,
+                                    Op.CALL(address=Op.ADDRESS, args_size=32),
+                                )
                                 + opcode_call
                             ),
                         ),
@@ -184,7 +188,12 @@ class DynamicReentrancyTestCases(EnumMeta):
                         ),
                     ],
                 ),
-                "expected_storage": {0: 0x00, 1: second_call_return_value, 2: 0x100, 3: 0x100},
+                "expected_storage": {
+                    0: 0x00,
+                    1: second_call_return_value,
+                    2: 0x100,
+                    3: 0x100,
+                },
             }
 
         return super().__new__(cls, name, bases, classdict)
@@ -297,7 +306,8 @@ class ReentrancyTestCases(PytestParameterEnum, metaclass=DynamicReentrancyTestCa
                         Op.TSTORE(0xFE, 0x101)
                         + Op.MSTORE(0, 3)
                         + Op.SSTORE(
-                            1, Op.STATICCALL(address=Op.ADDRESS, args_size=32, ret_size=32)
+                            1,
+                            Op.STATICCALL(address=Op.ADDRESS, args_size=32, ret_size=32),
                         )
                         + Op.SSTORE(3, Op.MLOAD(0))
                     ),
@@ -316,7 +326,10 @@ class ReentrancyTestCases(PytestParameterEnum, metaclass=DynamicReentrancyTestCa
 
 @ReentrancyTestCases.parametrize()
 def test_reentrant_call(
-    state_test: StateTestFiller, pre: Alloc, bytecode: Bytecode, expected_storage: Dict
+    state_test: StateTestFiller,
+    pre: Alloc,
+    bytecode: Bytecode,
+    expected_storage: Dict,
 ) -> None:
     """Test transient storage in different reentrancy contexts."""
     env = Environment()

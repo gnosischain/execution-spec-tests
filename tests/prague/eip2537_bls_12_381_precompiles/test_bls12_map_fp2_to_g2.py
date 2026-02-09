@@ -6,9 +6,13 @@ Test the BLS12_MAP_FP2_TO_G2 precompile introduced in
 """
 
 import pytest
-
-from ethereum_test_tools import Alloc, Environment, StateTestFiller, Transaction
-from ethereum_test_tools import Opcodes as Op
+from execution_testing import (
+    Alloc,
+    Environment,
+    Op,
+    StateTestFiller,
+    Transaction,
+)
 
 from .conftest import G2_FIELD_POINTS_MAP_TO_IDENTITY
 from .helpers import vectors_from_file

@@ -3,17 +3,16 @@ abstract: Crafted tests for mainnet of [EIP-7702: Set EOA account code for one t
 """  # noqa: E501
 
 import pytest
-
-from ethereum_test_forks import Fork
-from ethereum_test_tools import (
+from execution_testing import (
     Account,
     Alloc,
     AuthorizationTuple,
+    Fork,
+    Op,
     StateTestFiller,
     Storage,
     Transaction,
 )
-from ethereum_test_tools import Opcodes as Op
 
 from .spec import Spec, ref_spec_7702
 

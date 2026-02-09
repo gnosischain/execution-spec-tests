@@ -3,10 +3,7 @@
 from typing import List, Optional
 
 import pytest
-
-from ethereum_test_base_types.base_types import Hash
-from ethereum_test_forks import Fork
-from ethereum_test_tools import (
+from execution_testing import (
     Address,
     Alloc,
     Blob,
@@ -14,6 +11,8 @@ from ethereum_test_tools import (
     BlockchainTestFiller,
     BlockException,
     Environment,
+    Fork,
+    Hash,
     Header,
     NetworkWrappedTransaction,
     Transaction,
@@ -176,7 +175,6 @@ def txs(  # noqa: D103
             access_list=[],
             blob_versioned_hashes=tx_versioned_hashes,
             error=tx_error,
-            wrapped_blob_transaction=tx_wrapped_blobs,
         )
         if tx_wrapped_blobs:
             network_wrapped_tx = NetworkWrappedTransaction(
@@ -229,7 +227,9 @@ def blocks(
         )
     return [
         Block(
-            txs=txs, exception=block_error, rlp_modifier=Header(blob_gas_used=header_blob_gas_used)
+            txs=txs,
+            exception=block_error,
+            rlp_modifier=Header(blob_gas_used=header_blob_gas_used),
         )
     ]
 

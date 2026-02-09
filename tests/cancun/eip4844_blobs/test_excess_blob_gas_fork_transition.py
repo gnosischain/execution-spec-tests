@@ -7,9 +7,7 @@ Tests for [EIP-4844: Shard Blob Transactions](https://eips.ethereum.org/EIPS/eip
 from typing import List, Mapping
 
 import pytest
-
-from ethereum_test_forks import Fork
-from ethereum_test_tools import (
+from execution_testing import (
     EOA,
     Account,
     Address,
@@ -19,12 +17,13 @@ from ethereum_test_tools import (
     BlockException,
     EngineAPIError,
     Environment,
+    Fork,
     Hash,
     Header,
+    Op,
     Transaction,
     add_kzg_version,
 )
-from ethereum_test_tools import Opcodes as Op
 
 from .spec import Spec, SpecHelpers, ref_spec_4844
 
@@ -122,7 +121,7 @@ def pre_fork_blocks(
                     gas_limit=blob_tx_gas_limit,
                     max_fee_per_gas=1_000_000,
                     max_priority_fee_per_gas=10,
-                    max_fee_per_blob_gas=100,
+                    max_fee_per_blob_gas=10**10,
                     access_list=[],
                     blob_versioned_hashes=add_kzg_version(
                         [Hash(blob_index + x) for x in range(tx_blobs)],
@@ -145,29 +144,45 @@ def pre_fork_blocks(
             )
         )
         block = Block(
-            txs=txs, timestamp=t, header_verify=Header(base_fee_per_gas=block_base_fee_per_gas)
+            txs=txs,
+            timestamp=t,
+            header_verify=Header(base_fee_per_gas=block_base_fee_per_gas),
         )
         blocks.append(block)
     return blocks
 
 
 @pytest.fixture
-def pre_fork_excess_blobs(
+def pre_fork_excess_blob_gas(
     fork: Fork,
     pre_fork_blobs_per_block: int,
     pre_fork_blocks: List[Block],
+    block_base_fee_per_gas: int,
 ) -> int:
     """
-    Return the cumulative excess blobs up until the fork given the
-    pre_fork_blobs_per_block and the target blobs in the fork prior.
+    Return the cumulative excess blob gas up until the fork.
+
+    Calculates the expected excess blob gas by iterating through pre-fork
+    blocks using the fork's calculator, which handles EIP-7918 reserve price
+    for >=Osaka.
     """
     if not fork.supports_blobs(timestamp=0):
         return 0
 
-    target_blobs = fork.target_blobs_per_block(timestamp=0)
-    if pre_fork_blobs_per_block > target_blobs:
-        return (pre_fork_blobs_per_block - target_blobs) * (len(pre_fork_blocks) - 1)
-    return 0
+    calc_excess_blob_gas = fork.excess_blob_gas_calculator(timestamp=0)
+    excess_blob_gas = 0
+
+    # Calculate excess accumulation for each pre-fork block
+    # First block is built on genesis which has 0 blobs
+    for i in range(len(pre_fork_blocks)):
+        parent_blob_count = 0 if i == 0 else pre_fork_blobs_per_block
+        excess_blob_gas = calc_excess_blob_gas(
+            parent_excess_blob_gas=excess_blob_gas,
+            parent_blob_count=parent_blob_count,
+            parent_base_fee_per_gas=block_base_fee_per_gas,
+        )
+
+    return excess_blob_gas
 
 
 @pytest.fixture
@@ -194,7 +209,7 @@ def gas_spender_account(pre: Alloc) -> Address:  # noqa: D103
 @pytest.fixture
 def fork_block_excess_blob_gas(
     fork: Fork,
-    pre_fork_excess_blobs: int,
+    pre_fork_excess_blob_gas: int,
     pre_fork_blobs_per_block: int,
     block_base_fee_per_gas: int,
 ) -> int:
@@ -203,7 +218,7 @@ def fork_block_excess_blob_gas(
         return 0
     calc_excess_blob_gas_post_fork = fork.excess_blob_gas_calculator(timestamp=FORK_TIMESTAMP)
     return calc_excess_blob_gas_post_fork(
-        parent_excess_blobs=pre_fork_excess_blobs,
+        parent_excess_blob_gas=pre_fork_excess_blob_gas,
         parent_blob_count=pre_fork_blobs_per_block,
         parent_base_fee_per_gas=block_base_fee_per_gas,
     )
@@ -252,7 +267,7 @@ def post_fork_blocks(
                     gas_limit=100_000,
                     max_fee_per_gas=1_000_000,
                     max_priority_fee_per_gas=10,
-                    max_fee_per_blob_gas=100,
+                    max_fee_per_blob_gas=10**10,
                     blob_versioned_hashes=add_kzg_version(
                         [Hash(blob_index + x) for x in range(tx_blobs)],
                         Spec.BLOB_COMMITMENT_VERSION_KZG,
@@ -336,7 +351,7 @@ def test_invalid_pre_fork_block_with_blob_fields(
 
     Blocks sent by NewPayloadV2 (Shanghai) that contain `excessBlobGas` and
     `blobGasUsed` fields must be rejected with the appropriate
-    `EngineAPIError.InvalidParams` error error.
+    `EngineAPIError.InvalidParams` error.
     """
     header_modifier = Header(
         excess_blob_gas=0 if excess_blob_gas_present else None,
@@ -420,7 +435,11 @@ def test_invalid_post_fork_block_without_blob_fields(
             id="max_blobs",
         ),
         pytest.param(10, 0, id="no_blobs"),
-        pytest.param(10, fork.target_blobs_per_block(timestamp=FORK_TIMESTAMP), id="target_blobs"),
+        pytest.param(
+            10,
+            fork.target_blobs_per_block(timestamp=FORK_TIMESTAMP),
+            id="target_blobs",
+        ),
     ],
 )
 def test_fork_transition_excess_blob_gas_at_blob_genesis(
@@ -445,6 +464,7 @@ def test_fork_transition_excess_blob_gas_at_blob_genesis(
     )
 
 
+@pytest.mark.valid_for_bpo_forks
 @pytest.mark.valid_at_transition_to("Prague", subsequent_forks=True)
 @pytest.mark.parametrize_by_fork(
     "post_fork_block_count,pre_fork_blobs_per_block,post_fork_blobs_per_block",
@@ -493,6 +513,7 @@ def test_fork_transition_excess_blob_gas_at_blob_genesis(
     ],
 )
 @pytest.mark.parametrize("block_base_fee_per_gas", [7, 16, 23])
+@pytest.mark.slow
 def test_fork_transition_excess_blob_gas_post_blob_genesis(
     blockchain_test: BlockchainTestFiller,
     genesis_environment: Environment,

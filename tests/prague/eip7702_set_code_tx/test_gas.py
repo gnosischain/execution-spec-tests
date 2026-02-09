@@ -11,19 +11,22 @@ from itertools import cycle
 from typing import Dict, Generator, Iterator, List
 
 import pytest
-
-from ethereum_test_forks import Fork
-from ethereum_test_tools import (
+from execution_testing import (
     EOA,
     AccessList,
     Account,
     Address,
     Alloc,
     AuthorizationTuple,
+    BalAccountExpectation,
+    BalNonceChange,
+    BlockAccessListExpectation,
     Bytecode,
     Bytes,
     ChainConfig,
     CodeGasMeasure,
+    Fork,
+    Op,
     StateTestFiller,
     Storage,
     Transaction,
@@ -31,7 +34,6 @@ from ethereum_test_tools import (
     TransactionReceipt,
     extend_with_defaults,
 )
-from ethereum_test_tools import Opcodes as Op
 
 from .helpers import AddressType, ChainIDType
 from .spec import Spec, ref_spec_7702
@@ -140,7 +142,7 @@ def authority_iterator(
             match current_authority_type:
                 case AddressType.EMPTY_ACCOUNT:
                     assert not self_sponsored, (
-                        "Self-sponsored empty-account authority is not supported"
+                        "Self-sponsored empty-account authority not supported"
                     )
                     yield AuthorityWithProperties(
                         authority=pre.fund_eoa(0),
@@ -483,7 +485,7 @@ def gas_test_parameter_args(
         pytest.param(
             {
                 "signer_type": SignerType.SINGLE_SIGNER,
-                "authorization_invalidity_type": AuthorizationInvalidityType.INVALID_NONCE,
+                "authorization_invalidity_type": (AuthorizationInvalidityType.INVALID_NONCE),
                 "authorizations_count": 1,
             },
             id="single_invalid_nonce_authorization_single_signer",
@@ -491,7 +493,7 @@ def gas_test_parameter_args(
         pytest.param(
             {
                 "signer_type": SignerType.SINGLE_SIGNER,
-                "authorization_invalidity_type": AuthorizationInvalidityType.INVALID_CHAIN_ID,
+                "authorization_invalidity_type": (AuthorizationInvalidityType.INVALID_CHAIN_ID),
                 "authorizations_count": 1,
             },
             id="single_invalid_authorization_invalid_chain_id_single_signer",
@@ -501,7 +503,7 @@ def gas_test_parameter_args(
                 "authority_type": AddressType.EOA_WITH_SET_CODE,
                 "signer_type": SignerType.MULTIPLE_SIGNERS,
                 "re_authorize": True,
-                "authorization_invalidity_type": AuthorizationInvalidityType.INVALID_NONCE,
+                "authorization_invalidity_type": (AuthorizationInvalidityType.INVALID_NONCE),
                 "authorizations_count": multiple_authorizations_count,
                 "invalid_authorization_index": 0,
             },
@@ -512,7 +514,7 @@ def gas_test_parameter_args(
                 "authority_type": AddressType.EOA_WITH_SET_CODE,
                 "signer_type": SignerType.MULTIPLE_SIGNERS,
                 "re_authorize": True,
-                "authorization_invalidity_type": AuthorizationInvalidityType.INVALID_NONCE,
+                "authorization_invalidity_type": (AuthorizationInvalidityType.INVALID_NONCE),
                 "authorizations_count": multiple_authorizations_count,
                 "invalid_authorization_index": multiple_authorizations_count - 1,
             },
@@ -521,7 +523,7 @@ def gas_test_parameter_args(
         pytest.param(
             {
                 "signer_type": SignerType.SINGLE_SIGNER,
-                "authorization_invalidity_type": AuthorizationInvalidityType.INVALID_NONCE,
+                "authorization_invalidity_type": (AuthorizationInvalidityType.INVALID_NONCE),
                 "authorizations_count": multiple_authorizations_count,
             },
             id="multiple_invalid_nonce_authorizations_single_signer",
@@ -529,7 +531,7 @@ def gas_test_parameter_args(
         pytest.param(
             {
                 "signer_type": SignerType.MULTIPLE_SIGNERS,
-                "authorization_invalidity_type": AuthorizationInvalidityType.INVALID_NONCE,
+                "authorization_invalidity_type": (AuthorizationInvalidityType.INVALID_NONCE),
                 "authorizations_count": multiple_authorizations_count,
             },
             id="multiple_invalid_nonce_authorizations_multiple_signers",
@@ -538,7 +540,7 @@ def gas_test_parameter_args(
             {
                 "signer_type": SignerType.MULTIPLE_SIGNERS,
                 "authority_type": AddressType.EOA,
-                "authorization_invalidity_type": AuthorizationInvalidityType.INVALID_NONCE,
+                "authorization_invalidity_type": (AuthorizationInvalidityType.INVALID_NONCE),
                 "self_sponsored": True,
                 "authorizations_count": multiple_authorizations_count,
             },
@@ -547,7 +549,7 @@ def gas_test_parameter_args(
         pytest.param(
             {
                 "signer_type": SignerType.SINGLE_SIGNER,
-                "authorization_invalidity_type": AuthorizationInvalidityType.INVALID_CHAIN_ID,
+                "authorization_invalidity_type": (AuthorizationInvalidityType.INVALID_CHAIN_ID),
                 "authorizations_count": multiple_authorizations_count,
             },
             id="multiple_invalid_chain_id_authorizations_single_signer",
@@ -562,7 +564,7 @@ def gas_test_parameter_args(
         pytest.param(
             {
                 "signer_type": SignerType.SINGLE_SIGNER,
-                "authorization_invalidity_type": AuthorizationInvalidityType.REPEATED_NONCE,
+                "authorization_invalidity_type": (AuthorizationInvalidityType.REPEATED_NONCE),
                 "authorizations_count": multiple_authorizations_count,
             },
             id="first_valid_then_single_repeated_nonce_authorization",
@@ -570,7 +572,7 @@ def gas_test_parameter_args(
         pytest.param(
             {
                 "signer_type": SignerType.MULTIPLE_SIGNERS,
-                "authorization_invalidity_type": AuthorizationInvalidityType.REPEATED_NONCE,
+                "authorization_invalidity_type": (AuthorizationInvalidityType.REPEATED_NONCE),
                 "authorizations_count": multiple_authorizations_count * 2,
             },
             id="first_valid_then_single_repeated_nonce_authorizations_multiple_signers",
@@ -601,7 +603,7 @@ def gas_test_parameter_args(
         ),
         pytest.param(
             {
-                "access_list_case": AccessListType.CONTAINS_AUTHORITY_AND_SET_CODE_ADDRESS,
+                "access_list_case": (AccessListType.CONTAINS_AUTHORITY_AND_SET_CODE_ADDRESS),
             },
             id="single_valid_authorization_with_authority_and_set_code_address_in_access_list",
         ),
@@ -650,7 +652,10 @@ def gas_test_parameter_args(
         pytest.param(
             {
                 "signer_type": SignerType.MULTIPLE_SIGNERS,
-                "authority_type": [AddressType.EMPTY_ACCOUNT, AddressType.CONTRACT],
+                "authority_type": [
+                    AddressType.EMPTY_ACCOUNT,
+                    AddressType.CONTRACT,
+                ],
                 "authorizations_count": multiple_authorizations_count,
             },
             marks=pytest.mark.pre_alloc_modify,
@@ -738,7 +743,7 @@ def gas_test_parameter_args(
             pytest.param(
                 {
                     "signer_type": SignerType.SINGLE_SIGNER,
-                    "authorization_invalidity_type": AuthorizationInvalidityType.REPEATED_NONCE,
+                    "authorization_invalidity_type": (AuthorizationInvalidityType.REPEATED_NONCE),
                     "authorizations_count": many_authorizations_count,
                 },
                 id="first_valid_then_many_duplicate_authorizations",
@@ -843,7 +848,7 @@ def test_gas_cost(
         authorization_list=authorization_list,
         access_list=access_list,
         sender=sender,
-        expected_receipt=TransactionReceipt(gas_used=gas_used),
+        expected_receipt=TransactionReceipt(cumulative_gas_used=gas_used),
     )
 
     state_test(
@@ -1162,6 +1167,25 @@ def test_call_to_pre_authorized_oog(
         sender=pre.fund_eoa(),
     )
 
+    expected_block_access_list = None
+    if fork.header_bal_hash_required():
+        # Sender nonce changes, callee is accessed but storage unchanged (OOG)
+        # auth_signer is tracked (we read its code to check delegation)
+        # delegation is NOT tracked (OOG before reading it)
+        account_expectations = {
+            tx.sender: BalAccountExpectation(
+                nonce_changes=[BalNonceChange(block_access_index=1, post_nonce=1)],
+            ),
+            callee_address: BalAccountExpectation.empty(),
+            # read for calculating delegation access cost:
+            auth_signer: BalAccountExpectation.empty(),
+            # OOG - not enough gas for delegation access:
+            delegation: None,
+        }
+        expected_block_access_list = BlockAccessListExpectation(
+            account_expectations=account_expectations
+        )
+
     state_test(
         pre=pre,
         tx=tx,
@@ -1170,4 +1194,5 @@ def test_call_to_pre_authorized_oog(
             auth_signer: Account(code=Spec.delegation_designation(delegation)),
             delegation: Account(storage=Storage()),
         },
+        expected_block_access_list=expected_block_access_list,
     )

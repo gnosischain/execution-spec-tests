@@ -3,18 +3,17 @@ Tests for [EIP-7951: Precompile for secp256r1 Curve Support](https://eips.ethere
 """
 
 import pytest
-
-from ethereum_test_checklists import EIPChecklist
-from ethereum_test_tools import (
+from execution_testing import (
     Address,
     Alloc,
+    EIPChecklist,
     Environment,
+    Op,
     StateTestFiller,
     Storage,
     Transaction,
     compute_create_address,
 )
-from ethereum_test_tools import Opcodes as Op
 
 from .helpers import vectors_from_file
 from .spec import H, R, S, Spec, X, Y, ref_spec_7951
@@ -1030,7 +1029,10 @@ def test_contract_initcode(
 
     factory_contract_address = pre.deploy_contract(code=create_contract)
     contract_address = compute_create_address(
-        address=factory_contract_address, nonce=1, initcode=full_initcode, opcode=opcode
+        address=factory_contract_address,
+        nonce=1,
+        initcode=full_initcode,
+        opcode=opcode,
     )
 
     tx = Transaction(

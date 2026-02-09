@@ -1,10 +1,9 @@
-"""Fixtures for the EIP-7685 deposit tests."""
+"""Fixtures for the EIP-7685 request tests."""
 
 from typing import List, SupportsBytes
 
 import pytest
-
-from ethereum_test_tools import (
+from execution_testing import (
     Alloc,
     Block,
     BlockException,

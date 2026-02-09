@@ -6,9 +6,13 @@ Test the BLS12_G1MSM precompile introduced in
 """
 
 import pytest
-
-from ethereum_test_tools import Alloc, Environment, StateTestFiller, Transaction
-from ethereum_test_tools import Opcodes as Op
+from execution_testing import (
+    Alloc,
+    Environment,
+    Op,
+    StateTestFiller,
+    Transaction,
+)
 
 from .conftest import G1_POINTS_NOT_IN_SUBGROUP, G1_POINTS_NOT_ON_CURVE
 from .helpers import PointG1, vectors_from_file

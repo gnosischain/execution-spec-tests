@@ -3,11 +3,18 @@
 from typing import Dict
 
 import pytest
-
-from ethereum_test_forks import Fork, Osaka
-from ethereum_test_tools import Account, Address, Alloc, Storage, Transaction, keccak256
-from ethereum_test_types import Environment
-from ethereum_test_vm import Opcodes as Op
+from execution_testing import (
+    Account,
+    Address,
+    Alloc,
+    Environment,
+    Fork,
+    Op,
+    Storage,
+    Transaction,
+    keccak256,
+)
+from execution_testing.forks import Osaka
 
 from ...byzantium.eip198_modexp_precompile.helpers import ModExpInput
 from ..eip7883_modexp_gas_increase.spec import Spec, Spec7883
@@ -24,7 +31,10 @@ def call_contract_post_storage() -> Storage:
 
 @pytest.fixture
 def call_succeeds(
-    total_gas_used: int, fork: Fork, env: Environment, modexp_input: ModExpInput
+    total_gas_used: int,
+    fork: Fork,
+    env: Environment,
+    modexp_input: ModExpInput,
 ) -> bool:
     """
     By default, depending on the expected output, we can deduce if the call is
@@ -104,7 +114,10 @@ def gas_measure_contract(
 
     code = (
         Op.CALLDATACOPY(dest_offset=0, offset=0, size=Op.CALLDATASIZE)
-        + Op.SSTORE(call_contract_post_storage.store_next(call_succeeds), call_result_measurement)
+        + Op.SSTORE(
+            call_contract_post_storage.store_next(call_succeeds),
+            call_result_measurement,
+        )
         + Op.SSTORE(
             call_contract_post_storage.store_next(len(modexp_expected) if call_succeeds else 0),
             Op.RETURNDATASIZE(),
@@ -112,7 +125,10 @@ def gas_measure_contract(
     )
 
     if call_succeeds:
-        code += Op.SSTORE(call_contract_post_storage.store_next(precompile_gas), gas_calculation)
+        code += Op.SSTORE(
+            call_contract_post_storage.store_next(precompile_gas),
+            gas_calculation,
+        )
         code += Op.RETURNDATACOPY(dest_offset=0, offset=0, size=Op.RETURNDATASIZE())
         code += Op.SSTORE(
             call_contract_post_storage.store_next(keccak256(bytes(modexp_expected))),
@@ -146,6 +162,7 @@ def tx(
 ) -> Transaction:
     """Transaction to measure gas consumption of the ModExp precompile."""
     return Transaction(
+        ty=0x02,
         sender=pre.fund_eoa(),
         to=gas_measure_contract,
         data=bytes(modexp_input),
@@ -155,7 +172,10 @@ def tx(
 
 @pytest.fixture
 def total_gas_used(
-    fork: Fork, modexp_expected: bytes, modexp_input: ModExpInput, precompile_gas: int
+    fork: Fork,
+    modexp_expected: bytes,
+    modexp_input: ModExpInput,
+    precompile_gas: int,
 ) -> int:
     """
     Transaction gas limit used for the test (Can be overridden in the test).

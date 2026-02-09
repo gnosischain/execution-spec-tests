@@ -3,9 +3,15 @@
 from typing import Iterable
 
 import pytest
-
-from ethereum_test_forks import Fork
-from ethereum_test_tools import Alloc, Block, Environment, Hash, Transaction, add_kzg_version
+from execution_testing import (
+    Alloc,
+    Block,
+    Environment,
+    Fork,
+    Hash,
+    Transaction,
+    add_kzg_version,
+)
 
 from .spec import Spec
 
@@ -305,7 +311,7 @@ def non_zero_blob_gas_used_genesis_block(
         f"with base_fee_per_gas {block_base_fee_per_gas}"
     )
 
-    sender = pre.fund_eoa(10**27)
+    sender = pre.fund_eoa(10**42)
     empty_account_destination = pre.fund_eoa(0)
     blob_gas_price_calculator = fork.blob_gas_price_calculator(block_number=1)
 

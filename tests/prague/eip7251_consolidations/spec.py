@@ -2,7 +2,7 @@
 
 from dataclasses import dataclass
 
-from ethereum_test_tools import Address
+from execution_testing import Address
 
 
 @dataclass(frozen=True)
@@ -38,12 +38,10 @@ class Spec:
     CONSOLIDATION_REQUEST_QUEUE_TAIL_STORAGE_SLOT = (
         3  # Pointer to the tail of the consolidation request message queue
     )
-    CONSOLIDATION_REQUEST_QUEUE_STORAGE_OFFSET = (
-        4  # The start memory slot of the in-state consolidation request message queue
-    )
-    MAX_CONSOLIDATION_REQUESTS_PER_BLOCK = (
-        2  # Maximum number of consolidation requests that can be de-queued into a block
-    )
+    # The start memory slot of the in-state consolidation request message queue
+    CONSOLIDATION_REQUEST_QUEUE_STORAGE_OFFSET = 4
+    # Max number of consolidation requests that can be de-queued into a block
+    MAX_CONSOLIDATION_REQUESTS_PER_BLOCK = 2
     TARGET_CONSOLIDATION_REQUESTS_PER_BLOCK = 1
     MIN_CONSOLIDATION_REQUEST_FEE = 1
     CONSOLIDATION_REQUEST_FEE_UPDATE_FRACTION = 17
