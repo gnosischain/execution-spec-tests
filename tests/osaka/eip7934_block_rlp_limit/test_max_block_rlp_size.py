@@ -25,7 +25,6 @@ from ethereum_test_tools import (
     Withdrawal,
 )
 from ethereum_test_tools import Opcodes as Op
-from ethereum_test_tools import Transaction
 from ethereum_test_types import EOA, Environment
 
 from .spec import Spec, ref_spec_7934

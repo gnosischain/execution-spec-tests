@@ -27,8 +27,8 @@ from ethereum_test_tools import (
     TransactionException,
     add_kzg_version,
 )
-from ethereum_test_types import EnvironmentDefaults
 from ethereum_test_tools.utility.pytest import ParameterSet
+from ethereum_test_types import EnvironmentDefaults
 from ethereum_test_vm import Opcodes as Op
 
 from .spec import Spec, ref_spec_7825

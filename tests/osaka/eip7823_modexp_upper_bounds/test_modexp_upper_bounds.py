@@ -6,6 +6,7 @@ from typing import Dict
 
 import pytest
 
+from ethereum_test_base_types import HexNumber
 from ethereum_test_checklists import EIPChecklist
 from ethereum_test_forks import Fork
 from ethereum_test_tools import (
@@ -22,7 +23,8 @@ from ethereum_test_vm import Opcodes as Op
 
 from ...byzantium.eip198_modexp_precompile.helpers import ModExpInput
 from ..eip7883_modexp_gas_increase.spec import Spec
-from .spec import ref_spec_7823, Spec as Spec7823
+from .spec import Spec as Spec7823
+from .spec import ref_spec_7823
 
 REFERENCE_SPEC_GIT_PATH = ref_spec_7823.git_path
 REFERENCE_SPEC_VERSION = ref_spec_7823.version
@@ -267,7 +269,7 @@ def test_modexp_upper_bounds(
     pre: Alloc,
 ) -> None:
     """Test the MODEXP precompile input bounds."""
-    tx.gas_limit = Spec7823.tx_gas_limit_cap
+    tx.gas_limit = HexNumber(Spec7823.tx_gas_limit_cap)
     state_test(pre=pre, tx=tx, post=post)
 
 
