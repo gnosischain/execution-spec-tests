@@ -10,6 +10,33 @@ Test fixtures for use by clients are available for each release on the [Github r
 
 ### 🛠️ Framework
 
+- ✨ Add benchmark-specific test wrapper (`benchmark_test`) that supports **EIP-7825** and create a benchmark code generator for common test pattern ([#1945](https://github.com/ethereum/execution-spec-tests/pull/1945)).
+
+#### `fill`
+
+#### `consume`
+
+### 📋 Misc
+
+### 🧪 Test Cases
+
+- 🐞Fix BALs opcode OOG test vectors by updating the Amsterdam commit hash in specs and validating appropriately on the testing side ([#2293](https://github.com/ethereum/execution-spec-tests/pull/2293)).
+- ✨Fix test vector for BALs SSTORE with OOG by pointing to updated specs; add new boundary conditions cases for SSTORE w/ OOG ([#2297](https://github.com/ethereum/execution-spec-tests/pull/2297)).
+
+## [v5.3.0](https://github.com/ethereum/execution-spec-tests/releases/tag/v5.3.0) - 2025-10-09
+
+## 🇯🇵 Summary
+
+EEST v5.3.0 is a follow-up from our main v5.0.0 [release](https://github.com/ethereum/execution-spec-tests/releases/tag/v5.0.0), with updated BPO1 and BPO2 values aligning with the testnet parameters.
+
+This release additionally includes fixes for tests in hive, as well as new test cases for EIP-7883, EIP-7934 and critical cases for EIP-7951 (added to EEST by @chfast following a coverage review of the test suite).
+
+## 🔑  Key Changes
+
+### 🛠️ Framework
+
+- ✨ Add benchmark-specific test wrapper (`benchmark_test`) that supports **EIP-7825** and create a benchmark code generator for common test pattern ([#1945](https://github.com/ethereum/execution-spec-tests/pull/1945)).
+
 #### `fill`
 
 #### `consume`

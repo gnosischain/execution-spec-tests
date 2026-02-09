@@ -18,6 +18,7 @@ from ethereum_test_tools import (
     BenchmarkTestFiller,
     Block,
     BlockchainTestFiller,
+    Environment,
     Hash,
     Transaction,
 )
@@ -116,6 +117,7 @@ def ether_transfer_case(
 def test_block_full_of_ether_transfers(
     benchmark_test: BenchmarkTestFiller,
     pre: Alloc,
+    env: Environment,
     case_id: str,
     ether_transfer_case: Tuple[Generator[Address, None, None], Generator[Address, None, None]],
     iteration_count: int,
