@@ -13,6 +13,7 @@ class ReferenceSpec:
 
 ref_spec_7823 = ReferenceSpec("EIPS/eip-7823.md", "c8321494fdfbfda52ad46c3515a7ca5dc86b857c")
 
+
 @dataclass(frozen=True)
 class Spec:
     """Constants and helpers for the EIP-7825 Transaction Gas Limit Cap tests."""
