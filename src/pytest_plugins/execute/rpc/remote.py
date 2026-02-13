@@ -1,6 +1,7 @@
 """Pytest plugin to run the execute in remote-rpc-mode."""
 
 from pathlib import Path
+from typing import Mapping
 
 import pytest
 
@@ -99,13 +100,24 @@ def pytest_configure(config: pytest.Config) -> None:
             f"the configured chain ID ({ChainConfigDefaults.chain_id})."
             "Please check if the chain ID is correctly configured with the --chain-id flag."
         )
-    # Set the transaction gas limit to the block gas limit if not set or if set higher than
+
+    # Set the transaction gas limit to the block gas limit if it is unset or exceeds the
+    # block gas limit.
     try:
         latest_block = eth_rpc.get_block_by_number("latest", full_txs=False)
     except Exception as exc:  # pragma: no cover - RPC availability depends on the remote node
         pytest.exit(
             f"Failed to query the latest block from the remote RPC endpoint: {exc}."
             " Please verify connectivity or provide --chain-id consistent with the node."
+        )
+
+    if latest_block is None:
+        pytest.exit("Latest block response is null or empty.")
+
+    if not isinstance(latest_block, Mapping):
+        pytest.exit(
+            f"Latest block response has an unexpected type: "
+            f"{type(latest_block).__name__} (expected a mapping)."
         )
 
     gas_limit_hex = latest_block.get("gasLimit")
@@ -118,6 +130,7 @@ def pytest_configure(config: pytest.Config) -> None:
             EnvironmentDefaults.gas_limit = min(
                 EnvironmentDefaults.gas_limit, remote_block_gas_limit
             )
+
     engine_endpoint = config.getoption("engine_endpoint")
     engine_rpc = None
     if engine_endpoint is not None:
