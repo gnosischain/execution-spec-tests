@@ -1,5 +1,6 @@
 """
 Tests for [EIP-4895: Beacon chain withdrawals](https://eips.ethereum.org/EIPS/eip-4895).
+Tests for [EIP-4895: Beacon chain withdrawals](https://eips.ethereum.org/EIPS/eip-4895).
 """
 
 from typing import Any, Dict
@@ -16,6 +17,7 @@ from ethereum_test_tools import (
     Bytecode,
     Withdrawal,
 )
+from ethereum_test_vm import Opcodes as Op
 from ethereum_test_vm import Opcodes as Op
 
 from .spec import ref_spec_4895
@@ -132,6 +134,7 @@ def test_store_withdrawal_values_in_contract(
 def test_withdrawal_index_order(
     blockchain_test: BlockchainTestFiller,
     pre: Alloc,
+) -> None:
 ) -> None:
     """
     Test that withdrawal indices are sequential.
