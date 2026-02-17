@@ -27,8 +27,8 @@ from ethereum_test_tools import (
     TransactionException,
     add_kzg_version,
 )
-from ethereum_test_types import EnvironmentDefaults
 from ethereum_test_tools.utility.pytest import ParameterSet
+from ethereum_test_types import EnvironmentDefaults
 from ethereum_test_vm import Opcodes as Op
 
 from .spec import Spec, ref_spec_7825
@@ -39,7 +39,7 @@ REFERENCE_SPEC_VERSION = ref_spec_7825.version
 
 
 def effective_tx_gas_limit_cap(fork: Fork) -> int | None:
-    """Return the fork transaction gas cap clamped by the current environment gas limit."""
+    """Return the fork tx gas cap, clamped by the current env gas limit."""
     tx_cap = fork.transaction_gas_limit_cap()
     if tx_cap is None:
         return None
@@ -143,7 +143,11 @@ def test_transaction_gas_limit_cap(
 )
 @pytest.mark.valid_from("Osaka")
 def test_tx_gas_limit_cap_subcall_context(
-    state_test: StateTestFiller, pre: Alloc, opcode: Op, fork: Fork, env: Environment
+    state_test: StateTestFiller,
+    pre: Alloc,
+    opcode: Op,
+    fork: Fork,
+    env: Environment,
 ) -> None:
     """Test the transaction gas limit cap behavior for subcall context."""
     tx_gas_limit_cap = effective_tx_gas_limit_cap(fork)
@@ -196,7 +200,7 @@ def test_tx_gas_larger_than_block_gas_limit(
     """
     Test multiple transactions with total gas larger than the block gas limit.
     """
-    tx_gas_limit_cap = fork.transaction_gas_limit_cap()
+    tx_gas_limit_cap = effective_tx_gas_limit_cap(fork)
     assert tx_gas_limit_cap is not None, "Fork does not have a transaction gas limit cap"
 
     tx_count = env.gas_limit // tx_gas_limit_cap
@@ -234,7 +238,7 @@ def test_maximum_gas_refund(
 ) -> None:
     """Test the maximum gas refund behavior according to EIP-3529."""
     gas_costs = fork.gas_costs()
-    tx_gas_limit_cap = fork.transaction_gas_limit_cap()
+    tx_gas_limit_cap = effective_tx_gas_limit_cap(fork)
     assert tx_gas_limit_cap is not None, "Fork does not have a transaction gas limit cap"
     max_refund_quotient = fork.max_refund_quotient()
 
